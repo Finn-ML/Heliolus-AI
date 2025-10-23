@@ -1,0 +1,206 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  NODE_VERSION: '18.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Build and test before deployment
+  pre-deployment:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend && npm ci
+          cd ../backend && npm ci
+
+      - name: Run linting
+        run: |
+          cd frontend && npm run lint
+          cd ../backend && npm run lint
+
+      - name: Run type checking
+        run: |
+          cd frontend && npx tsc --noEmit
+          cd ../backend && npx tsc --noEmit
+
+      - name: Build applications
+        run: |
+          cd frontend && npm run build
+          cd ../backend && npm run build
+
+  # Job 2: Build Docker images
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: pre-deployment
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Frontend Image
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Backend Image
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 3: Deploy to staging (if not main branch or if staging selected)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.ref != 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.heliolus.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your staging deployment commands here
+          # This could include:
+          # - Updating Kubernetes manifests
+          # - Running Helm charts
+          # - Updating Docker Compose files
+          # - Calling deployment APIs
+
+      - name: Run staging health checks
+        run: |
+          echo "Running health checks on staging..."
+          # Add health check commands here
+
+  # Job 4: Deploy to production (only on main branch)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-images, deploy-staging]
+    if: (github.ref == 'refs/heads/main' && github.event.inputs.environment != 'staging') || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://heliolus.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment commands here
+          # This could include:
+          # - Blue/green deployment strategy
+          # - Rolling updates
+          # - Database migrations
+          # - Cache warming
+
+      - name: Run production health checks
+        run: |
+          echo "Running health checks on production..."
+          # Add health check commands here
+
+      - name: Notify team of successful deployment
+        if: success()
+        run: |
+          echo "Production deployment successful!"
+          # Add notification commands here (Slack, email, etc.)
+
+  # Job 5: Rollback (manual trigger only)
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure()
+    environment:
+      name: production
+    steps:
+      - name: Rollback to previous version
+        run: |
+          echo "Initiating rollback..."
+          # Add rollback commands here
+
+      - name: Verify rollback
+        run: |
+          echo "Verifying rollback..."
+          # Add rollback verification commands here
