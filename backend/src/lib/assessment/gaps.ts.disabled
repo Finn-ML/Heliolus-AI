@@ -1,0 +1,771 @@
+/**
+ * Gap identification and analysis engine
+ */
+
+import OpenAI from 'openai';
+import { z } from 'zod';
+import {
+  GapAnalyzer as IGapAnalyzer,
+  AssessmentResponse,
+  AssessmentTemplate,
+  ProcessingContext,
+  ComplianceGap,
+  AIAnalysisError
+} from './types.js';
+import { Severity, Priority, CostRange, EffortRange } from '../../types/database.js';
+import { ASSESSMENT_CONFIG } from './index.js';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Gap analysis prompt templates
+const GAP_ANALYSIS_PROMPTS = {
+  identify: `You are a compliance expert analyzing assessment responses to identify gaps.
+
+Context:
+- Industry: {industry}
+- Company Size: {companySize}
+- Region: {region}
+- Assessment Template: {templateName}
+
+Assessment Responses:
+{responses}
+
+Template Questions:
+{questions}
+
+Instructions:
+1. Analyze the responses against best practices and regulatory requirements
+2. Identify specific compliance gaps where current state doesn't meet required standards
+3. Consider the organization's context (industry, size, region)
+4. Focus on actionable, specific gaps rather than general observations
+
+For each gap identified, provide:
+- Category (e.g., "Data Privacy", "Risk Management", "Governance")
+- Specific title (concise but descriptive)
+- Detailed description of the gap
+- Current state vs required state
+- Business impact explanation
+- Severity assessment (CRITICAL/HIGH/MEDIUM/LOW)
+- Priority for addressing (IMMEDIATE/SHORT_TERM/MEDIUM_TERM/LONG_TERM)
+- Estimated cost range and effort
+- 3-5 specific suggested actions
+
+Respond with a valid JSON array of gap objects.`,
+
+  enhance: `You are enhancing a preliminary gap analysis with additional context and recommendations.
+
+Original Gaps:
+{originalGaps}
+
+Additional Context:
+- Document Analysis Results: {documentInsights}
+- Industry Benchmarks: {benchmarks}
+- Regulatory Framework: {frameworks}
+
+Instructions:
+1. Review and refine the original gap analysis
+2. Add insights from document analysis
+3. Consider industry-specific requirements
+4. Enhance suggested actions with more specific recommendations
+5. Adjust severity and priority based on additional context
+
+Respond with an enhanced JSON array of gap objects with the same structure.`,
+
+  validate: `Validate and score the following compliance gaps:
+
+Gaps to Validate:
+{gaps}
+
+Organization Context:
+- Industry: {industry}
+- Size: {companySize}
+- Region: {region}
+
+For each gap, provide a validation score (0-100) based on:
+- Accuracy of gap identification
+- Relevance to organization context
+- Actionability of recommendations
+- Regulatory alignment
+
+Respond with JSON: [{"gapId": "string", "validationScore": number, "feedback": "string"}]`
+};
+
+/**
+ * Advanced gap identification and analysis
+ */
+export class GapAnalyzer implements IGapAnalyzer {
+  private readonly maxRetries = 3;
+  private readonly baseDelay = 1000;
+
+  /**
+   * Identify compliance gaps from assessment responses
+   */
+  async identifyGaps(
+    responses: AssessmentResponse[],
+    template: AssessmentTemplate,
+    context: ProcessingContext,
+    documentInsights: any[] = []
+  ): Promise<ComplianceGap[]> {
+    try {
+      console.log(`Identifying gaps for ${responses.length} responses`);
+
+      // Step 1: Initial gap identification using AI
+      const initialGaps = await this.performInitialGapAnalysis(
+        responses,
+        template,
+        context
+      );
+
+      // Step 2: Enhance gaps with document insights if available
+      const enhancedGaps = documentInsights.length > 0
+        ? await this.enhanceGapsWithDocumentInsights(initialGaps, documentInsights, context)
+        : initialGaps;
+
+      // Step 3: Rule-based gap identification for specific scenarios
+      const ruleBasedGaps = await this.identifyRuleBasedGaps(
+        responses,
+        template,
+        context
+      );
+
+      // Step 4: Combine and deduplicate gaps
+      const allGaps = [...enhancedGaps, ...ruleBasedGaps];
+      const uniqueGaps = this.deduplicateGaps(allGaps);
+
+      // Step 5: Validate and score gaps
+      const validatedGaps = await this.validateGaps(uniqueGaps, context);
+
+      console.log(`Identified ${validatedGaps.length} validated compliance gaps`);
+      return validatedGaps;
+
+    } catch (error) {
+      console.error('Gap identification error:', error);
+      
+      // Fallback to rule-based analysis only
+      try {
+        return await this.identifyRuleBasedGaps(responses, template, context);
+      } catch (fallbackError) {
+        console.error('Fallback gap analysis failed:', fallbackError);
+        return [];
+      }
+    }
+  }
+
+  /**
+   * Perform initial AI-powered gap analysis
+   */
+  private async performInitialGapAnalysis(
+    responses: AssessmentResponse[],
+    template: AssessmentTemplate,
+    context: ProcessingContext
+  ): Promise<ComplianceGap[]> {
+    const prompt = this.buildGapAnalysisPrompt(responses, template, context);
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: ASSESSMENT_CONFIG.openai.model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert compliance analyst specializing in identifying regulatory and operational gaps.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: ASSESSMENT_CONFIG.openai.maxTokens,
+          temperature: ASSESSMENT_CONFIG.openai.temperature,
+          response_format: { type: 'json_object' }
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+
+        const result = JSON.parse(content);
+        const gaps = Array.isArray(result) ? result : result.gaps || [];
+        
+        return gaps.map((gap: any, index: number) => this.normalizeGap(gap, index));
+
+      } catch (error) {
+        console.error(`Gap analysis attempt ${attempt + 1} failed:`, error);
+        
+        if (attempt === this.maxRetries - 1) {
+          throw new AIAnalysisError(`Failed after ${this.maxRetries} attempts: ${error}`);
+        }
+        
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, this.baseDelay * Math.pow(2, attempt)));
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Enhance gaps with document analysis insights
+   */
+  private async enhanceGapsWithDocumentInsights(
+    originalGaps: ComplianceGap[],
+    documentInsights: any[],
+    context: ProcessingContext
+  ): Promise<ComplianceGap[]> {
+    if (!documentInsights.length || !originalGaps.length) {
+      return originalGaps;
+    }
+
+    try {
+      const prompt = GAP_ANALYSIS_PROMPTS.enhance
+        .replace('{originalGaps}', JSON.stringify(originalGaps, null, 2))
+        .replace('{documentInsights}', JSON.stringify(documentInsights, null, 2))
+        .replace('{benchmarks}', 'Industry standard benchmarks')
+        .replace('{frameworks}', context.regulatoryFrameworks?.join(', ') || 'General compliance');
+
+      const completion = await openai.chat.completions.create({
+        model: ASSESSMENT_CONFIG.openai.model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are enhancing gap analysis with document insights and contextual information.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: ASSESSMENT_CONFIG.openai.maxTokens,
+        temperature: ASSESSMENT_CONFIG.openai.temperature,
+        response_format: { type: 'json_object' }
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (content) {
+        const result = JSON.parse(content);
+        const enhancedGaps = Array.isArray(result) ? result : result.gaps || originalGaps;
+        return enhancedGaps.map((gap: any, index: number) => this.normalizeGap(gap, index));
+      }
+    } catch (error) {
+      console.error('Gap enhancement failed, using original gaps:', error);
+    }
+
+    return originalGaps;
+  }
+
+  /**
+   * Identify gaps using rule-based logic
+   */
+  private async identifyRuleBasedGaps(
+    responses: AssessmentResponse[],
+    template: AssessmentTemplate,
+    context: ProcessingContext
+  ): Promise<ComplianceGap[]> {
+    const gaps: ComplianceGap[] = [];
+    
+    // Data Privacy Rules
+    gaps.push(...this.checkDataPrivacyCompliance(responses, context));
+    
+    // Risk Management Rules
+    gaps.push(...this.checkRiskManagementGaps(responses, context));
+    
+    // Governance Rules
+    gaps.push(...this.checkGovernanceGaps(responses, context));
+    
+    // Documentation Rules
+    gaps.push(...this.checkDocumentationGaps(responses, context));
+    
+    // Industry-specific rules
+    if (context.industry) {
+      gaps.push(...this.checkIndustrySpecificGaps(responses, context));
+    }
+
+    return gaps;
+  }
+
+  private checkDataPrivacyCompliance(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for privacy policy
+    const privacyPolicyResponse = responses.find(r => 
+      r.value && String(r.value).toLowerCase().includes('privacy policy'));
+    
+    if (!privacyPolicyResponse) {
+      gaps.push({
+        id: `gap-privacy-policy-${Date.now()}`,
+        category: 'Data Privacy',
+        title: 'Missing Privacy Policy',
+        description: 'Organization lacks a comprehensive privacy policy document.',
+        severity: Severity.HIGH,
+        priority: Priority.SHORT_TERM,
+        currentState: 'No documented privacy policy',
+        requiredState: 'Comprehensive privacy policy covering data collection, usage, and rights',
+        gapSize: 80,
+        estimatedCost: CostRange.LOW,
+        estimatedEffort: EffortRange.WEEKS,
+        suggestedActions: [
+          'Develop comprehensive privacy policy',
+          'Ensure compliance with GDPR/CCPA requirements',
+          'Implement privacy policy review process',
+          'Train staff on privacy policy requirements'
+        ],
+        regulatoryRef: ['GDPR Article 13', 'CCPA Section 1798.100'],
+        businessImpact: 'Regulatory fines, customer trust issues, legal liability'
+      });
+    }
+
+    // Check for data retention policies
+    const dataRetentionResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('data retention') ||
+      String(r.value).toLowerCase().includes('retention policy'));
+
+    if (!dataRetentionResponse) {
+      gaps.push({
+        id: `gap-data-retention-${Date.now()}`,
+        category: 'Data Privacy',
+        title: 'Inadequate Data Retention Policies',
+        description: 'Missing or incomplete data retention and deletion policies.',
+        severity: Severity.MEDIUM,
+        priority: Priority.MEDIUM_TERM,
+        currentState: 'No formal data retention policies',
+        requiredState: 'Clear data retention schedules and automated deletion processes',
+        gapSize: 60,
+        estimatedCost: CostRange.MEDIUM,
+        estimatedEffort: EffortRange.MONTHS,
+        suggestedActions: [
+          'Develop data retention schedules by data type',
+          'Implement automated data deletion processes',
+          'Document legal basis for data retention periods',
+          'Create data subject deletion procedures'
+        ],
+        regulatoryRef: ['GDPR Article 5(1)(e)', 'GDPR Article 17'],
+        businessImpact: 'Storage costs, compliance violations, data subject complaints'
+      });
+    }
+
+    return gaps;
+  }
+
+  private checkRiskManagementGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for risk assessment processes
+    const riskAssessmentResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('risk assessment') ||
+      String(r.value).toLowerCase().includes('risk management'));
+
+    if (!riskAssessmentResponse || 
+        String(riskAssessmentResponse.value).toLowerCase().includes('no') ||
+        String(riskAssessmentResponse.value).toLowerCase().includes('none')) {
+      
+      gaps.push({
+        id: `gap-risk-assessment-${Date.now()}`,
+        category: 'Risk Management',
+        title: 'Missing Risk Assessment Framework',
+        description: 'Organization lacks formal risk assessment and management processes.',
+        severity: Severity.CRITICAL,
+        priority: Priority.IMMEDIATE,
+        currentState: 'Ad-hoc or no formal risk assessment',
+        requiredState: 'Comprehensive risk assessment framework with regular reviews',
+        gapSize: 90,
+        estimatedCost: CostRange.HIGH,
+        estimatedEffort: EffortRange.QUARTERS,
+        suggestedActions: [
+          'Implement comprehensive risk assessment methodology',
+          'Establish risk appetite and tolerance levels',
+          'Create risk register and monitoring processes',
+          'Train staff on risk identification and assessment',
+          'Establish risk committee and governance'
+        ],
+        regulatoryRef: ['ISO 31000', 'COSO Framework'],
+        businessImpact: 'Operational disruptions, financial losses, regulatory penalties'
+      });
+    }
+
+    return gaps;
+  }
+
+  private checkGovernanceGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for board oversight
+    if (context.companySize === 'ENTERPRISE') {
+      const boardOversightResponse = responses.find(r =>
+        String(r.value).toLowerCase().includes('board') ||
+        String(r.value).toLowerCase().includes('oversight'));
+
+      if (!boardOversightResponse) {
+        gaps.push({
+          id: `gap-board-oversight-${Date.now()}`,
+          category: 'Governance',
+          title: 'Insufficient Board Oversight',
+          description: 'Lack of adequate board-level oversight for risk and compliance.',
+          severity: Severity.HIGH,
+          priority: Priority.SHORT_TERM,
+          currentState: 'Limited or no board oversight of compliance',
+          requiredState: 'Regular board review and oversight of compliance matters',
+          gapSize: 70,
+          estimatedCost: CostRange.LOW,
+          estimatedEffort: EffortRange.WEEKS,
+          suggestedActions: [
+            'Establish board compliance committee',
+            'Implement regular compliance reporting to board',
+            'Define board responsibilities for compliance oversight',
+            'Train board members on compliance obligations'
+          ],
+          regulatoryRef: ['SOX Section 404', 'Corporate Governance Codes'],
+          businessImpact: 'Regulatory scrutiny, investor concerns, governance failures'
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  private checkDocumentationGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for policy documentation
+    const policyResponses = responses.filter(r =>
+      String(r.value).toLowerCase().includes('policy') ||
+      String(r.value).toLowerCase().includes('procedure'));
+
+    if (policyResponses.length < 3) { // Arbitrary threshold
+      gaps.push({
+        id: `gap-policy-documentation-${Date.now()}`,
+        category: 'Documentation',
+        title: 'Inadequate Policy Documentation',
+        description: 'Insufficient documented policies and procedures.',
+        severity: Severity.MEDIUM,
+        priority: Priority.MEDIUM_TERM,
+        currentState: 'Limited policy documentation',
+        requiredState: 'Comprehensive policy framework covering all key areas',
+        gapSize: 50,
+        estimatedCost: CostRange.MEDIUM,
+        estimatedEffort: EffortRange.MONTHS,
+        suggestedActions: [
+          'Develop comprehensive policy framework',
+          'Document key operational procedures',
+          'Implement policy review and approval process',
+          'Establish policy training and awareness program'
+        ],
+        regulatoryRef: ['ISO 27001', 'Various regulatory requirements'],
+        businessImpact: 'Operational inconsistencies, compliance violations, audit findings'
+      });
+    }
+
+    return gaps;
+  }
+
+  private checkIndustrySpecificGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    switch (context.industry?.toLowerCase()) {
+      case 'financial services':
+      case 'banking':
+        gaps.push(...this.checkFinancialServicesGaps(responses, context));
+        break;
+      case 'healthcare':
+        gaps.push(...this.checkHealthcareGaps(responses, context));
+        break;
+      case 'technology':
+        gaps.push(...this.checkTechnologyGaps(responses, context));
+        break;
+    }
+
+    return gaps;
+  }
+
+  private checkFinancialServicesGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for AML compliance
+    const amlResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('aml') ||
+      String(r.value).toLowerCase().includes('anti-money laundering'));
+
+    if (!amlResponse) {
+      gaps.push({
+        id: `gap-aml-compliance-${Date.now()}`,
+        category: 'Financial Crime',
+        title: 'Missing AML Compliance Program',
+        description: 'No evidence of Anti-Money Laundering compliance program.',
+        severity: Severity.CRITICAL,
+        priority: Priority.IMMEDIATE,
+        currentState: 'No AML program identified',
+        requiredState: 'Comprehensive AML compliance program with monitoring and reporting',
+        gapSize: 95,
+        estimatedCost: CostRange.VERY_HIGH,
+        estimatedEffort: EffortRange.QUARTERS,
+        suggestedActions: [
+          'Implement AML compliance program',
+          'Establish customer due diligence procedures',
+          'Implement transaction monitoring system',
+          'Train staff on AML requirements',
+          'Establish reporting procedures'
+        ],
+        regulatoryRef: ['Bank Secrecy Act', '4th AML Directive', '5th AML Directive'],
+        businessImpact: 'Regulatory fines, license revocation, criminal liability'
+      });
+    }
+
+    return gaps;
+  }
+
+  private checkHealthcareGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for HIPAA compliance
+    const hipaaResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('hipaa') ||
+      String(r.value).toLowerCase().includes('phi'));
+
+    if (!hipaaResponse) {
+      gaps.push({
+        id: `gap-hipaa-compliance-${Date.now()}`,
+        category: 'Healthcare Privacy',
+        title: 'HIPAA Compliance Gaps',
+        description: 'Insufficient HIPAA privacy and security safeguards.',
+        severity: Severity.CRITICAL,
+        priority: Priority.IMMEDIATE,
+        currentState: 'No HIPAA compliance program identified',
+        requiredState: 'Full HIPAA compliance with privacy and security rules',
+        gapSize: 90,
+        estimatedCost: CostRange.HIGH,
+        estimatedEffort: EffortRange.QUARTERS,
+        suggestedActions: [
+          'Implement HIPAA privacy and security programs',
+          'Conduct risk assessment of PHI handling',
+          'Establish business associate agreements',
+          'Train workforce on HIPAA requirements',
+          'Implement breach notification procedures'
+        ],
+        regulatoryRef: ['HIPAA Privacy Rule', 'HIPAA Security Rule'],
+        businessImpact: 'Regulatory fines, patient trust loss, legal liability'
+      });
+    }
+
+    return gaps;
+  }
+
+  private checkTechnologyGaps(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): ComplianceGap[] {
+    const gaps: ComplianceGap[] = [];
+
+    // Check for cybersecurity measures
+    const cyberResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('cybersecurity') ||
+      String(r.value).toLowerCase().includes('information security'));
+
+    if (!cyberResponse) {
+      gaps.push({
+        id: `gap-cybersecurity-${Date.now()}`,
+        category: 'Cybersecurity',
+        title: 'Inadequate Cybersecurity Framework',
+        description: 'Missing comprehensive cybersecurity controls and procedures.',
+        severity: Severity.HIGH,
+        priority: Priority.SHORT_TERM,
+        currentState: 'Basic or ad-hoc cybersecurity measures',
+        requiredState: 'Comprehensive cybersecurity framework with continuous monitoring',
+        gapSize: 75,
+        estimatedCost: CostRange.HIGH,
+        estimatedEffort: EffortRange.QUARTERS,
+        suggestedActions: [
+          'Implement cybersecurity framework (NIST, ISO 27001)',
+          'Establish incident response procedures',
+          'Implement security monitoring and SIEM',
+          'Conduct regular security assessments',
+          'Provide cybersecurity training to all staff'
+        ],
+        regulatoryRef: ['NIST Cybersecurity Framework', 'ISO 27001'],
+        businessImpact: 'Data breaches, service disruptions, customer trust loss'
+      });
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Remove duplicate gaps based on similarity
+   */
+  private deduplicateGaps(gaps: ComplianceGap[]): ComplianceGap[] {
+    const uniqueGaps: ComplianceGap[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const gap of gaps) {
+      const normalizedTitle = gap.title.toLowerCase().trim();
+      
+      if (!seenTitles.has(normalizedTitle)) {
+        seenTitles.add(normalizedTitle);
+        uniqueGaps.push(gap);
+      }
+    }
+
+    return uniqueGaps;
+  }
+
+  /**
+   * Validate gaps using AI scoring
+   */
+  private async validateGaps(
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): Promise<ComplianceGap[]> {
+    if (gaps.length === 0) return gaps;
+
+    try {
+      const prompt = GAP_ANALYSIS_PROMPTS.validate
+        .replace('{gaps}', JSON.stringify(gaps.slice(0, 10), null, 2)) // Limit for token constraints
+        .replace('{industry}', context.industry || 'General')
+        .replace('{companySize}', context.companySize || 'Unknown')
+        .replace('{region}', context.region || 'Global');
+
+      const completion = await openai.chat.completions.create({
+        model: ASSESSMENT_CONFIG.openai.model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are validating compliance gap analysis results for accuracy and relevance.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (content) {
+        const validationResults = JSON.parse(content);
+        const results = Array.isArray(validationResults) ? validationResults : validationResults.results || [];
+        
+        // Filter gaps based on validation scores (keep scores >= 60)
+        const validatedGaps = gaps.filter(gap => {
+          const validation = results.find((r: any) => r.gapId === gap.id);
+          return !validation || validation.validationScore >= 60;
+        });
+
+        console.log(`Validated ${validatedGaps.length} of ${gaps.length} gaps`);
+        return validatedGaps;
+      }
+    } catch (error) {
+      console.error('Gap validation failed, returning all gaps:', error);
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Build the gap analysis prompt
+   */
+  private buildGapAnalysisPrompt(
+    responses: AssessmentResponse[],
+    template: AssessmentTemplate,
+    context: ProcessingContext
+  ): string {
+    const responseText = responses
+      .map(r => `Q: ${r.questionId}\nA: ${JSON.stringify(r.value)}\nNotes: ${r.notes || 'None'}`)
+      .join('\n\n');
+
+    const questionText = template.sections
+      .flatMap(s => s.questions)
+      .map(q => `${q.id}: ${q.text}`)
+      .join('\n');
+
+    return GAP_ANALYSIS_PROMPTS.identify
+      .replace('{industry}', context.industry || 'General')
+      .replace('{companySize}', context.companySize || 'Unknown')
+      .replace('{region}', context.region || 'Global')
+      .replace('{templateName}', template.name)
+      .replace('{responses}', responseText)
+      .replace('{questions}', questionText);
+  }
+
+  /**
+   * Normalize gap object to ensure consistent structure
+   */
+  private normalizeGap(gap: any, index: number): ComplianceGap {
+    return {
+      id: gap.id || `gap-${Date.now()}-${index}`,
+      category: gap.category || 'General',
+      subcategory: gap.subcategory,
+      title: gap.title || 'Unnamed Gap',
+      description: gap.description || '',
+      severity: this.normalizeSeverity(gap.severity),
+      priority: this.normalizePriority(gap.priority),
+      currentState: gap.currentState || 'Current state not documented',
+      requiredState: gap.requiredState || 'Required state not documented',
+      gapSize: Math.min(100, Math.max(0, gap.gapSize || 50)),
+      estimatedCost: this.normalizeCostRange(gap.estimatedCost),
+      estimatedEffort: this.normalizeEffortRange(gap.estimatedEffort),
+      suggestedActions: Array.isArray(gap.suggestedActions) 
+        ? gap.suggestedActions 
+        : (gap.suggestedActions ? [gap.suggestedActions] : []),
+      regulatoryRef: Array.isArray(gap.regulatoryRef) 
+        ? gap.regulatoryRef 
+        : (gap.regulatoryRef ? [gap.regulatoryRef] : []),
+      businessImpact: gap.businessImpact || 'Business impact not assessed'
+    };
+  }
+
+  private normalizeSeverity(severity: any): Severity {
+    const str = String(severity).toUpperCase();
+    if (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(str)) {
+      return str as Severity;
+    }
+    return Severity.MEDIUM;
+  }
+
+  private normalizePriority(priority: any): Priority {
+    const str = String(priority).toUpperCase();
+    if (['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM'].includes(str)) {
+      return str as Priority;
+    }
+    return Priority.MEDIUM_TERM;
+  }
+
+  private normalizeCostRange(cost: any): CostRange | undefined {
+    const str = String(cost).toUpperCase();
+    if (['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'].includes(str)) {
+      return str as CostRange;
+    }
+    return undefined;
+  }
+
+  private normalizeEffortRange(effort: any): EffortRange | undefined {
+    const str = String(effort).toUpperCase();
+    if (['DAYS', 'WEEKS', 'MONTHS', 'QUARTERS'].includes(str)) {
+      return str as EffortRange;
+    }
+    return undefined;
+  }
+}

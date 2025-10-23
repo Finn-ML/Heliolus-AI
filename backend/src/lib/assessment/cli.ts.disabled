@@ -1,0 +1,498 @@
+#!/usr/bin/env node
+
+/**
+ * CLI interface for assessment library operations
+ */
+
+import { Command } from 'commander';
+import { z } from 'zod';
+import * as assessment from './index.js';
+import { assessmentEngine } from './engine.js';
+import { templateManager } from './templates.js';
+import { reportGenerator } from './reports.js';
+import { TemplateCategory, ReportType, ReportFormat } from '../../types/database.js';
+
+const program = new Command();
+
+program
+  .name('assessment-cli')
+  .description('Heliolus Assessment Library CLI')
+  .version('1.0.0');
+
+// Create assessment command
+program
+  .command('create-assessment')
+  .description('Create and run a new assessment')
+  .requiredOption('-t, --template <id>', 'Template ID or slug')
+  .requiredOption('-o, --organization <id>', 'Organization ID')
+  .requiredOption('-u, --user <id>', 'User ID')
+  .option('-r, --responses <json>', 'Assessment responses as JSON file path')
+  .option('-d, --documents <json>', 'Documents to analyze as JSON')
+  .option('--ai-analysis', 'Include AI-powered analysis')
+  .option('--document-analysis', 'Include document analysis')
+  .option('--recommendations', 'Generate recommendations')
+  .option('--depth <level>', 'Analysis depth (basic|standard|comprehensive)', 'standard')
+  .action(async (options) => {
+    try {
+      console.log('Creating assessment...');
+
+      // Load responses from file if provided
+      let responses = [];
+      if (options.responses) {
+        const fs = await import('fs');
+        const responseData = JSON.parse(fs.readFileSync(options.responses, 'utf8'));
+        responses = responseData.responses || responseData;
+      }
+
+      // Parse documents if provided
+      let documents = [];
+      if (options.documents) {
+        const fs = await import('fs');
+        documents = JSON.parse(fs.readFileSync(options.documents, 'utf8'));
+      }
+
+      const assessmentRequest: assessment.AssessmentRequest = {
+        templateId: options.template,
+        organizationId: options.organization,
+        userId: options.user,
+        responses,
+        documents,
+        options: {
+          includeAIAnalysis: options.aiAnalysis || false,
+          includeDocumentAnalysis: options.documentAnalysis || false,
+          includeRecommendations: options.recommendations !== false,
+          depth: options.depth as any,
+          generateReport: true
+        }
+      };
+
+      const result = await assessmentEngine.createAssessment(assessmentRequest);
+
+      console.log('✓ Assessment completed successfully!');
+      console.log(`Assessment ID: ${result.id}`);
+      console.log(`Risk Score: ${result.riskScore}%`);
+      console.log(`Overall Risk Level: ${result.analysis.overallRisk}`);
+      console.log(`Gaps Identified: ${result.gaps.length}`);
+      console.log(`Risks Identified: ${result.risks.length}`);
+      console.log(`Recommendations: ${result.recommendations.length}`);
+      console.log(`Credits Used: ${result.creditsUsed}`);
+      console.log(`Processing Time: ${result.metrics.processingTime}ms`);
+
+      // Save results to file
+      const fs = await import('fs');
+      const resultFile = `assessment-${result.id}-${Date.now()}.json`;
+      fs.writeFileSync(resultFile, JSON.stringify(result, null, 2));
+      console.log(`Results saved to: ${resultFile}`);
+
+    } catch (error) {
+      console.error('✗ Assessment creation failed:', error);
+      process.exit(1);
+    }
+  });
+
+// List templates command
+program
+  .command('list-templates')
+  .description('List available assessment templates')
+  .option('-c, --category <category>', 'Filter by category')
+  .option('-a, --all', 'Include inactive templates')
+  .action(async (options) => {
+    try {
+      console.log('Fetching templates...');
+
+      const category = options.category as TemplateCategory;
+      const templates = await templateManager.listTemplates(category, !options.all);
+
+      if (templates.length === 0) {
+        console.log('No templates found.');
+        return;
+      }
+
+      console.log(`Found ${templates.length} templates:\n`);
+      
+      templates.forEach(template => {
+        console.log(`ID: ${template.id}`);
+        console.log(`Name: ${template.name}`);
+        console.log(`Slug: ${template.slug}`);
+        console.log(`Category: ${template.category}`);
+        console.log(`Sections: ${template.sections.length}`);
+        console.log(`Total Questions: ${template.sections.reduce((sum, s) => sum + s.questions.length, 0)}`);
+        console.log(`Version: ${template.version}`);
+        console.log(`Active: ${template.isActive ? 'Yes' : 'No'}`);
+        console.log('---');
+      });
+
+    } catch (error) {
+      console.error('✗ Error fetching templates:', error);
+      process.exit(1);
+    }
+  });
+
+// Get template command
+program
+  .command('get-template')
+  .description('Get detailed template information')
+  .requiredOption('-t, --template <id>', 'Template ID or slug')
+  .option('-s, --stats', 'Include template statistics')
+  .action(async (options) => {
+    try {
+      console.log('Fetching template...');
+
+      const template = options.template.includes('-') 
+        ? await templateManager.getTemplate(options.template)
+        : await templateManager.getTemplateBySlug(options.template);
+
+      if (!template) {
+        console.error('Template not found');
+        process.exit(1);
+      }
+
+      console.log('✓ Template found:');
+      console.log(`Name: ${template.name}`);
+      console.log(`Description: ${template.description}`);
+      console.log(`Category: ${template.category}`);
+      console.log(`Version: ${template.version}`);
+      console.log(`Sections: ${template.sections.length}`);
+
+      template.sections.forEach((section, index) => {
+        console.log(`\nSection ${index + 1}: ${section.title}`);
+        console.log(`  Description: ${section.description || 'None'}`);
+        console.log(`  Weight: ${section.weight}`);
+        console.log(`  Questions: ${section.questions.length}`);
+        
+        section.questions.forEach((question, qIndex) => {
+          console.log(`    ${qIndex + 1}. ${question.text}`);
+          console.log(`       Type: ${question.type}`);
+          console.log(`       Required: ${question.required ? 'Yes' : 'No'}`);
+          if (question.options && question.options.length > 0) {
+            console.log(`       Options: ${question.options.join(', ')}`);
+          }
+          if (question.helpText) {
+            console.log(`       Help: ${question.helpText}`);
+          }
+        });
+      });
+
+      if (options.stats) {
+        console.log('\nTemplate Statistics:');
+        const stats = await templateManager.getTemplateStats(template.id);
+        console.log(`Total Sections: ${stats.totalSections}`);
+        console.log(`Total Questions: ${stats.totalQuestions}`);
+        console.log(`Required Questions: ${stats.requiredQuestions}`);
+        console.log(`Average Section Weight: ${stats.avgSectionWeight}`);
+        console.log(`Question Types:`, stats.questionTypes);
+      }
+
+    } catch (error) {
+      console.error('✗ Error fetching template:', error);
+      process.exit(1);
+    }
+  });
+
+// Generate report command
+program
+  .command('generate-report')
+  .description('Generate assessment report from results')
+  .requiredOption('-f, --file <path>', 'Assessment results JSON file')
+  .option('-t, --type <type>', 'Report type (EXECUTIVE_SUMMARY|DETAILED|COMPLIANCE_MATRIX|GAP_ANALYSIS|VENDOR_RECOMMENDATIONS)', 'DETAILED')
+  .option('-f, --format <format>', 'Report format (PDF|HTML|JSON|EXCEL)', 'HTML')
+  .option('-o, --output <path>', 'Output file path')
+  .action(async (options) => {
+    try {
+      console.log('Generating report...');
+
+      // Load assessment results
+      const fs = await import('fs');
+      const assessmentData = JSON.parse(fs.readFileSync(options.file, 'utf8'));
+
+      const reportType = options.type as ReportType;
+      const reportFormat = options.format as ReportFormat;
+
+      const report = await reportGenerator.generateReport(
+        assessmentData,
+        reportType,
+        reportFormat,
+        {
+          includeDetails: true,
+          includeCharts: true
+        }
+      );
+
+      console.log('✓ Report generated successfully!');
+      console.log(`Report ID: ${report.id}`);
+      console.log(`Type: ${report.type}`);
+      console.log(`Format: ${report.format}`);
+      console.log(`Title: ${report.content.title}`);
+
+      // Save report
+      const outputPath = options.output || `report-${report.id}.${reportFormat.toLowerCase()}`;
+      
+      let contentToSave = '';
+      switch (reportFormat) {
+        case ReportFormat.JSON:
+          contentToSave = JSON.stringify(report.content, null, 2);
+          break;
+        case ReportFormat.HTML:
+          contentToSave = report.files?.html || 'HTML content not available';
+          break;
+        default:
+          contentToSave = JSON.stringify(report, null, 2);
+      }
+
+      fs.writeFileSync(outputPath, contentToSave);
+      console.log(`Report saved to: ${outputPath}`);
+
+    } catch (error) {
+      console.error('✗ Report generation failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Analyze gaps command
+program
+  .command('analyze-gaps')
+  .description('Analyze gaps from assessment responses')
+  .requiredOption('-t, --template <id>', 'Template ID')
+  .requiredOption('-r, --responses <path>', 'Responses JSON file')
+  .option('-i, --industry <industry>', 'Industry context')
+  .option('-s, --size <size>', 'Company size (STARTUP|SMB|MIDMARKET|ENTERPRISE)')
+  .option('-c, --country <country>', 'Country/region')
+  .action(async (options) => {
+    try {
+      console.log('Analyzing gaps...');
+
+      const fs = await import('fs');
+      const responses = JSON.parse(fs.readFileSync(options.responses, 'utf8'));
+      const template = await templateManager.getTemplate(options.template);
+
+      if (!template) {
+        console.error('Template not found');
+        process.exit(1);
+      }
+
+      const context: assessment.ProcessingContext = {
+        organizationId: 'cli-analysis',
+        userId: 'cli-user',
+        industry: options.industry,
+        companySize: options.size,
+        region: options.country
+      };
+
+      const gapAnalyzer = new assessment.GapAnalyzer();
+      const gaps = await gapAnalyzer.identifyGaps(responses, template, context);
+
+      console.log(`✓ Identified ${gaps.length} compliance gaps:`);
+      
+      gaps.forEach((gap, index) => {
+        console.log(`\n${index + 1}. ${gap.title}`);
+        console.log(`   Category: ${gap.category}`);
+        console.log(`   Severity: ${gap.severity}`);
+        console.log(`   Priority: ${gap.priority}`);
+        console.log(`   Gap Size: ${gap.gapSize}%`);
+        console.log(`   Description: ${gap.description}`);
+        console.log(`   Business Impact: ${gap.businessImpact}`);
+        console.log(`   Suggested Actions:`);
+        gap.suggestedActions.forEach((action, aIndex) => {
+          console.log(`     ${aIndex + 1}. ${action}`);
+        });
+      });
+
+      // Save gaps analysis
+      const gapsFile = `gaps-analysis-${Date.now()}.json`;
+      fs.writeFileSync(gapsFile, JSON.stringify(gaps, null, 2));
+      console.log(`\nGaps analysis saved to: ${gapsFile}`);
+
+    } catch (error) {
+      console.error('✗ Gap analysis failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Assess risks command
+program
+  .command('assess-risks')
+  .description('Assess risks from gaps and responses')
+  .requiredOption('-g, --gaps <path>', 'Gaps JSON file')
+  .requiredOption('-r, --responses <path>', 'Responses JSON file')
+  .option('-i, --industry <industry>', 'Industry context')
+  .option('-s, --size <size>', 'Company size')
+  .action(async (options) => {
+    try {
+      console.log('Assessing risks...');
+
+      const fs = await import('fs');
+      const gaps = JSON.parse(fs.readFileSync(options.gaps, 'utf8'));
+      const responses = JSON.parse(fs.readFileSync(options.responses, 'utf8'));
+
+      const context: assessment.ProcessingContext = {
+        organizationId: 'cli-analysis',
+        userId: 'cli-user',
+        industry: options.industry,
+        companySize: options.size
+      };
+
+      const riskAnalyzer = new assessment.RiskAnalyzer();
+      const risks = await riskAnalyzer.assessRisks(responses, gaps, context);
+
+      console.log(`✓ Identified ${risks.length} risks:`);
+      
+      risks.forEach((risk, index) => {
+        console.log(`\n${index + 1}. ${risk.title}`);
+        console.log(`   Category: ${risk.category}`);
+        console.log(`   Risk Level: ${risk.riskLevel}`);
+        console.log(`   Likelihood: ${risk.likelihood}`);
+        console.log(`   Impact: ${risk.impact}`);
+        console.log(`   Control Effectiveness: ${risk.controlEffectiveness}%`);
+        console.log(`   Description: ${risk.description}`);
+        if (risk.mitigationStrategy) {
+          console.log(`   Mitigation: ${risk.mitigationStrategy}`);
+        }
+        console.log(`   Current Controls: ${risk.currentControls.join(', ')}`);
+      });
+
+      // Save risk analysis
+      const risksFile = `risks-analysis-${Date.now()}.json`;
+      fs.writeFileSync(risksFile, JSON.stringify(risks, null, 2));
+      console.log(`\nRisk analysis saved to: ${risksFile}`);
+
+    } catch (error) {
+      console.error('✗ Risk assessment failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Calculate score command
+program
+  .command('calculate-score')
+  .description('Calculate risk score from gaps and risks')
+  .requiredOption('-g, --gaps <path>', 'Gaps JSON file')
+  .requiredOption('-r, --risks <path>', 'Risks JSON file')
+  .option('-w, --weights <json>', 'Custom scoring weights as JSON')
+  .action(async (options) => {
+    try {
+      console.log('Calculating risk score...');
+
+      const fs = await import('fs');
+      const gaps = JSON.parse(fs.readFileSync(options.gaps, 'utf8'));
+      const risks = JSON.parse(fs.readFileSync(options.risks, 'utf8'));
+
+      const scoreCalculator = new assessment.ScoreCalculator();
+      
+      let config = assessment.ASSESSMENT_CONFIG.scoring;
+      if (options.weights) {
+        const customWeights = JSON.parse(options.weights);
+        config = { ...config, weights: { ...config.weights, ...customWeights } };
+      }
+
+      const overallScore = scoreCalculator.calculateOverallScore(gaps, risks, config);
+      const categoryScores = scoreCalculator.calculateCategoryScores(gaps, risks);
+
+      console.log('✓ Risk Score Calculation Results:');
+      console.log(`Overall Risk Score: ${overallScore}%`);
+      console.log(`Risk Level: ${scoreCalculator.getRiskLevelFromScore(overallScore)}`);
+      
+      console.log('\nCategory Scores:');
+      Object.entries(categoryScores).forEach(([category, score]) => {
+        console.log(`  ${category}: ${score}%`);
+      });
+
+      // Generate insights
+      const insights = scoreCalculator.generateScoringInsights(overallScore, categoryScores, gaps, risks);
+      console.log(`\nRisk Level: ${insights.level}`);
+      console.log(`Summary: ${insights.summary}`);
+      
+      console.log('\nStrengths:');
+      insights.strengths.forEach(strength => console.log(`  • ${strength}`));
+      
+      console.log('\nWeaknesses:');
+      insights.weaknesses.forEach(weakness => console.log(`  • ${weakness}`));
+      
+      console.log('\nPriorities:');
+      insights.priorities.forEach(priority => console.log(`  • ${priority}`));
+
+    } catch (error) {
+      console.error('✗ Score calculation failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Health check command
+program
+  .command('health')
+  .description('Check assessment library health and configuration')
+  .action(async () => {
+    try {
+      console.log('Checking assessment library health...');
+
+      // Test template access
+      const templates = await templateManager.listTemplates();
+      console.log(`✓ Template access: ${templates.length} templates available`);
+
+      // Test AI configuration
+      if (process.env.OPENAI_API_KEY) {
+        console.log('✓ OpenAI API key configured');
+      } else {
+        console.log('⚠ OpenAI API key not configured');
+      }
+
+      // Test configuration
+      console.log('✓ Assessment configuration loaded:');
+      console.log(`  Model: ${assessment.ASSESSMENT_CONFIG.openai.model}`);
+      console.log(`  Max Tokens: ${assessment.ASSESSMENT_CONFIG.openai.maxTokens}`);
+      console.log(`  Temperature: ${assessment.ASSESSMENT_CONFIG.openai.temperature}`);
+
+      // Test scoring configuration
+      console.log('✓ Scoring configuration:');
+      console.log(`  Compliance Weight: ${assessment.ASSESSMENT_CONFIG.scoring.weights.compliance}`);
+      console.log(`  Risk Weight: ${assessment.ASSESSMENT_CONFIG.scoring.weights.risk}`);
+
+      console.log('\n✓ Assessment library is healthy and ready');
+
+    } catch (error) {
+      console.error('✗ Health check failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Configuration command
+program
+  .command('config')
+  .description('Display current configuration')
+  .action(() => {
+    console.log('Current Assessment Library Configuration:');
+    console.log('\nOpenAI Configuration:');
+    console.log(`  Model: ${assessment.ASSESSMENT_CONFIG.openai.model}`);
+    console.log(`  Max Tokens: ${assessment.ASSESSMENT_CONFIG.openai.maxTokens}`);
+    console.log(`  Temperature: ${assessment.ASSESSMENT_CONFIG.openai.temperature}`);
+    console.log(`  Timeout: ${assessment.ASSESSMENT_CONFIG.openai.timeout}ms`);
+
+    console.log('\nScoring Configuration:');
+    Object.entries(assessment.ASSESSMENT_CONFIG.scoring.weights).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value}`);
+    });
+
+    console.log('\nThresholds:');
+    Object.entries(assessment.ASSESSMENT_CONFIG.scoring.thresholds).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value}%`);
+    });
+
+    console.log('\nAnalysis Configuration:');
+    console.log(`  Min Response Length: ${assessment.ASSESSMENT_CONFIG.analysis.minResponseLength}`);
+    console.log(`  Max Concurrent Analyses: ${assessment.ASSESSMENT_CONFIG.analysis.maxConcurrentAnalyses}`);
+    console.log(`  Cache Results Hours: ${assessment.ASSESSMENT_CONFIG.analysis.cacheResultsHours}`);
+    console.log(`  Retry Attempts: ${assessment.ASSESSMENT_CONFIG.analysis.retryAttempts}`);
+
+    console.log('\nCredit Costs:');
+    Object.entries(assessment.ASSESSMENT_CONFIG.credits).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value} credits`);
+    });
+  });
+
+// Parse command line arguments
+if (process.argv.length < 3) {
+  program.help();
+}
+
+program.parse();
+
+export default program;

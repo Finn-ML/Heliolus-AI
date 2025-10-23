@@ -1,0 +1,477 @@
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import {
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Calendar,
+  Activity,
+  Shield,
+  AlertCircle,
+  Target,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+  dueDate: string;
+  assignedTo: string;
+  category: 'compliance' | 'risk' | 'vendor' | 'consultant';
+  progress: number;
+}
+
+interface Risk {
+  id: string;
+  title: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'identified' | 'assessed' | 'mitigated' | 'resolved';
+  assignedTo: string;
+  dateIdentified: string;
+  mitigationSteps: string[];
+  completedSteps: number;
+}
+
+interface Assessment {
+  id: string;
+  date: string;
+  overallScore: number;
+  previousScore?: number;
+  risks: { category: string; score: number; previousScore?: number }[];
+  status: 'completed' | 'in-progress';
+  businessProfile: any;
+}
+
+const TrackingDashboard: React.FC = () => {
+
+  const [tasks] = useState<Task[]>([
+    {
+      id: '1',
+      title: 'KYC Process Review',
+      description: 'Review and update Know Your Customer procedures',
+      status: 'in-progress',
+      priority: 'high',
+      dueDate: '2024-01-17',
+      assignedTo: 'John Smith',
+      category: 'compliance',
+      progress: 60,
+    },
+    {
+      id: '2',
+      title: 'Vendor Assessment Implementation',
+      description: 'Implement new vendor assessment framework',
+      status: 'pending',
+      priority: 'medium',
+      dueDate: '2024-01-25',
+      assignedTo: 'Sarah Johnson',
+      category: 'vendor',
+      progress: 0,
+    },
+    {
+      id: '3',
+      title: 'Risk Dashboard Configuration',
+      description: 'Configure automated risk monitoring dashboard',
+      status: 'completed',
+      priority: 'high',
+      dueDate: '2024-01-10',
+      assignedTo: 'Mike Chen',
+      category: 'risk',
+      progress: 100,
+    },
+  ]);
+
+  const [risks] = useState<Risk[]>([
+    {
+      id: '1',
+      title: 'Data Privacy Compliance Gap',
+      severity: 'high',
+      status: 'assessed',
+      assignedTo: 'Legal Team',
+      dateIdentified: '2024-01-10',
+      mitigationSteps: [
+        'Conduct privacy impact assessment',
+        'Update data handling procedures',
+        'Implement data encryption',
+        'Train staff on new procedures',
+      ],
+      completedSteps: 2,
+    },
+    {
+      id: '2',
+      title: 'AML Transaction Monitoring',
+      severity: 'medium',
+      status: 'mitigated',
+      assignedTo: 'Compliance Team',
+      dateIdentified: '2024-01-05',
+      mitigationSteps: [
+        'Review transaction thresholds',
+        'Update monitoring rules',
+        'Test alert system',
+      ],
+      completedSteps: 3,
+    },
+  ]);
+
+  const [assessments] = useState<Assessment[]>([
+    {
+      id: '1',
+      date: '2024-01-15',
+      overallScore: 82,
+      previousScore: 75,
+      status: 'completed',
+      businessProfile: { name: 'Current Assessment' },
+      risks: [
+        { category: 'AML', score: 85, previousScore: 78 },
+        { category: 'KYC', score: 80, previousScore: 72 },
+        { category: 'Data Privacy', score: 79, previousScore: 75 },
+        { category: 'Sanctions', score: 88, previousScore: 85 },
+      ],
+    },
+    {
+      id: '2',
+      date: '2024-01-01',
+      overallScore: 75,
+      previousScore: 68,
+      status: 'completed',
+      businessProfile: { name: 'Previous Assessment' },
+      risks: [
+        { category: 'AML', score: 78, previousScore: 70 },
+        { category: 'KYC', score: 72, previousScore: 65 },
+        { category: 'Data Privacy', score: 75, previousScore: 68 },
+        { category: 'Sanctions', score: 85, previousScore: 82 },
+      ],
+    },
+  ]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'resolved':
+        return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'in-progress':
+      case 'assessed':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'pending':
+      case 'identified':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'mitigated':
+        return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      default:
+        return 'bg-gray-800/50 text-gray-400 border-gray-700';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+      case 'critical':
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'medium':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'low':
+        return 'bg-green-500/20 text-green-400 border-green-500/30';
+      default:
+        return 'bg-gray-800/50 text-gray-400 border-gray-700';
+    }
+  };
+
+
+  return (
+    <div className="space-y-6">
+      {/* Main Dashboard Tabs */}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4 bg-gray-900/50 border border-gray-800 p-1 h-auto">
+          <TabsTrigger
+            value="overview"
+            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 text-gray-400 hover:text-gray-300 transition-all duration-300"
+          >
+            Overview
+          </TabsTrigger>
+          <TabsTrigger
+            value="tasks"
+            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 text-gray-400 hover:text-gray-300 transition-all duration-300"
+          >
+            Tasks & Projects
+          </TabsTrigger>
+          <TabsTrigger
+            value="risks"
+            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 text-gray-400 hover:text-gray-300 transition-all duration-300"
+          >
+            Risk Tracking
+          </TabsTrigger>
+          <TabsTrigger
+            value="assessments"
+            className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 text-gray-400 hover:text-gray-300 transition-all duration-300"
+          >
+            Assessment History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300 group">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
+                    <Target className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <CardTitle className="text-sm font-medium text-gray-300">Active Tasks</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white">
+                  {tasks.filter(t => t.status !== 'completed').length}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  {tasks.filter(t => t.status === 'completed').length} completed
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300 group">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-red-500/20 group-hover:bg-red-500/30 transition-colors">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                  </div>
+                  <CardTitle className="text-sm font-medium text-gray-300">Open Risks</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white">
+                  {risks.filter(r => r.status !== 'resolved').length}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  {risks.filter(r => r.severity === 'high' || r.severity === 'critical').length}{' '}
+                  high priority
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300 group">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-500/20 group-hover:bg-green-500/30 transition-colors">
+                    <Activity className="h-5 w-5 text-green-400" />
+                  </div>
+                  <CardTitle className="text-sm font-medium text-gray-300">Latest Score</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white">82%</div>
+                <p className="text-sm text-green-400 flex items-center mt-1">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  +7% from last assessment
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300 group">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                    <BarChart3 className="h-5 w-5 text-purple-400" />
+                  </div>
+                  <CardTitle className="text-sm font-medium text-gray-300">Assessments</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white">{assessments.length}</div>
+                <p className="text-sm text-gray-500 mt-1">Last: {assessments[0]?.date}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="tasks" className="space-y-6">
+          <div className="space-y-4">
+            {tasks.map(task => (
+              <Card
+                key={task.id}
+                className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300"
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg text-white">{task.title}</CardTitle>
+                    <div className="flex gap-2">
+                      <Badge className={cn('border', getStatusColor(task.status))}>
+                        {task.status.replace('-', ' ')}
+                      </Badge>
+                      <Badge className={cn('border', getPriorityColor(task.priority))}>
+                        {task.priority}
+                      </Badge>
+                    </div>
+                  </div>
+                  <CardDescription className="text-gray-400">{task.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Progress</span>
+                      <span className="text-cyan-400 font-medium">{task.progress}%</span>
+                    </div>
+                    <Progress value={task.progress} className="h-2 bg-gray-800" />
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Assigned to: {task.assignedTo}</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Due: {task.dueDate}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="risks" className="space-y-6">
+          <div className="space-y-4">
+            {risks.map(risk => (
+              <Card
+                key={risk.id}
+                className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300"
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg text-white">{risk.title}</CardTitle>
+                    <div className="flex gap-2">
+                      <Badge className={cn('border', getStatusColor(risk.status))}>
+                        {risk.status}
+                      </Badge>
+                      <Badge className={cn('border', getPriorityColor(risk.severity))}>
+                        {risk.severity}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Mitigation Progress</span>
+                      <span className="text-cyan-400 font-medium">
+                        {risk.completedSteps}/{risk.mitigationSteps.length}
+                      </span>
+                    </div>
+                    <Progress
+                      value={(risk.completedSteps / risk.mitigationSteps.length) * 100}
+                      className="h-2 bg-gray-800"
+                    />
+                    <div className="space-y-2 mt-4">
+                      {risk.mitigationSteps.map((step, index) => (
+                        <div key={index} className="flex items-center gap-3 text-sm">
+                          {index < risk.completedSteps ? (
+                            <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                          )}
+                          <span
+                            className={cn(
+                              'text-gray-300',
+                              index < risk.completedSteps && 'line-through text-gray-600'
+                            )}
+                          >
+                            {step}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-sm text-gray-500 pt-2 border-t border-gray-800">
+                      Assigned to: {risk.assignedTo} | Identified: {risk.dateIdentified}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="assessments" className="space-y-6">
+          <div className="space-y-4">
+            {assessments.map((assessment, index) => (
+              <Card
+                key={assessment.id}
+                className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300"
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg text-white">
+                        Assessment - {assessment.date}
+                      </CardTitle>
+                      <CardDescription className="text-gray-400 flex items-center gap-2 mt-1">
+                        <span>Overall Score: {assessment.overallScore}%</span>
+                        {assessment.previousScore && (
+                          <span
+                            className={cn(
+                              'inline-flex items-center text-sm',
+                              assessment.overallScore > assessment.previousScore
+                                ? 'text-green-400'
+                                : 'text-red-400'
+                            )}
+                          >
+                            {assessment.overallScore > assessment.previousScore ? (
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                            )}
+                            {assessment.overallScore > assessment.previousScore ? '+' : ''}
+                            {assessment.overallScore - assessment.previousScore}%
+                          </span>
+                        )}
+                      </CardDescription>
+                    </div>
+                    <Badge className={cn('border', getStatusColor(assessment.status))}>
+                      {assessment.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {assessment.risks.map(risk => (
+                      <div
+                        key={risk.category}
+                        className="text-center p-3 rounded-lg bg-gray-800/50 border border-gray-700"
+                      >
+                        <div className="font-medium text-sm text-gray-400">{risk.category}</div>
+                        <div className="text-2xl font-bold text-white mt-1">{risk.score}%</div>
+                        {risk.previousScore && (
+                          <div
+                            className={cn(
+                              'text-xs flex items-center justify-center mt-1',
+                              risk.score > risk.previousScore ? 'text-green-400' : 'text-red-400'
+                            )}
+                          >
+                            {risk.score > risk.previousScore ? (
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                            )}
+                            {risk.score > risk.previousScore ? '+' : ''}
+                            {risk.score - risk.previousScore}%
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default TrackingDashboard;

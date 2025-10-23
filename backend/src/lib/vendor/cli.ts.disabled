@@ -1,0 +1,452 @@
+#!/usr/bin/env node
+
+/**
+ * CLI interface for vendor library operations
+ */
+
+import { Command } from 'commander';
+import { z } from 'zod';
+import * as vendor from './index.js';
+import { vendorMatchingEngine } from './matching.js';
+import { vendorSearchEngine } from './search.js';
+import { vendorMarketplace } from './marketplace.js';
+import { VendorCategory, CompanySize } from '../../types/database.js';
+
+const program = new Command();
+
+program
+  .name('vendor-cli')
+  .description('Heliolus Vendor Library CLI')
+  .version('1.0.0');
+
+// Find matches command
+program
+  .command('find-matches')
+  .description('Find vendor matches for compliance gaps')
+  .requiredOption('-g, --gaps <path>', 'Gaps JSON file')
+  .requiredOption('-o, --organization <id>', 'Organization ID')
+  .option('-i, --industry <industry>', 'Industry context')
+  .option('-s, --size <size>', 'Company size (STARTUP|SMB|MIDMARKET|ENTERPRISE)')
+  .option('-r, --region <region>', 'Region/country')
+  .option('-b, --budget <budget>', 'Budget range (LOW|MEDIUM|HIGH|VERY_HIGH)')
+  .option('-t, --timeline <timeline>', 'Timeline (IMMEDIATE|SHORT_TERM|MEDIUM_TERM|LONG_TERM)')
+  .option('-m, --max <number>', 'Maximum results', '10')
+  .option('--verified-only', 'Only verified vendors')
+  .option('--featured-only', 'Only featured vendors')
+  .action(async (options) => {
+    try {
+      console.log('Finding vendor matches...');
+
+      const fs = await import('fs');
+      const gaps = JSON.parse(fs.readFileSync(options.gaps, 'utf8'));
+
+      const matchingRequest: vendor.MatchingRequest = {
+        gaps,
+        context: {
+          organizationId: options.organization,
+          industry: options.industry,
+          companySize: options.size as CompanySize,
+          region: options.region,
+          budget: options.budget,
+          timeline: options.timeline
+        },
+        filters: {
+          verifiedOnly: options.verifiedOnly || false,
+          featuredOnly: options.featuredOnly || false
+        },
+        options: {
+          maxResults: parseInt(options.max),
+          includePartialMatches: true,
+          boostFeatured: true
+        }
+      };
+
+      const result = await vendorMatchingEngine.findMatches(matchingRequest);
+
+      console.log('✓ Vendor matching completed!');
+      console.log(`Total matches: ${result.matches.length}`);
+      console.log(`Perfect matches: ${result.summary.perfectMatches}`);
+      console.log(`Good matches: ${result.summary.goodMatches}`);
+      console.log(`Average score: ${result.summary.averageScore}%`);
+      console.log(`Processing time: ${result.metadata.processingTime}ms`);
+
+      console.log('\nTop Matches:');
+      result.matches.slice(0, 5).forEach((match, index) => {
+        console.log(`\n${index + 1}. ${match.vendor.companyName}`);
+        console.log(`   Compatibility: ${match.compatibilityScore.overall}%`);
+        console.log(`   Rating: ${match.vendor.rating?.toFixed(1) || 'N/A'}/5.0`);
+        console.log(`   Verified: ${match.vendor.verified ? 'Yes' : 'No'}`);
+        console.log(`   Addressed gaps: ${match.addressedGaps.length}`);
+        console.log(`   Match reasons: ${match.matchReasons.slice(0, 2).join(', ')}`);
+        if (match.solution) {
+          console.log(`   Solution: ${match.solution.name}`);
+        }
+      });
+
+      // Save results
+      const resultsFile = `vendor-matches-${Date.now()}.json`;
+      fs.writeFileSync(resultsFile, JSON.stringify(result, null, 2));
+      console.log(`\nResults saved to: ${resultsFile}`);
+
+    } catch (error) {
+      console.error('✗ Vendor matching failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Search vendors command
+program
+  .command('search')
+  .description('Search vendors in marketplace')
+  .option('-q, --query <text>', 'Search query')
+  .option('-c, --categories <categories>', 'Comma-separated vendor categories')
+  .option('-i, --industries <industries>', 'Comma-separated industries')
+  .option('-s, --sizes <sizes>', 'Comma-separated company sizes')
+  .option('-p, --pricing <models>', 'Comma-separated pricing models')
+  .option('--min-rating <number>', 'Minimum rating', '0')
+  .option('--verified-only', 'Only verified vendors')
+  .option('--featured-only', 'Only featured vendors')
+  .option('--has-demo', 'Has demo available')
+  .option('--has-case-studies', 'Has case studies')
+  .option('--page <number>', 'Page number', '1')
+  .option('--limit <number>', 'Results per page', '10')
+  .option('--sort <field>', 'Sort by (relevance|rating|reviews|price|name|newest)', 'relevance')
+  .option('--order <direction>', 'Sort direction (asc|desc)', 'desc')
+  .action(async (options) => {
+    try {
+      console.log('Searching vendors...');
+
+      const searchCriteria: vendor.SearchCriteria = {
+        query: options.query,
+        categories: options.categories ? options.categories.split(',') : undefined,
+        industries: options.industries ? options.industries.split(',') : undefined,
+        companySizes: options.sizes ? options.sizes.split(',') : undefined,
+        pricingModels: options.pricing ? options.pricing.split(',') : undefined,
+        filters: {
+          minRating: parseFloat(options.minRating),
+          verifiedOnly: options.verifiedOnly || false,
+          featuredOnly: options.featuredOnly || false,
+          hasDemo: options.hasDemo || false,
+          hasCaseStudies: options.hasCaseStudies || false
+        },
+        sorting: {
+          field: options.sort,
+          direction: options.order
+        },
+        pagination: {
+          page: parseInt(options.page),
+          limit: parseInt(options.limit)
+        }
+      };
+
+      const result = await vendorSearchEngine.search(searchCriteria);
+
+      console.log('✓ Search completed!');
+      console.log(`Found ${result.total} vendors (showing ${result.vendors.length})`);
+      console.log(`Page ${result.page} of ${result.totalPages}`);
+
+      if (result.vendors.length === 0) {
+        console.log('No vendors found matching criteria.');
+        if (result.suggestions && result.suggestions.length > 0) {
+          console.log('\nSuggestions:');
+          result.suggestions.forEach(suggestion => console.log(`  • ${suggestion}`));
+        }
+        return;
+      }
+
+      console.log('\nSearch Results:');
+      result.vendors.forEach((vendor, index) => {
+        console.log(`\n${index + 1}. ${vendor.companyName}`);
+        console.log(`   Categories: ${vendor.categories.join(', ')}`);
+        console.log(`   Rating: ${vendor.rating?.toFixed(1) || 'N/A'}/5.0 (${vendor.reviewCount} reviews)`);
+        console.log(`   Verified: ${vendor.verified ? 'Yes' : 'No'}`);
+        console.log(`   Featured: ${vendor.featured ? 'Yes' : 'No'}`);
+        console.log(`   Solutions: ${vendor.solutions.length}`);
+        console.log(`   Website: ${vendor.website}`);
+        console.log(`   Description: ${vendor.shortDescription}`);
+      });
+
+      // Show facets
+      if (result.facets.categories.length > 0) {
+        console.log('\nAvailable Categories:');
+        result.facets.categories.slice(0, 8).forEach(facet => {
+          console.log(`  ${facet.value} (${facet.count})`);
+        });
+      }
+
+    } catch (error) {
+      console.error('✗ Vendor search failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Get vendor details command
+program
+  .command('get-vendor')
+  .description('Get detailed vendor information')
+  .requiredOption('-v, --vendor <id>', 'Vendor ID')
+  .option('--solutions', 'Include solution details')
+  .option('--similar', 'Find similar vendors')
+  .action(async (options) => {
+    try {
+      console.log('Fetching vendor details...');
+
+      const { vendorProfileManager } = await import('./profiles.js');
+      const vendor = await vendorProfileManager.getVendorProfile(options.vendor);
+
+      if (!vendor) {
+        console.error('Vendor not found');
+        process.exit(1);
+      }
+
+      console.log('✓ Vendor found:');
+      console.log(`Company: ${vendor.companyName}`);
+      console.log(`Website: ${vendor.website}`);
+      console.log(`Categories: ${vendor.categories.join(', ')}`);
+      console.log(`Rating: ${vendor.rating?.toFixed(1) || 'N/A'}/5.0 (${vendor.reviewCount} reviews)`);
+      console.log(`Status: ${vendor.status}`);
+      console.log(`Verified: ${vendor.verified ? 'Yes' : 'No'}`);
+      console.log(`Featured: ${vendor.featured ? 'Yes' : 'No'}`);
+      console.log(`Contact: ${vendor.contactEmail}`);
+      console.log(`Description: ${vendor.description}`);
+
+      if (options.solutions && vendor.solutions.length > 0) {
+        console.log(`\nSolutions (${vendor.solutions.length}):`);
+        vendor.solutions.forEach((solution, index) => {
+          console.log(`\n${index + 1}. ${solution.name}`);
+          console.log(`   Category: ${solution.category}`);
+          console.log(`   Pricing: ${solution.pricingModel}`);
+          if (solution.startingPrice) {
+            console.log(`   Starting Price: ${solution.startingPrice} ${solution.currency}`);
+          }
+          console.log(`   Features: ${solution.features.slice(0, 3).join(', ')}${solution.features.length > 3 ? '...' : ''}`);
+          console.log(`   Industries: ${solution.industries.join(', ')}`);
+          console.log(`   Company Sizes: ${solution.companySizes.join(', ')}`);
+          if (solution.demoUrl) {
+            console.log(`   Demo: ${solution.demoUrl}`);
+          }
+          console.log(`   Description: ${solution.description}`);
+        });
+      }
+
+      if (options.similar) {
+        console.log('\nFinding similar vendors...');
+        const similarVendors = await vendorSearchEngine.findSimilar(vendor.id, 5);
+        
+        if (similarVendors.length > 0) {
+          console.log(`\nSimilar Vendors (${similarVendors.length}):`);
+          similarVendors.forEach((similar, index) => {
+            console.log(`${index + 1}. ${similar.companyName} - ${similar.shortDescription}`);
+          });
+        } else {
+          console.log('No similar vendors found');
+        }
+      }
+
+    } catch (error) {
+      console.error('✗ Error fetching vendor details:', error);
+      process.exit(1);
+    }
+  });
+
+// Get recommendations command
+program
+  .command('get-recommendations')
+  .description('Get vendor recommendations for gaps')
+  .requiredOption('-g, --gaps <path>', 'Gaps JSON file or category name')
+  .requiredOption('-o, --organization <id>', 'Organization ID')
+  .option('-i, --industry <industry>', 'Industry context')
+  .option('-s, --size <size>', 'Company size')
+  .option('-r, --region <region>', 'Region')
+  .option('-t, --type <type>', 'Recommendation type (primary|alternative|complementary)', 'primary')
+  .action(async (options) => {
+    try {
+      console.log('Generating vendor recommendations...');
+
+      const context: vendor.MatchingContext = {
+        organizationId: options.organization,
+        industry: options.industry,
+        companySize: options.size,
+        region: options.region
+      };
+
+      let recommendations: vendor.VendorRecommendation[];
+
+      // Check if gaps is a file path or category name
+      if (options.gaps.includes('/') || options.gaps.includes('.json')) {
+        const fs = await import('fs');
+        const gaps = JSON.parse(fs.readFileSync(options.gaps, 'utf8'));
+        recommendations = await vendorMatchingEngine.generateRecommendations(gaps, context);
+      } else {
+        const { vendorRecommendationEngine } = await import('./recommendations.js');
+        recommendations = await vendorRecommendationEngine.getRecommendationsForCategory(
+          options.gaps,
+          context
+        );
+      }
+
+      // Filter by type if specified
+      if (options.type !== 'primary') {
+        recommendations = recommendations.filter(rec => rec.type === options.type);
+      }
+
+      console.log(`✓ Generated ${recommendations.length} recommendations:`);
+
+      recommendations.forEach((rec, index) => {
+        console.log(`\n${index + 1}. ${rec.vendor.companyName}`);
+        console.log(`   Type: ${rec.type.toUpperCase()}`);
+        console.log(`   Score: ${rec.score}%`);
+        console.log(`   Confidence: ${rec.confidence}%`);
+        console.log(`   Reason: ${rec.reason}`);
+        console.log(`   Benefits:`);
+        rec.benefits.slice(0, 3).forEach(benefit => console.log(`     • ${benefit}`));
+        console.log(`   Implementation: ${rec.implementation.effort} effort, ${rec.implementation.timeline}`);
+        console.log(`   Business Case: ${rec.businessCase.roi}, ${rec.businessCase.paybackPeriod} payback`);
+        console.log(`   Next Steps: ${rec.nextSteps[0]}`);
+      });
+
+      // Save recommendations
+      const fs = await import('fs');
+      const recFile = `vendor-recommendations-${Date.now()}.json`;
+      fs.writeFileSync(recFile, JSON.stringify(recommendations, null, 2));
+      console.log(`\nRecommendations saved to: ${recFile}`);
+
+    } catch (error) {
+      console.error('✗ Error generating recommendations:', error);
+      process.exit(1);
+    }
+  });
+
+// Marketplace stats command
+program
+  .command('marketplace-stats')
+  .description('Get marketplace statistics')
+  .action(async () => {
+    try {
+      console.log('Fetching marketplace statistics...');
+
+      const stats = await vendorMarketplace.getMarketplaceStats();
+
+      console.log('✓ Marketplace Statistics:');
+      console.log(`Total Vendors: ${stats.totalVendors}`);
+      console.log(`Total Solutions: ${stats.totalSolutions}`);
+      console.log(`Average Rating: ${stats.averageRating}/5.0`);
+
+      console.log('\nVendors by Category:');
+      Object.entries(stats.categoryCounts).forEach(([category, count]) => {
+        console.log(`  ${category.replace('_', ' ')}: ${count}`);
+      });
+
+    } catch (error) {
+      console.error('✗ Error fetching marketplace stats:', error);
+      process.exit(1);
+    }
+  });
+
+// Featured vendors command
+program
+  .command('featured')
+  .description('Get featured vendors')
+  .option('-c, --category <category>', 'Filter by category')
+  .action(async (options) => {
+    try {
+      console.log('Fetching featured vendors...');
+
+      let vendors: vendor.VendorProfile[];
+      
+      if (options.category) {
+        vendors = await vendorMarketplace.getPopularInCategory(options.category as VendorCategory);
+      } else {
+        vendors = await vendorMarketplace.getFeaturedVendors();
+      }
+
+      console.log(`✓ Found ${vendors.length} featured vendors:`);
+
+      vendors.forEach((vendor, index) => {
+        console.log(`\n${index + 1}. ${vendor.companyName}`);
+        console.log(`   Categories: ${vendor.categories.join(', ')}`);
+        console.log(`   Rating: ${vendor.rating?.toFixed(1) || 'N/A'}/5.0`);
+        console.log(`   Verified: ${vendor.verified ? 'Yes' : 'No'}`);
+        console.log(`   Solutions: ${vendor.solutions.length}`);
+        console.log(`   Description: ${vendor.shortDescription}`);
+      });
+
+    } catch (error) {
+      console.error('✗ Error fetching featured vendors:', error);
+      process.exit(1);
+    }
+  });
+
+// Health check command
+program
+  .command('health')
+  .description('Check vendor library health')
+  .action(async () => {
+    try {
+      console.log('Checking vendor library health...');
+
+      // Test search functionality
+      const searchResult = await vendorSearchEngine.search({ 
+        pagination: { page: 1, limit: 1 } 
+      });
+      console.log(`✓ Search engine: ${searchResult.total} vendors indexed`);
+
+      // Test marketplace
+      const stats = await vendorMarketplace.getMarketplaceStats();
+      console.log(`✓ Marketplace: ${stats.totalVendors} vendors, ${stats.totalSolutions} solutions`);
+
+      // Test configuration
+      console.log('✓ Configuration loaded:');
+      console.log(`  Min compatibility score: ${vendor.VENDOR_CONFIG.matching.minCompatibilityScore}%`);
+      console.log(`  Max recommendations: ${vendor.VENDOR_CONFIG.matching.maxRecommendations}`);
+      console.log(`  Results per page: ${vendor.VENDOR_CONFIG.search.resultsPerPage}`);
+
+      console.log('\n✓ Vendor library is healthy and ready');
+
+    } catch (error) {
+      console.error('✗ Health check failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Configuration command
+program
+  .command('config')
+  .description('Display current configuration')
+  .action(() => {
+    console.log('Current Vendor Library Configuration:');
+    
+    console.log('\nMatching Configuration:');
+    console.log(`  Min Compatibility Score: ${vendor.VENDOR_CONFIG.matching.minCompatibilityScore}%`);
+    console.log(`  Max Recommendations: ${vendor.VENDOR_CONFIG.matching.maxRecommendations}`);
+    console.log('  Weights Profile:');
+    Object.entries(vendor.VENDOR_CONFIG.matching.weightsProfile).forEach(([key, value]) => {
+      console.log(`    ${key}: ${value}`);
+    });
+
+    console.log('\nSearch Configuration:');
+    console.log(`  Results Per Page: ${vendor.VENDOR_CONFIG.search.resultsPerPage}`);
+    console.log(`  Max Search Results: ${vendor.VENDOR_CONFIG.search.maxSearchResults}`);
+    console.log(`  Fuzzy Search Threshold: ${vendor.VENDOR_CONFIG.search.fuzzySearchThreshold}`);
+    console.log(`  Cache Time: ${vendor.VENDOR_CONFIG.search.cacheTimeMinutes} minutes`);
+
+    console.log('\nScoring Configuration:');
+    console.log('  Weights:');
+    Object.entries(vendor.VENDOR_CONFIG.scoring.weights).forEach(([key, value]) => {
+      console.log(`    ${key}: ${value}`);
+    });
+
+    console.log('\nMarketplace Configuration:');
+    console.log(`  Featured Vendor Slots: ${vendor.VENDOR_CONFIG.marketplace.featuredVendorSlots}`);
+    console.log(`  New Vendor Boost Days: ${vendor.VENDOR_CONFIG.marketplace.newVendorBoostDays}`);
+    console.log(`  Quality Score Minimum: ${vendor.VENDOR_CONFIG.marketplace.qualityScoreMinimum}%`);
+  });
+
+// Parse command line arguments
+if (process.argv.length < 3) {
+  program.help();
+}
+
+program.parse();
+
+export default program;

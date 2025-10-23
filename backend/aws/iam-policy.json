@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "HeliolusS3BucketAccess",
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketMultipartUploads"],
+      "Resource": "arn:aws:s3:::heliolus-documents"
+    },
+    {
+      "Sid": "HeliolusS3ObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion",
+        "s3:RestoreObject"
+      ],
+      "Resource": "arn:aws:s3:::heliolus-documents/*"
+    },
+    {
+      "Sid": "HeliolusS3MultipartUpload",
+      "Effect": "Allow",
+      "Action": ["s3:ListMultipartUploadParts", "s3:AbortMultipartUpload"],
+      "Resource": "arn:aws:s3:::heliolus-documents/*"
+    },
+    {
+      "Sid": "CloudWatchMetrics",
+      "Effect": "Allow",
+      "Action": ["cloudwatch:PutMetricData"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "cloudwatch:namespace": "Heliolus/S3"
+        }
+      }
+    }
+  ]
+}

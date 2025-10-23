@@ -1,0 +1,119 @@
+information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+warnOnce @ react-router-dom.js?v=02d1138e:4393
+logDeprecation @ react-router-dom.js?v=02d1138e:4396
+logV6DeprecationWarnings @ react-router-dom.js?v=02d1138e:4402
+(anonymous) @ react-router-dom.js?v=02d1138e:5271
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=02d1138e:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=02d1138e:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=02d1138e:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=02d1138e:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=02d1138e:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=02d1138e:19447
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18868
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=02d1138e:9119
+commitRootImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19432
+commitRoot @ chunk-AVJPV5ZH.js?v=02d1138e:19277
+finishConcurrentRender @ chunk-AVJPV5ZH.js?v=02d1138e:18805
+performConcurrentWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18718
+workLoop @ chunk-AVJPV5ZH.js?v=02d1138e:197
+flushWork @ chunk-AVJPV5ZH.js?v=02d1138e:176
+performWorkUntilDeadline @ chunk-AVJPV5ZH.js?v=02d1138e:384
+Show 20 more frames
+Show less
+api.ts:44 [API] Request to: /v1/organizations/my-organization
+api.ts:45 [API] Method: GET
+api.ts:49 [API] Response status: 200
+api.ts:67 [API] Success response: {id: 'cmfeduurz0005o9awcgonilje', name: 'ExpertChat', country: 'Unknown', onboardingCompleted: false, createdAt: '2025-09-10T19:39:06.192Z', …}
+BusinessProfile.tsx:137 [DEBUG] Organization data: {id: 'cmfeduurz0005o9awcgonilje', name: 'ExpertChat', country: 'Unknown', onboardingCompleted: false, createdAt: '2025-09-10T19:39:06.192Z', …}
+api.ts:44 [API] Request to: /v1/documents/organizations/cmfeduurz0005o9awcgonilje/documents
+api.ts:45 [API] Method: GET
+BusinessProfile.tsx:164 [DEBUG] Setting form data to: {companyName: 'ExpertChat', industry: 'banking', companySize: 'midmarket', annualRevenue: '', geography: '', …}
+api.ts:48 
+        
+        
+       GET https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/v1/documents/organizations/cmfeduurz0005o9awcgonilje/documents 403 (Forbidden)
+apiRequest @ api.ts:48
+getOrganizationDocuments @ api.ts:258
+fetchOrganizationDocuments @ BusinessProfile.tsx:183
+fetchUserOrganization @ BusinessProfile.tsx:169
+await in fetchUserOrganization (async)
+(anonymous) @ BusinessProfile.tsx:92
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=02d1138e:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=02d1138e:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=02d1138e:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=02d1138e:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=02d1138e:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=02d1138e:19447
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18868
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=02d1138e:9119
+commitRootImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19432
+commitRoot @ chunk-AVJPV5ZH.js?v=02d1138e:19277
+finishConcurrentRender @ chunk-AVJPV5ZH.js?v=02d1138e:18805
+performConcurrentWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18718
+workLoop @ chunk-AVJPV5ZH.js?v=02d1138e:197
+flushWork @ chunk-AVJPV5ZH.js?v=02d1138e:176
+performWorkUntilDeadline @ chunk-AVJPV5ZH.js?v=02d1138e:384
+Show 16 more frames
+Show less
+api.ts:49 [API] Response status: 403
+api.ts:62 [API] Error response: {message: 'Access denied', code: 'FORBIDDEN', statusCode: 403, timestamp: '2025-09-12T11:50:02.003Z'}
+apiRequest @ api.ts:62
+await in apiRequest (async)
+getOrganizationDocuments @ api.ts:258
+fetchOrganizationDocuments @ BusinessProfile.tsx:183
+fetchUserOrganization @ BusinessProfile.tsx:169
+await in fetchUserOrganization (async)
+(anonymous) @ BusinessProfile.tsx:92
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=02d1138e:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=02d1138e:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=02d1138e:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=02d1138e:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=02d1138e:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=02d1138e:19447
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18868
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=02d1138e:9119
+commitRootImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19432
+commitRoot @ chunk-AVJPV5ZH.js?v=02d1138e:19277
+finishConcurrentRender @ chunk-AVJPV5ZH.js?v=02d1138e:18805
+performConcurrentWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18718
+workLoop @ chunk-AVJPV5ZH.js?v=02d1138e:197
+flushWork @ chunk-AVJPV5ZH.js?v=02d1138e:176
+performWorkUntilDeadline @ chunk-AVJPV5ZH.js?v=02d1138e:384
+Show 16 more frames
+Show less
+api.ts:70 [API] Fetch error: Error: Access denied
+    at apiRequest (api.ts:63:13)
+    at async Object.getOrganizationDocuments (api.ts:258:22)
+    at async fetchOrganizationDocuments (BusinessProfile.tsx:183:22)
+apiRequest @ api.ts:70
+await in apiRequest (async)
+getOrganizationDocuments @ api.ts:258
+fetchOrganizationDocuments @ BusinessProfile.tsx:183
+fetchUserOrganization @ BusinessProfile.tsx:169
+await in fetchUserOrganization (async)
+(anonymous) @ BusinessProfile.tsx:92
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=02d1138e:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=02d1138e:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=02d1138e:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=02d1138e:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=02d1138e:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=02d1138e:19447
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18868
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=02d1138e:9119
+commitRootImpl @ chunk-AVJPV5ZH.js?v=02d1138e:19432
+commitRoot @ chunk-AVJPV5ZH.js?v=02d1138e:19277
+finishConcurrentRender @ chunk-AVJPV5ZH.js?v=02d1138e:18805
+performConcurrentWorkOnRoot @ chunk-AVJPV5ZH.js?v=02d1138e:18718
+workLoop @ chunk-AVJPV5ZH.js?v=02d1138e:197
+flushWork @ chunk-AVJPV5ZH.js?v=02d1138e:176
+performWorkUntilDeadline @ chunk-AVJPV5ZH.js?v=02d1138e:384
+Show 16 more frames
+Show less
+BusinessProfile.tsx:186 Error fetching documents: Error: Access denied
+    at apiRequest (api.ts:63:13)
+    at async Object.getOrganizationDocuments (api.ts:258:22)
+    at async fetchOrganizationDocuments (BusinessProfile.tsx:183:22)

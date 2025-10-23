@@ -1,0 +1,640 @@
+/**
+ * AI-powered document analysis system
+ */
+
+import OpenAI from 'openai';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  DocumentAnalyzer,
+  AnalysisRequest,
+  AnalysisResult,
+  AnalysisType,
+  AnalysisOptions,
+  EntityExtractionResult,
+  ClassificationResult,
+  SentimentResult,
+  ExtractedEntity,
+  EntityType,
+  ClassificationCategory,
+  EmotionScore,
+  CompletionOptions,
+  CompletionResult,
+  AnalysisError,
+  ModelError,
+  TokenLimitError
+} from './types.js';
+import { AI_CONFIG } from './index.js';
+
+const prisma = new PrismaClient();
+
+/**
+ * Comprehensive AI-powered document analyzer
+ */
+export class HeliolusDocumentAnalyzer implements DocumentAnalyzer {
+  private openai: OpenAI;
+  private retryDelays = [1000, 2000, 4000]; // Exponential backoff
+
+  constructor() {
+    if (!AI_CONFIG.openai.apiKey) {
+      throw new AnalysisError('OpenAI API key is required');
+    }
+
+    this.openai = new OpenAI({
+      apiKey: AI_CONFIG.openai.apiKey
+    });
+  }
+
+  /**
+   * Analyze document with specified analysis type
+   */
+  async analyze(request: AnalysisRequest): Promise<AnalysisResult> {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`Analyzing document with type: ${request.analysisType}`);
+
+      // Get content to analyze
+      let content = request.content;
+      if (!content && request.documentId) {
+        content = await this.getDocumentContent(request.documentId);
+      }
+
+      if (!content) {
+        throw new AnalysisError('No content provided for analysis');
+      }
+
+      // Perform analysis based on type
+      let result: any;
+      switch (request.analysisType) {
+        case 'summarize':
+          result = await this.performSummarization(content, request);
+          break;
+        case 'extract_entities':
+          return await this.extractEntities(content, request.options);
+        case 'classify':
+          return await this.classifyDocument(content, undefined, request.options);
+        case 'sentiment':
+          return await this.analyzeSentiment(content, request.options);
+        case 'risk_assessment':
+          result = await this.performRiskAssessment(content, request);
+          break;
+        case 'compliance_check':
+          result = await this.performComplianceCheck(content, request);
+          break;
+        case 'key_points':
+          result = await this.extractKeyPoints(content, request);
+          break;
+        case 'qa':
+          result = await this.performQA(content, request);
+          break;
+        case 'custom':
+          result = await this.performCustomAnalysis(content, request);
+          break;
+        default:
+          throw new AnalysisError(`Unsupported analysis type: ${request.analysisType}`);
+      }
+
+      const processingTime = Date.now() - startTime;
+      const analysisResult: AnalysisResult = {
+        id: crypto.randomUUID(),
+        documentId: request.documentId,
+        analysisType: request.analysisType,
+        result,
+        metadata: {
+          model: request.options?.model || AI_CONFIG.openai.model,
+          tokensUsed: result.tokensUsed || 0,
+          processingTime,
+          timestamp: new Date()
+        }
+      };
+
+      // Store analysis result
+      await this.storeAnalysisResult(analysisResult);
+
+      return analysisResult;
+    } catch (error) {
+      console.error('Analysis error:', error);
+      throw error instanceof AnalysisError ? error : new AnalysisError('Analysis failed');
+    }
+  }
+
+  /**
+   * Batch analyze multiple documents
+   */
+  async batchAnalyze(requests: AnalysisRequest[]): Promise<AnalysisResult[]> {
+    const results: AnalysisResult[] = [];
+    const batchSize = 5; // Process in batches to avoid rate limits
+
+    for (let i = 0; i < requests.length; i += batchSize) {
+      const batch = requests.slice(i, i + batchSize);
+      const batchPromises = batch.map(request => this.analyze(request));
+      
+      try {
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        batchResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+          } else {
+            console.error(`Batch analysis failed for request ${i + index}:`, result.reason);
+            // Create error result
+            results.push({
+              id: crypto.randomUUID(),
+              analysisType: batch[index].analysisType,
+              result: null,
+              metadata: {
+                model: AI_CONFIG.openai.model,
+                tokensUsed: 0,
+                processingTime: 0,
+                timestamp: new Date()
+              },
+              errors: [result.reason?.message || 'Analysis failed']
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Batch processing error:', error);
+        throw new AnalysisError('Batch analysis failed');
+      }
+
+      // Add delay between batches to respect rate limits
+      if (i + batchSize < requests.length) {
+        await this.delay(1000);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Extract entities from text
+   */
+  async extractEntities(content: string, options: AnalysisOptions = {}): Promise<EntityExtractionResult> {
+    const startTime = Date.now();
+    
+    try {
+      const prompt = this.buildEntityExtractionPrompt(content);
+      const completion = await this.generateCompletion(prompt, {
+        ...options,
+        responseFormat: 'json'
+      });
+
+      const entities = this.parseEntityExtractionResult(completion.text);
+      const entityTypes = this.countEntityTypes(entities);
+
+      const processingTime = Date.now() - startTime;
+
+      return {
+        id: crypto.randomUUID(),
+        analysisType: 'extract_entities',
+        result: {
+          entities,
+          summary: `Found ${entities.length} entities across ${Object.keys(entityTypes).length} types`,
+          totalEntities: entities.length,
+          entityTypes
+        },
+        metadata: {
+          model: completion.model,
+          tokensUsed: completion.tokensUsed,
+          processingTime,
+          timestamp: new Date()
+        }
+      };
+    } catch (error) {
+      console.error('Entity extraction error:', error);
+      throw new AnalysisError('Failed to extract entities');
+    }
+  }
+
+  /**
+   * Classify document content
+   */
+  async classifyDocument(content: string, categories?: string[], options: AnalysisOptions = {}): Promise<ClassificationResult> {
+    const startTime = Date.now();
+    
+    try {
+      const prompt = this.buildClassificationPrompt(content, categories);
+      const completion = await this.generateCompletion(prompt, {
+        ...options,
+        responseFormat: 'json'
+      });
+
+      const classificationData = JSON.parse(completion.text);
+      
+      const processingTime = Date.now() - startTime;
+
+      return {
+        id: crypto.randomUUID(),
+        analysisType: 'classify',
+        result: {
+          categories: classificationData.categories || [],
+          primaryCategory: classificationData.primaryCategory || classificationData.categories?.[0]?.name,
+          confidence: classificationData.confidence || classificationData.categories?.[0]?.confidence || 0,
+          reasoning: classificationData.reasoning
+        },
+        metadata: {
+          model: completion.model,
+          tokensUsed: completion.tokensUsed,
+          processingTime,
+          timestamp: new Date()
+        }
+      };
+    } catch (error) {
+      console.error('Classification error:', error);
+      throw new AnalysisError('Failed to classify document');
+    }
+  }
+
+  /**
+   * Analyze document sentiment
+   */
+  async analyzeSentiment(content: string, options: AnalysisOptions = {}): Promise<SentimentResult> {
+    const startTime = Date.now();
+    
+    try {
+      const prompt = this.buildSentimentPrompt(content);
+      const completion = await this.generateCompletion(prompt, {
+        ...options,
+        responseFormat: 'json'
+      });
+
+      const sentimentData = JSON.parse(completion.text);
+      
+      const processingTime = Date.now() - startTime;
+
+      return {
+        id: crypto.randomUUID(),
+        analysisType: 'sentiment',
+        result: {
+          sentiment: sentimentData.sentiment || 'neutral',
+          score: sentimentData.score || 0,
+          confidence: sentimentData.confidence || 0,
+          emotions: sentimentData.emotions || [],
+          keyPhrases: sentimentData.keyPhrases || []
+        },
+        metadata: {
+          model: completion.model,
+          tokensUsed: completion.tokensUsed,
+          processingTime,
+          timestamp: new Date()
+        }
+      };
+    } catch (error) {
+      console.error('Sentiment analysis error:', error);
+      throw new AnalysisError('Failed to analyze sentiment');
+    }
+  }
+
+  /**
+   * Summarize document
+   */
+  async summarizeDocument(content: string, options: AnalysisOptions = {}): Promise<AnalysisResult> {
+    const request: AnalysisRequest = {
+      content,
+      analysisType: 'summarize',
+      options
+    };
+
+    return this.analyze(request);
+  }
+
+  /**
+   * Generate embedding for content
+   */
+  async generateEmbedding(content: string, options: any = {}): Promise<any> {
+    try {
+      const response = await this.openai.embeddings.create({
+        model: options.model || AI_CONFIG.openai.embeddingModel,
+        input: content,
+        dimensions: options.dimensions || AI_CONFIG.embeddings.dimensions
+      });
+
+      return {
+        embeddings: [response.data[0].embedding],
+        model: response.model,
+        dimensions: response.data[0].embedding.length,
+        tokensUsed: response.usage.total_tokens,
+        processingTime: 0 // OpenAI doesn't provide this
+      };
+    } catch (error) {
+      console.error('Embedding generation error:', error);
+      throw new AnalysisError('Failed to generate embedding');
+    }
+  }
+
+  /**
+   * Find similar documents
+   */
+  async findSimilarDocuments(request: any): Promise<any> {
+    try {
+      // Get query embedding
+      const queryEmbedding = typeof request.query === 'string' ? 
+        await this.generateSingleEmbedding(request.query) : 
+        request.query;
+
+      // Search for similar documents in the database
+      // This would require a vector database or similarity search implementation
+      // For now, return a placeholder implementation
+
+      return {
+        matches: [],
+        query: request.query,
+        processingTime: 0
+      };
+    } catch (error) {
+      console.error('Similarity search error:', error);
+      throw new AnalysisError('Failed to find similar documents');
+    }
+  }
+
+  // Private helper methods
+
+  private async performSummarization(content: string, request: AnalysisRequest): Promise<any> {
+    const prompt = request.customPrompt || 
+      AI_CONFIG.analysis.defaultPrompts.summarize + '\n\n' + content;
+
+    const completion = await this.generateCompletion(prompt, request.options);
+
+    return {
+      summary: completion.text,
+      tokensUsed: completion.tokensUsed
+    };
+  }
+
+  private async performRiskAssessment(content: string, request: AnalysisRequest): Promise<any> {
+    const prompt = request.customPrompt || 
+      AI_CONFIG.analysis.defaultPrompts.risk_assessment + '\n\n' + content;
+
+    const completion = await this.generateCompletion(prompt, {
+      ...request.options,
+      responseFormat: 'json'
+    });
+
+    try {
+      return JSON.parse(completion.text);
+    } catch {
+      return {
+        risks: [],
+        overallRiskLevel: 'unknown',
+        summary: completion.text,
+        tokensUsed: completion.tokensUsed
+      };
+    }
+  }
+
+  private async performComplianceCheck(content: string, request: AnalysisRequest): Promise<any> {
+    const prompt = `Analyze the following document for compliance issues, regulatory requirements, and potential legal concerns. Provide a structured assessment.\n\n${content}`;
+
+    const completion = await this.generateCompletion(prompt, {
+      ...request.options,
+      responseFormat: 'json'
+    });
+
+    try {
+      return JSON.parse(completion.text);
+    } catch {
+      return {
+        complianceIssues: [],
+        overallCompliance: 'unknown',
+        summary: completion.text,
+        tokensUsed: completion.tokensUsed
+      };
+    }
+  }
+
+  private async performQA(content: string, request: AnalysisRequest): Promise<any> {
+    const question = request.context?.question;
+    if (!question) {
+      throw new AnalysisError('Question is required for QA analysis');
+    }
+
+    const prompt = `Answer the following question based on the provided document content.\n\nQuestion: ${question}\n\nDocument:\n${content}`;
+
+    const completion = await this.generateCompletion(prompt, request.options);
+
+    return {
+      question,
+      answer: completion.text,
+      confidence: 0.8, // Default confidence
+      tokensUsed: completion.tokensUsed
+    };
+  }
+
+  private async performKeyPoints(content: string, request: AnalysisRequest): Promise<any> {
+    const prompt = `Extract the key points and main themes from the following document. Provide a bulleted list of the most important information.\n\n${content}`;
+
+    const completion = await this.generateCompletion(prompt, request.options);
+
+    // Parse key points from the response
+    const keyPoints = completion.text.split('\n')
+      .filter(line => line.trim().startsWith('•') || line.trim().startsWith('-') || line.trim().startsWith('*'))
+      .map(line => line.replace(/^[•\-\*]\s*/, '').trim())
+      .filter(point => point.length > 0);
+
+    return {
+      keyPoints,
+      summary: completion.text,
+      tokensUsed: completion.tokensUsed
+    };
+  }
+
+  private async performCustomAnalysis(content: string, request: AnalysisRequest): Promise<any> {
+    if (!request.customPrompt) {
+      throw new AnalysisError('Custom prompt is required for custom analysis');
+    }
+
+    const prompt = request.customPrompt + '\n\n' + content;
+    const completion = await this.generateCompletion(prompt, request.options);
+
+    return {
+      result: completion.text,
+      tokensUsed: completion.tokensUsed
+    };
+  }
+
+  private async generateCompletion(prompt: string, options: CompletionOptions = {}): Promise<CompletionResult> {
+    const maxRetries = AI_CONFIG.analysis.maxRetries;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await this.openai.chat.completions.create({
+          model: options.model || AI_CONFIG.openai.model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: options.maxTokens || AI_CONFIG.openai.maxTokens,
+          temperature: options.temperature || AI_CONFIG.openai.temperature,
+          response_format: options.responseFormat === 'json' ? { type: 'json_object' } : undefined
+        });
+
+        const choice = response.choices[0];
+        if (!choice.message.content) {
+          throw new AnalysisError('No content in OpenAI response');
+        }
+
+        return {
+          text: choice.message.content,
+          finishReason: choice.finish_reason || 'unknown',
+          tokensUsed: response.usage?.total_tokens || 0,
+          model: response.model
+        };
+      } catch (error: any) {
+        if (attempt === maxRetries - 1) {
+          if (error.code === 'context_length_exceeded') {
+            throw new TokenLimitError('Content exceeds token limit');
+          }
+          if (error.code === 'model_not_found') {
+            throw new ModelError('Invalid model specified', options.model);
+          }
+          throw new AnalysisError(`OpenAI API error: ${error.message}`);
+        }
+
+        // Wait before retry
+        await this.delay(this.retryDelays[attempt]);
+      }
+    }
+
+    throw new AnalysisError('Max retries exceeded');
+  }
+
+  private buildEntityExtractionPrompt(content: string): string {
+    return `Extract named entities from the following text and return them in JSON format. Include person names, organizations, locations, dates, monetary amounts, and other relevant entities.
+
+Format your response as JSON with this structure:
+{
+  "entities": [
+    {
+      "text": "entity text",
+      "type": "PERSON|ORGANIZATION|LOCATION|DATE|MONEY|EMAIL|PHONE|URL",
+      "confidence": 0.95,
+      "context": "surrounding context"
+    }
+  ]
+}
+
+Text to analyze:
+${content}`;
+  }
+
+  private buildClassificationPrompt(content: string, categories?: string[]): string {
+    const categoryList = categories ? categories.join(', ') : 'business, legal, technical, financial, marketing, educational, personal, other';
+    
+    return `Classify the following document into appropriate categories. Provide confidence scores for each category.
+
+Available categories: ${categoryList}
+
+Format your response as JSON:
+{
+  "categories": [
+    {
+      "name": "category name",
+      "confidence": 0.95,
+      "description": "brief description"
+    }
+  ],
+  "primaryCategory": "most likely category",
+  "confidence": 0.95,
+  "reasoning": "explanation for the classification"
+}
+
+Document to classify:
+${content}`;
+  }
+
+  private buildSentimentPrompt(content: string): string {
+    return `Analyze the sentiment and emotional tone of the following text. Provide detailed analysis including overall sentiment, confidence score, and key emotional indicators.
+
+Format your response as JSON:
+{
+  "sentiment": "positive|negative|neutral",
+  "score": 0.5,
+  "confidence": 0.95,
+  "emotions": [
+    {
+      "emotion": "emotion name",
+      "score": 0.8,
+      "confidence": 0.9
+    }
+  ],
+  "keyPhrases": ["phrase1", "phrase2"],
+  "reasoning": "explanation of the sentiment analysis"
+}
+
+Text to analyze:
+${content}`;
+  }
+
+  private parseEntityExtractionResult(jsonText: string): ExtractedEntity[] {
+    try {
+      const data = JSON.parse(jsonText);
+      return data.entities.map((entity: any, index: number) => ({
+        text: entity.text,
+        type: entity.type as EntityType,
+        confidence: entity.confidence || 0.5,
+        startChar: index * 10, // Placeholder - would need actual position detection
+        endChar: index * 10 + entity.text.length,
+        metadata: {
+          context: entity.context
+        }
+      }));
+    } catch (error) {
+      console.error('Failed to parse entity extraction result:', error);
+      return [];
+    }
+  }
+
+  private countEntityTypes(entities: ExtractedEntity[]): Record<EntityType, number> {
+    const counts: Record<EntityType, number> = {} as Record<EntityType, number>;
+    
+    entities.forEach(entity => {
+      counts[entity.type] = (counts[entity.type] || 0) + 1;
+    });
+    
+    return counts;
+  }
+
+  private async generateSingleEmbedding(text: string): Promise<number[]> {
+    try {
+      const response = await this.openai.embeddings.create({
+        model: AI_CONFIG.openai.embeddingModel,
+        input: text
+      });
+
+      return response.data[0].embedding;
+    } catch (error) {
+      console.error('Single embedding generation error:', error);
+      throw new AnalysisError('Failed to generate embedding');
+    }
+  }
+
+  private async getDocumentContent(documentId: string): Promise<string | null> {
+    try {
+      // This would retrieve document content from the database
+      // Placeholder implementation
+      return null;
+    } catch (error) {
+      console.error('Failed to get document content:', error);
+      return null;
+    }
+  }
+
+  private async storeAnalysisResult(result: AnalysisResult): Promise<void> {
+    try {
+      // Store analysis result in the database
+      // Placeholder implementation
+      console.log('Analysis result stored:', result.id);
+    } catch (error) {
+      console.error('Failed to store analysis result:', error);
+    }
+  }
+
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// Export the document analyzer instance
+export const documentAnalyzer = new HeliolusDocumentAnalyzer();

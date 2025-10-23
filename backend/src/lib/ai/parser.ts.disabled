@@ -1,0 +1,654 @@
+/**
+ * Document parsing system with support for multiple formats
+ */
+
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import mammoth from 'mammoth';
+import * as pdfParse from 'pdf-parse';
+import TurndownService from 'turndown';
+import { JSDOM } from 'jsdom';
+import fetch from 'node-fetch';
+import crypto from 'crypto';
+import {
+  DocumentParser,
+  ParsedDocument,
+  DocumentContent,
+  DocumentMetadata,
+  ParseOptions,
+  DocumentFormat,
+  DocumentSection,
+  TableData,
+  ImageData,
+  LinkData,
+  DocumentChunk,
+  ValidationResult,
+  ParseError,
+  UnsupportedFormatError,
+  FileSizeError
+} from './types.js';
+import { AI_CONFIG } from './index.js';
+
+/**
+ * Comprehensive document parsing implementation
+ */
+export class HeliolusDocumentParser implements DocumentParser {
+  private turndown: TurndownService;
+
+  constructor() {
+    this.turndown = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced'
+    });
+    
+    // Configure turndown rules
+    this.turndown.addRule('table', {
+      filter: 'table',
+      replacement: (content, node) => {
+        return '\n\n' + content + '\n\n';
+      }
+    });
+  }
+
+  /**
+   * Parse document from buffer
+   */
+  async parseDocument(file: Buffer, filename: string, options: ParseOptions = {}): Promise<ParsedDocument> {
+    const startTime = Date.now();
+    const steps: any[] = [];
+    
+    try {
+      console.log(`Parsing document: ${filename}`);
+
+      // Validate document
+      const validation = await this.validateDocument(file, filename);
+      if (!validation.valid) {
+        throw new ParseError(`Document validation failed: ${validation.errors?.join(', ')}`);
+      }
+
+      steps.push({
+        name: 'validation',
+        duration: Date.now() - startTime,
+        success: true
+      });
+
+      // Parse based on format
+      const format = this.getDocumentFormat(filename);
+      let content: DocumentContent;
+      
+      const parseStart = Date.now();
+      switch (format) {
+        case 'pdf':
+          content = await this.parsePDF(file, filename, options);
+          break;
+        case 'docx':
+          content = await this.parseDocx(file, filename, options);
+          break;
+        case 'html':
+          content = await this.parseHTML(file, filename, options);
+          break;
+        case 'txt':
+        case 'md':
+          content = await this.parseText(file, filename, options);
+          break;
+        case 'rtf':
+          content = await this.parseRTF(file, filename, options);
+          break;
+        default:
+          throw new UnsupportedFormatError(format);
+      }
+
+      steps.push({
+        name: 'parsing',
+        duration: Date.now() - parseStart,
+        success: true
+      });
+
+      // Generate chunks if requested
+      let chunks: DocumentChunk[] | undefined;
+      if (options.chunkSize && options.chunkSize > 0) {
+        const chunkStart = Date.now();
+        chunks = this.createChunks(content.text, options);
+        steps.push({
+          name: 'chunking',
+          duration: Date.now() - chunkStart,
+          success: true
+        });
+      }
+
+      const documentId = crypto.randomUUID();
+      const totalTime = Date.now() - startTime;
+
+      return {
+        id: documentId,
+        content,
+        chunks,
+        processingStats: {
+          totalTime,
+          steps
+        }
+      };
+    } catch (error) {
+      const errorStep = {
+        name: 'error',
+        duration: Date.now() - startTime,
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+      
+      steps.push(errorStep);
+      
+      console.error('Document parsing error:', error);
+      throw error instanceof ParseError ? error : new ParseError('Document parsing failed');
+    }
+  }
+
+  /**
+   * Parse document from file path
+   */
+  async parseFromPath(filePath: string, options: ParseOptions = {}): Promise<ParsedDocument> {
+    try {
+      const file = await fs.readFile(filePath);
+      const filename = path.basename(filePath);
+      return this.parseDocument(file, filename, options);
+    } catch (error) {
+      console.error('File reading error:', error);
+      throw new ParseError(`Failed to read file: ${filePath}`);
+    }
+  }
+
+  /**
+   * Parse document from URL
+   */
+  async parseFromUrl(url: string, options: ParseOptions = {}): Promise<ParsedDocument> {
+    try {
+      console.log(`Fetching document from URL: ${url}`);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new ParseError(`Failed to fetch document: ${response.status} ${response.statusText}`);
+      }
+
+      const buffer = await response.buffer();
+      const filename = this.getFilenameFromUrl(url);
+      
+      return this.parseDocument(buffer, filename, options);
+    } catch (error) {
+      console.error('URL parsing error:', error);
+      throw error instanceof ParseError ? error : new ParseError('Failed to parse document from URL');
+    }
+  }
+
+  /**
+   * Get supported document formats
+   */
+  getSupportedFormats(): DocumentFormat[] {
+    return AI_CONFIG.parsing.supportedFormats as DocumentFormat[];
+  }
+
+  /**
+   * Validate document
+   */
+  async validateDocument(file: Buffer, filename: string): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    
+    // Check file size
+    if (file.length > AI_CONFIG.parsing.maxFileSize) {
+      errors.push(`File size ${file.length} exceeds maximum ${AI_CONFIG.parsing.maxFileSize} bytes`);
+    }
+
+    // Check format
+    const format = this.getDocumentFormat(filename);
+    if (!this.getSupportedFormats().includes(format)) {
+      errors.push(`Unsupported format: ${format}`);
+    }
+
+    // Basic file validation
+    if (file.length === 0) {
+      errors.push('File is empty');
+    }
+
+    // Format-specific validation
+    if (format === 'pdf') {
+      if (!file.subarray(0, 5).toString().includes('PDF')) {
+        warnings.push('File may not be a valid PDF');
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      format,
+      size: file.length,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
+  }
+
+  // Private parsing methods
+
+  private async parsePDF(file: Buffer, filename: string, options: ParseOptions): Promise<DocumentContent> {
+    try {
+      const pdfData = await pdfParse(file);
+      
+      const metadata: DocumentMetadata = {
+        filename,
+        format: 'pdf',
+        size: file.length,
+        pages: pdfData.numpages,
+        title: pdfData.info?.Title,
+        author: pdfData.info?.Author,
+        subject: pdfData.info?.Subject,
+        creator: pdfData.info?.Creator,
+        producer: pdfData.info?.Producer,
+        creationDate: pdfData.info?.CreationDate ? new Date(pdfData.info.CreationDate) : undefined,
+        modificationDate: pdfData.info?.ModDate ? new Date(pdfData.info.ModDate) : undefined,
+        wordCount: this.countWords(pdfData.text),
+        characterCount: pdfData.text.length,
+        pageCount: pdfData.numpages
+      };
+
+      // Parse sections if preserving formatting
+      const sections = options.preserveFormatting ? this.extractSections(pdfData.text) : undefined;
+      
+      return {
+        text: pdfData.text,
+        metadata,
+        sections
+      };
+    } catch (error) {
+      console.error('PDF parsing error:', error);
+      throw new ParseError('Failed to parse PDF document', filename);
+    }
+  }
+
+  private async parseDocx(file: Buffer, filename: string, options: ParseOptions): Promise<DocumentContent> {
+    try {
+      const result = await mammoth.extractRawText({ buffer: file });
+      
+      if (result.messages.length > 0) {
+        console.warn('DOCX parsing warnings:', result.messages);
+      }
+
+      const text = result.value;
+      
+      const metadata: DocumentMetadata = {
+        filename,
+        format: 'docx',
+        size: file.length,
+        wordCount: this.countWords(text),
+        characterCount: text.length
+      };
+
+      // Extract with HTML if preserving formatting
+      if (options.preserveFormatting) {
+        const htmlResult = await mammoth.convertToHtml({ buffer: file });
+        return await this.parseHTML(Buffer.from(htmlResult.value), filename, { ...options, preserveFormatting: false });
+      }
+
+      const sections = this.extractSections(text);
+
+      return {
+        text,
+        metadata,
+        sections
+      };
+    } catch (error) {
+      console.error('DOCX parsing error:', error);
+      throw new ParseError('Failed to parse DOCX document', filename);
+    }
+  }
+
+  private async parseHTML(file: Buffer, filename: string, options: ParseOptions): Promise<DocumentContent> {
+    try {
+      const html = file.toString('utf-8');
+      const dom = new JSDOM(html);
+      const document = dom.window.document;
+
+      // Extract text content
+      const text = options.preserveFormatting ? 
+        this.turndown.turndown(html) : 
+        document.body?.textContent || document.textContent || '';
+
+      // Extract metadata
+      const title = document.title;
+      const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content');
+      const metaAuthor = document.querySelector('meta[name="author"]')?.getAttribute('content');
+      const metaKeywords = document.querySelector('meta[name="keywords"]')?.getAttribute('content');
+
+      const metadata: DocumentMetadata = {
+        filename,
+        format: 'html',
+        size: file.length,
+        title,
+        author: metaAuthor || undefined,
+        subject: metaDescription || undefined,
+        keywords: metaKeywords ? metaKeywords.split(',').map(k => k.trim()) : undefined,
+        wordCount: this.countWords(text),
+        characterCount: text.length
+      };
+
+      // Extract structured content
+      const sections = options.preserveFormatting ? this.extractHTMLSections(document) : undefined;
+      const tables = options.extractTables ? this.extractHTMLTables(document) : undefined;
+      const images = options.extractImages ? this.extractHTMLImages(document) : undefined;
+      const links = this.extractHTMLLinks(document);
+
+      return {
+        text,
+        metadata,
+        sections,
+        tables,
+        images,
+        links
+      };
+    } catch (error) {
+      console.error('HTML parsing error:', error);
+      throw new ParseError('Failed to parse HTML document', filename);
+    }
+  }
+
+  private async parseText(file: Buffer, filename: string, options: ParseOptions): Promise<DocumentContent> {
+    try {
+      const text = file.toString('utf-8');
+      
+      const metadata: DocumentMetadata = {
+        filename,
+        format: path.extname(filename).slice(1) as DocumentFormat,
+        size: file.length,
+        wordCount: this.countWords(text),
+        characterCount: text.length
+      };
+
+      const sections = options.preserveFormatting ? this.extractSections(text) : undefined;
+
+      return {
+        text,
+        metadata,
+        sections
+      };
+    } catch (error) {
+      console.error('Text parsing error:', error);
+      throw new ParseError('Failed to parse text document', filename);
+    }
+  }
+
+  private async parseRTF(file: Buffer, filename: string, options: ParseOptions): Promise<DocumentContent> {
+    try {
+      // Basic RTF parsing - extract text content
+      const rtfContent = file.toString('utf-8');
+      
+      // Simple RTF text extraction (basic implementation)
+      let text = rtfContent
+        .replace(/\\[a-z]+[0-9]*\s?/g, '') // Remove RTF control words
+        .replace(/[{}]/g, '') // Remove braces
+        .replace(/\\\\/g, '\\') // Unescape backslashes
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+
+      const metadata: DocumentMetadata = {
+        filename,
+        format: 'rtf',
+        size: file.length,
+        wordCount: this.countWords(text),
+        characterCount: text.length
+      };
+
+      return {
+        text,
+        metadata
+      };
+    } catch (error) {
+      console.error('RTF parsing error:', error);
+      throw new ParseError('Failed to parse RTF document', filename);
+    }
+  }
+
+  // Helper methods
+
+  private getDocumentFormat(filename: string): DocumentFormat {
+    const extension = path.extname(filename).toLowerCase().slice(1);
+    
+    if (AI_CONFIG.parsing.supportedFormats.includes(extension as DocumentFormat)) {
+      return extension as DocumentFormat;
+    }
+    
+    return 'unknown';
+  }
+
+  private getFilenameFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      return path.basename(pathname) || 'document';
+    } catch {
+      return 'document';
+    }
+  }
+
+  private countWords(text: string): number {
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  }
+
+  private extractSections(text: string): DocumentSection[] {
+    const sections: DocumentSection[] = [];
+    const lines = text.split('\n');
+    let currentSection: DocumentSection | null = null;
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      if (trimmedLine.length === 0) continue;
+      
+      // Detect headings (simple heuristic)
+      const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)/) || // Markdown style
+                          (trimmedLine.length < 100 && !trimmedLine.endsWith('.') && trimmedLine === trimmedLine.toUpperCase()); // All caps short lines
+
+      if (headingMatch) {
+        // Save previous section
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+        
+        const level = typeof headingMatch === 'boolean' ? 1 : headingMatch[1].length;
+        const title = typeof headingMatch === 'boolean' ? trimmedLine : headingMatch[2];
+        
+        currentSection = {
+          title,
+          content: '',
+          level,
+          type: 'heading'
+        };
+      } else if (currentSection) {
+        currentSection.content += (currentSection.content ? '\n' : '') + trimmedLine;
+      } else {
+        // Content without a preceding heading
+        sections.push({
+          content: trimmedLine,
+          level: 0,
+          type: 'paragraph'
+        });
+      }
+    }
+    
+    // Add final section
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+    
+    return sections;
+  }
+
+  private extractHTMLSections(document: Document): DocumentSection[] {
+    const sections: DocumentSection[] = [];
+    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    
+    headings.forEach((heading, index) => {
+      const level = parseInt(heading.tagName[1]);
+      const title = heading.textContent || '';
+      
+      // Get content until next heading of same or higher level
+      let content = '';
+      let nextSibling = heading.nextElementSibling;
+      
+      while (nextSibling && !this.isHeading(nextSibling, level)) {
+        content += nextSibling.textContent + '\n';
+        nextSibling = nextSibling.nextElementSibling;
+      }
+      
+      sections.push({
+        title,
+        content: content.trim(),
+        level,
+        type: 'heading'
+      });
+    });
+    
+    return sections;
+  }
+
+  private extractHTMLTables(document: Document): TableData[] {
+    const tables: TableData[] = [];
+    const tableElements = document.querySelectorAll('table');
+    
+    tableElements.forEach(table => {
+      const headers: string[] = [];
+      const rows: string[][] = [];
+      
+      // Extract headers
+      const headerRow = table.querySelector('thead tr, tr:first-child');
+      if (headerRow) {
+        const headerCells = headerRow.querySelectorAll('th, td');
+        headerCells.forEach(cell => {
+          headers.push(cell.textContent?.trim() || '');
+        });
+      }
+      
+      // Extract data rows
+      const dataRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
+      dataRows.forEach(row => {
+        const cells = row.querySelectorAll('td, th');
+        const rowData: string[] = [];
+        cells.forEach(cell => {
+          rowData.push(cell.textContent?.trim() || '');
+        });
+        if (rowData.length > 0) {
+          rows.push(rowData);
+        }
+      });
+      
+      const caption = table.querySelector('caption')?.textContent?.trim();
+      
+      if (headers.length > 0 || rows.length > 0) {
+        tables.push({
+          headers,
+          rows,
+          caption
+        });
+      }
+    });
+    
+    return tables;
+  }
+
+  private extractHTMLImages(document: Document): ImageData[] {
+    const images: ImageData[] = [];
+    const imageElements = document.querySelectorAll('img');
+    
+    imageElements.forEach(img => {
+      const src = img.getAttribute('src');
+      const alt = img.getAttribute('alt');
+      const title = img.getAttribute('title');
+      const width = img.getAttribute('width') ? parseInt(img.getAttribute('width')!) : undefined;
+      const height = img.getAttribute('height') ? parseInt(img.getAttribute('height')!) : undefined;
+      
+      if (src) {
+        images.push({
+          url: src,
+          alt: alt || undefined,
+          caption: title || undefined,
+          width,
+          height,
+          format: this.getImageFormat(src)
+        });
+      }
+    });
+    
+    return images;
+  }
+
+  private extractHTMLLinks(document: Document): LinkData[] {
+    const links: LinkData[] = [];
+    const linkElements = document.querySelectorAll('a[href]');
+    
+    linkElements.forEach(link => {
+      const href = link.getAttribute('href');
+      const text = link.textContent?.trim();
+      const title = link.getAttribute('title');
+      
+      if (href && text) {
+        const type = href.startsWith('#') ? 'anchor' : 
+                    href.startsWith('http') ? 'external' : 'internal';
+        
+        links.push({
+          url: href,
+          text,
+          title: title || undefined,
+          type
+        });
+      }
+    });
+    
+    return links;
+  }
+
+  private isHeading(element: Element, maxLevel: number): boolean {
+    const tagName = element.tagName.toLowerCase();
+    if (!tagName.match(/^h[1-6]$/)) return false;
+    
+    const level = parseInt(tagName[1]);
+    return level <= maxLevel;
+  }
+
+  private getImageFormat(url: string): string | undefined {
+    const extension = path.extname(url).toLowerCase().slice(1);
+    return ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension) ? extension : undefined;
+  }
+
+  private createChunks(text: string, options: ParseOptions): DocumentChunk[] {
+    const chunkSize = options.chunkSize || AI_CONFIG.parsing.chunkSize;
+    const chunkOverlap = options.chunkOverlap || AI_CONFIG.parsing.chunkOverlap;
+    
+    const chunks: DocumentChunk[] = [];
+    const words = text.split(/\s+/);
+    let chunkIndex = 0;
+    
+    for (let i = 0; i < words.length; i += chunkSize - chunkOverlap) {
+      const chunkWords = words.slice(i, i + chunkSize);
+      const chunkText = chunkWords.join(' ');
+      const startChar = words.slice(0, i).join(' ').length + (i > 0 ? 1 : 0);
+      const endChar = startChar + chunkText.length;
+      
+      chunks.push({
+        id: crypto.randomUUID(),
+        content: chunkText,
+        metadata: {
+          chunkIndex,
+          startChar,
+          endChar,
+          tokens: chunkWords.length
+        }
+      });
+      
+      chunkIndex++;
+      
+      if (i + chunkSize >= words.length) break;
+    }
+    
+    return chunks;
+  }
+}
+
+// Export the document parser instance
+export const documentParser = new HeliolusDocumentParser();

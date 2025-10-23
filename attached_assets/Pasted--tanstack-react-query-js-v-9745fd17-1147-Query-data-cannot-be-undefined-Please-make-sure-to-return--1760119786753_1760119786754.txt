@@ -1,0 +1,32 @@
+@tanstack_react-query.js?v=9745fd17:1147 Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["assessment","cmgl5ueuq0001s3sa1a3g77e6"]
+fetch @ @tanstack_react-query.js?v=9745fd17:1147
+await in fetch
+executeFetch_fn @ @tanstack_react-query.js?v=9745fd17:1639
+onSubscribe @ @tanstack_react-query.js?v=9745fd17:1335
+subscribe @ @tanstack_react-query.js?v=9745fd17:24
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:3239
+subscribeToStore @ chunk-GNC7SI6A.js?v=9745fd17:11984
+commitHookEffectListMount @ chunk-GNC7SI6A.js?v=9745fd17:16915
+commitPassiveMountOnFiber @ chunk-GNC7SI6A.js?v=9745fd17:18156
+commitPassiveMountEffects_complete @ chunk-GNC7SI6A.js?v=9745fd17:18129
+commitPassiveMountEffects_begin @ chunk-GNC7SI6A.js?v=9745fd17:18119
+commitPassiveMountEffects @ chunk-GNC7SI6A.js?v=9745fd17:18109
+flushPassiveEffectsImpl @ chunk-GNC7SI6A.js?v=9745fd17:19490
+flushPassiveEffects @ chunk-GNC7SI6A.js?v=9745fd17:19447
+(anonymous) @ chunk-GNC7SI6A.js?v=9745fd17:19328
+workLoop @ chunk-GNC7SI6A.js?v=9745fd17:197
+flushWork @ chunk-GNC7SI6A.js?v=9745fd17:176
+performWorkUntilDeadline @ chunk-GNC7SI6A.js?v=9745fd17:384Understand this error
+api.ts:60 [API] Request to: /v1/documents/organizations/cmgjfhato0001qdjgtxd3cr1b/documents
+api.ts:61 [API] Method: GET
+api.ts:65 [API] Response status: 200
+api.ts:103 [API] Success response: {data: Array(1), pagination: {…}}
+api.ts:60 [API] Request to: /v1/assessments/cmgl5ueuq0001s3sa1a3g77e6/execute
+api.ts:61 [API] Method: POST
+api.ts:65 [API] Response status: 200
+api.ts:103 [API] Success response: {assessmentId: 'cmgl5ueuq0001s3sa1a3g77e6', status: 'COMPLETED', progress: {…}, creditsUsed: 24}
+api.ts:60 [API] Request to: /v1/assessments/cmgl5ueuq0001s3sa1a3g77e6/results
+api.ts:61 [API] Method: GET
+api.ts:65 [API] Response status: 200
+api.ts:103 [API] Success response: {id: 'cmgl5ueuq0001s3sa1a3g77e6', templateId: 'cmgjmg4lj0000qdj19lstvk6q', status: 'COMPLETED', responses: {…}, riskScore: null, …}
+@tanstack_react-query.js?v=9745fd17:1147 Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["assessments","cmgl5ueuq0001s3sa1a3g77e6","results"]

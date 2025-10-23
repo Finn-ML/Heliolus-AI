@@ -1,0 +1,306 @@
+/**
+ * Authentication Middleware
+ * JWT token validation and user context injection
+ */
+
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { UserRole } from '../types/database';
+import { logSecurityEvent } from './logging.middleware';
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  organizationId?: string;
+  vendorId?: string;
+  iat?: number;
+  exp?: number;
+}
+
+// Extend FastifyRequest to include authenticated user
+declare module 'fastify' {
+  interface FastifyRequest {
+    user?: AuthenticatedUser | any; // Allow both JWT user and our custom user
+  }
+}
+
+/**
+ * Authentication middleware that validates JWT tokens
+ */
+export async function authenticationMiddleware(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  try {
+    // Extract token from Authorization header
+    const authHeader = request.headers.authorization;
+    
+    if (!authHeader) {
+      logSecurityEvent(request, 'invalid_token', { reason: 'Missing authorization header' });
+      throw new Error('Missing authorization header');
+    }
+
+    if (!authHeader.startsWith('Bearer ')) {
+      logSecurityEvent(request, 'invalid_token', { reason: 'Invalid authorization header format' });
+      throw new Error('Invalid authorization header format');
+    }
+
+    const token = authHeader.substring(7);
+    
+    if (!token) {
+      logSecurityEvent(request, 'invalid_token', { reason: 'Missing token' });
+      throw new Error('Missing token');
+    }
+
+    // Verify JWT token
+    const decoded = await request.jwtVerify() as AuthenticatedUser;
+    
+    // Attach user to request
+    request.authenticatedUser = decoded;
+
+    // Log successful authentication
+    request.log.debug({
+      userId: decoded.id,
+      userEmail: decoded.email,
+      userRole: decoded.role,
+    }, 'User authenticated successfully');
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Invalid token';
+    
+    logSecurityEvent(request, 'invalid_token', { 
+      error: errorMessage,
+      token: request.headers.authorization?.substring(0, 20) + '...'
+    });
+
+    reply.status(401).send({
+      message: 'Authentication required',
+      code: 'UNAUTHORIZED',
+      statusCode: 401,
+      timestamp: new Date().toISOString(),
+    });
+    
+    throw error;
+  }
+}
+
+/**
+ * Role-based authorization middleware
+ */
+export function requireRole(allowedRoles: UserRole | UserRole[]) {
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  
+  return async function (request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    if (!request.user) {
+      reply.status(401).send({
+        message: 'Authentication required',
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!roles.includes(request.user.role)) {
+      logSecurityEvent(request, 'suspicious_activity', {
+        reason: 'Insufficient permissions',
+        requiredRoles: roles,
+        userRole: request.user.role,
+        userId: request.user.id,
+      });
+
+      reply.status(403).send({
+        message: 'Insufficient permissions',
+        code: 'FORBIDDEN',
+        statusCode: 403,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    request.log.debug({
+      userId: request.user.id,
+      userRole: request.user.role,
+      requiredRoles: roles,
+    }, 'Authorization check passed');
+  };
+}
+
+/**
+ * Resource ownership authorization
+ */
+export function requireOwnership(getResourceOwnerId: (request: FastifyRequest) => Promise<string | undefined>) {
+  return async function (request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    if (!request.user) {
+      reply.status(401).send({
+        message: 'Authentication required',
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    try {
+      const resourceOwnerId = await getResourceOwnerId(request);
+      
+      if (!resourceOwnerId) {
+        reply.status(404).send({
+          message: 'Resource not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Allow admins to access any resource
+      if (request.user.role === UserRole.ADMIN) {
+        request.log.debug({
+          userId: request.user.id,
+          userRole: request.user.role,
+          resourceOwnerId,
+        }, 'Admin access granted');
+        return;
+      }
+
+      // Check if user owns the resource or belongs to the same organization
+      const userCanAccess = 
+        request.user.id === resourceOwnerId || 
+        request.user.organizationId === resourceOwnerId;
+
+      if (!userCanAccess) {
+        logSecurityEvent(request, 'suspicious_activity', {
+          reason: 'Unauthorized resource access attempt',
+          userId: request.user.id,
+          resourceOwnerId,
+          userOrganizationId: request.user.organizationId,
+        });
+
+        reply.status(403).send({
+          message: 'Access denied',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      request.log.debug({
+        userId: request.user.id,
+        resourceOwnerId,
+        userOrganizationId: request.user.organizationId,
+      }, 'Resource ownership verified');
+
+    } catch (error) {
+      request.log.error({
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: request.user.id,
+      }, 'Error checking resource ownership');
+
+      reply.status(500).send({
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+}
+
+/**
+ * Organization membership middleware
+ */
+export function requireOrganization() {
+  return async function (request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    if (!request.user) {
+      reply.status(401).send({
+        message: 'Authentication required',
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!request.user.organizationId) {
+      reply.status(400).send({
+        message: 'Organization membership required',
+        code: 'NO_ORGANIZATION',
+        statusCode: 400,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    request.log.debug({
+      userId: request.user.id,
+      organizationId: request.user.organizationId,
+    }, 'Organization membership verified');
+  };
+}
+
+/**
+ * Vendor membership middleware
+ */
+export function requireVendor() {
+  return async function (request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    if (!request.user) {
+      reply.status(401).send({
+        message: 'Authentication required',
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (request.user.role !== UserRole.VENDOR || !request.user.vendorId) {
+      reply.status(403).send({
+        message: 'Vendor access required',
+        code: 'VENDOR_ACCESS_REQUIRED',
+        statusCode: 403,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    request.log.debug({
+      userId: request.user.id,
+      vendorId: request.user.vendorId,
+    }, 'Vendor access verified');
+  };
+}
+
+/**
+ * Optional authentication middleware (doesn't throw on missing token)
+ */
+export async function optionalAuthenticationMiddleware(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  try {
+    const authHeader = request.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      
+      if (token) {
+        const decoded = await request.jwtVerify(token) as AuthenticatedUser;
+        request.user = decoded;
+        
+        request.log.debug({
+          userId: decoded.id,
+          userEmail: decoded.email,
+        }, 'Optional authentication successful');
+      }
+    }
+  } catch (error) {
+    // Log but don't throw - this is optional authentication
+    request.log.debug({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, 'Optional authentication failed');
+  }
+}

@@ -1,0 +1,239 @@
+/**
+ * Logging Middleware
+ * Request logging with correlation IDs and performance metrics
+ */
+
+import { FastifyRequest, FastifyReply, HookHandlerDoneFunction } from 'fastify';
+import { randomBytes } from 'crypto';
+
+export interface RequestContext {
+  correlationId: string;
+  startTime: number;
+  userId?: string;
+  userRole?: string;
+  userEmail?: string;
+  clientIp: string;
+  userAgent?: string;
+}
+
+// Extend FastifyRequest to include our context
+declare module 'fastify' {
+  interface FastifyRequest {
+    requestContext?: RequestContext;
+  }
+}
+
+export async function loggingMiddleware(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  done: HookHandlerDoneFunction
+): Promise<void> {
+  const startTime = Date.now();
+  const correlationId = randomBytes(16).toString('hex');
+
+  // Create request context
+  request.requestContext = {
+    correlationId,
+    startTime,
+    clientIp: request.ip,
+    userAgent: request.headers['user-agent'],
+  };
+
+  // Add correlation ID to response headers
+  reply.header('X-Correlation-ID', correlationId);
+
+  // Log request start
+  request.log.info({
+    correlationId,
+    method: request.method,
+    url: request.url,
+    ip: request.ip,
+    userAgent: request.headers['user-agent'],
+    contentLength: request.headers['content-length'],
+    referer: request.headers.referer,
+  }, 'Request started');
+
+  // Hook for when user is authenticated
+  request.addHook('preHandler', async (request, reply) => {
+    const user = (request as any).user;
+    if (user) {
+      request.requestContext.userId = user.id;
+      request.requestContext.userRole = user.role;
+      request.requestContext.userEmail = user.email;
+    }
+  });
+
+  // Hook for response logging
+  reply.addHook('onSend', async (request, reply, payload) => {
+    const duration = Date.now() - request.requestContext.startTime;
+    const responseSize = payload ? Buffer.byteLength(payload.toString()) : 0;
+
+    // Determine log level based on status code
+    const statusCode = reply.statusCode;
+    const logLevel = statusCode >= 500 ? 'error' : 
+                    statusCode >= 400 ? 'warn' : 'info';
+
+    request.log[logLevel]({
+      correlationId: request.requestContext.correlationId,
+      method: request.method,
+      url: request.url,
+      statusCode: reply.statusCode,
+      duration,
+      responseSize,
+      userId: request.requestContext.userId,
+      userRole: request.requestContext.userRole,
+      userEmail: request.requestContext.userEmail,
+      ip: request.requestContext.clientIp,
+      userAgent: request.requestContext.userAgent,
+    }, `Request completed - ${statusCode} in ${duration}ms`);
+
+    // Log slow requests
+    if (duration > 1000) {
+      request.log.warn({
+        correlationId: request.requestContext.correlationId,
+        method: request.method,
+        url: request.url,
+        duration,
+        userId: request.requestContext.userId,
+      }, 'Slow request detected');
+    }
+
+    // Audit log for sensitive operations
+    if (shouldAuditLog(request)) {
+      await auditLog(request, reply, duration);
+    }
+
+    return payload;
+  });
+
+  done();
+}
+
+/**
+ * Determine if request should be audit logged
+ */
+function shouldAuditLog(request: FastifyRequest): boolean {
+  const sensitiveOperations = [
+    // Authentication
+    '/v1/auth/login',
+    '/v1/auth/register', 
+    '/v1/auth/reset-password',
+    
+    // User management
+    'PATCH /v1/organizations/',
+    'DELETE /v1/organizations/',
+    
+    // Assessment management
+    'POST /v1/assessments/',
+    'PATCH /v1/assessments/',
+    'DELETE /v1/assessments/',
+    
+    // Subscription changes
+    'POST /v1/subscriptions/',
+    'PATCH /v1/subscriptions/',
+    'DELETE /v1/subscriptions/',
+    
+    // Webhooks (payment processing)
+    'POST /v1/webhooks/',
+  ];
+
+  const operation = `${request.method} ${request.url}`;
+  
+  return sensitiveOperations.some(pattern => {
+    if (pattern.includes('*')) {
+      return new RegExp(pattern.replace('*', '.*')).test(operation);
+    }
+    return operation.includes(pattern);
+  });
+}
+
+/**
+ * Audit log for sensitive operations
+ */
+async function auditLog(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  duration: number
+): Promise<void> {
+  const auditEvent = {
+    timestamp: new Date().toISOString(),
+    correlationId: request.requestContext.correlationId,
+    event: 'api_request',
+    action: `${request.method} ${request.url}`,
+    statusCode: reply.statusCode,
+    duration,
+    user: {
+      id: request.requestContext.userId,
+      email: request.requestContext.userEmail,
+      role: request.requestContext.userRole,
+    },
+    client: {
+      ip: request.requestContext.clientIp,
+      userAgent: request.requestContext.userAgent,
+    },
+    success: reply.statusCode < 400,
+  };
+
+  // In production, this would be sent to an audit log service
+  // For now, we'll use structured logging
+  request.log.info({
+    audit: true,
+    ...auditEvent,
+  }, `Audit: ${auditEvent.action}`);
+
+  // TODO: Implement audit log service integration
+  // await auditService.log(auditEvent);
+}
+
+/**
+ * Security event logging
+ */
+export function logSecurityEvent(
+  request: FastifyRequest,
+  eventType: 'failed_login' | 'suspicious_activity' | 'rate_limit_exceeded' | 'invalid_token',
+  details?: any
+): void {
+  const securityEvent = {
+    timestamp: new Date().toISOString(),
+    correlationId: request.requestContext?.correlationId,
+    event: 'security_event',
+    type: eventType,
+    ip: request.ip,
+    userAgent: request.headers['user-agent'],
+    url: request.url,
+    method: request.method,
+    details,
+  };
+
+  request.log.warn({
+    security: true,
+    ...securityEvent,
+  }, `Security Event: ${eventType}`);
+}
+
+/**
+ * Performance monitoring
+ */
+export function logPerformanceMetric(
+  request: FastifyRequest,
+  operation: string,
+  duration: number,
+  metadata?: any
+): void {
+  const performanceMetric = {
+    timestamp: new Date().toISOString(),
+    correlationId: request.requestContext?.correlationId,
+    event: 'performance_metric',
+    operation,
+    duration,
+    userId: request.requestContext?.userId,
+    metadata,
+  };
+
+  const logLevel = duration > 5000 ? 'warn' : 'info';
+  
+  request.log[logLevel]({
+    performance: true,
+    ...performanceMetric,
+  }, `Performance: ${operation} took ${duration}ms`);
+}

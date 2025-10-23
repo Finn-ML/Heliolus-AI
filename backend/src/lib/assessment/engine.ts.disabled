@@ -1,0 +1,562 @@
+/**
+ * Core assessment engine implementation
+ */
+
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  AssessmentEngine,
+  AssessmentRequest,
+  AssessmentResult,
+  AssessmentResponse,
+  RiskAnalysis,
+  ComplianceGap,
+  RiskItem,
+  Recommendation,
+  ProcessingContext,
+  AssessmentMetrics,
+  TemplateNotFoundError,
+  InsufficientCreditsError,
+  ValidationError,
+  AssessmentError
+} from './types.js';
+import { GapAnalyzer } from './gaps.js';
+import { RiskAnalyzer } from './risks.js';
+import { ScoreCalculator } from './scorer.js';
+import { RecommendationGenerator } from './analyzer.js';
+import { DocumentAnalyzer } from '../ai/index.js';
+import { ASSESSMENT_CONFIG } from './index.js';
+import { AssessmentStatus, TransactionType } from '../../types/database.js';
+
+const prisma = new PrismaClient();
+
+// Validation schemas
+const AssessmentRequestSchema = z.object({
+  templateId: z.string().cuid(),
+  organizationId: z.string().cuid(),
+  userId: z.string().cuid(),
+  responses: z.array(z.object({
+    questionId: z.string().cuid(),
+    sectionId: z.string().cuid(),
+    value: z.any(),
+    confidence: z.number().min(0).max(100).optional(),
+    notes: z.string().optional(),
+    evidence: z.array(z.string()).optional(),
+    metadata: z.record(z.any()).optional()
+  })),
+  documents: z.array(z.object({
+    id: z.string().cuid(),
+    filename: z.string(),
+    type: z.string(),
+    s3Key: z.string(),
+    analysisRequired: z.boolean()
+  })).optional(),
+  options: z.object({
+    includeAIAnalysis: z.boolean().optional(),
+    includeDocumentAnalysis: z.boolean().optional(),
+    includeRecommendations: z.boolean().optional(),
+    generateReport: z.boolean().optional(),
+    depth: z.enum(['basic', 'standard', 'comprehensive']).optional(),
+    customWeights: z.record(z.number()).optional()
+  }).optional()
+});
+
+/**
+ * Main assessment engine implementation
+ */
+export class HeliolusAssessmentEngine implements AssessmentEngine {
+  private gapAnalyzer: GapAnalyzer;
+  private riskAnalyzer: RiskAnalyzer;
+  private scoreCalculator: ScoreCalculator;
+  private recommendationGenerator: RecommendationGenerator;
+  private documentAnalyzer: DocumentAnalyzer;
+
+  constructor() {
+    this.gapAnalyzer = new GapAnalyzer();
+    this.riskAnalyzer = new RiskAnalyzer();
+    this.scoreCalculator = new ScoreCalculator();
+    this.recommendationGenerator = new RecommendationGenerator();
+    this.documentAnalyzer = new DocumentAnalyzer();
+  }
+
+  /**
+   * Create and execute a comprehensive assessment
+   */
+  async createAssessment(request: AssessmentRequest): Promise<AssessmentResult> {
+    const startTime = Date.now();
+
+    try {
+      // Validate input
+      const validRequest = AssessmentRequestSchema.parse(request);
+      console.log(`Starting assessment for organization ${validRequest.organizationId}`);
+
+      // Check template exists
+      const template = await this.getTemplate(validRequest.templateId);
+      if (!template) {
+        throw new TemplateNotFoundError(validRequest.templateId);
+      }
+
+      // Check user credits
+      await this.checkCredits(validRequest.userId, validRequest.options);
+
+      // Create processing context
+      const context = await this.createProcessingContext(
+        validRequest.organizationId,
+        validRequest.userId
+      );
+
+      // Create assessment record
+      const assessment = await this.createAssessmentRecord(validRequest);
+
+      try {
+        // Analyze documents if requested
+        const documentInsights = validRequest.documents && validRequest.options?.includeDocumentAnalysis
+          ? await this.analyzeDocuments(validRequest.documents, context)
+          : [];
+
+        // Validate responses against template
+        this.validateResponses(validRequest.responses, template);
+
+        // Identify compliance gaps
+        const gaps = await this.gapAnalyzer.identifyGaps(
+          validRequest.responses,
+          template,
+          context,
+          documentInsights
+        );
+
+        // Assess risks
+        const risks = await this.riskAnalyzer.assessRisks(
+          validRequest.responses,
+          gaps,
+          context
+        );
+
+        // Calculate overall risk analysis
+        const analysis = await this.analyzeResponses(validRequest.responses, gaps, risks);
+
+        // Generate recommendations
+        const recommendations = validRequest.options?.includeRecommendations !== false
+          ? await this.generateRecommendations(analysis, gaps, risks, context)
+          : [];
+
+        // Calculate metrics
+        const metrics: AssessmentMetrics = {
+          totalQuestions: template.sections.reduce((sum, section) => 
+            sum + section.questions.length, 0),
+          answeredQuestions: validRequest.responses.length,
+          completionRate: (validRequest.responses.length / 
+            template.sections.reduce((sum, section) => sum + section.questions.length, 0)) * 100,
+          confidenceScore: this.calculateAverageConfidence(validRequest.responses),
+          responseQuality: this.assessResponseQuality(validRequest.responses),
+          analysisDepth: this.calculateAnalysisDepth(validRequest.options?.depth || 'standard'),
+          processingTime: Date.now() - startTime,
+          documentsAnalyzed: validRequest.documents?.length || 0
+        };
+
+        // Calculate credits used and update balance
+        const creditsUsed = this.calculateCreditsUsed(validRequest.options, metrics);
+        await this.deductCredits(validRequest.userId, assessment.id, creditsUsed);
+
+        // Create result
+        const result: AssessmentResult = {
+          id: assessment.id,
+          templateId: validRequest.templateId,
+          organizationId: validRequest.organizationId,
+          userId: validRequest.userId,
+          status: AssessmentStatus.COMPLETED,
+          riskScore: this.calculateRiskScore(gaps, risks),
+          analysis,
+          gaps,
+          risks,
+          recommendations,
+          metrics,
+          createdAt: assessment.createdAt,
+          completedAt: new Date(),
+          creditsUsed
+        };
+
+        // Update assessment record with results
+        await this.updateAssessmentRecord(assessment.id, result);
+
+        console.log(`Assessment completed in ${metrics.processingTime}ms`);
+        return result;
+
+      } catch (error) {
+        // Mark assessment as failed
+        await this.updateAssessmentStatus(assessment.id, AssessmentStatus.FAILED);
+        throw error;
+      }
+
+    } catch (error) {
+      console.error('Assessment creation error:', error);
+      
+      if (error instanceof z.ZodError) {
+        throw new ValidationError(`Invalid request: ${error.errors[0].message}`);
+      }
+      
+      if (error instanceof TemplateNotFoundError ||
+          error instanceof InsufficientCreditsError ||
+          error instanceof ValidationError) {
+        throw error;
+      }
+
+      throw new AssessmentError('Assessment creation failed');
+    }
+  }
+
+  /**
+   * Analyze assessment responses to generate risk analysis
+   */
+  async analyzeResponses(
+    responses: AssessmentResponse[], 
+    gaps?: ComplianceGap[], 
+    risks?: RiskItem[]
+  ): Promise<RiskAnalysis> {
+    try {
+      const analysis: RiskAnalysis = {
+        overallRisk: this.calculateOverallRiskLevel(gaps, risks),
+        categoryScores: this.scoreCalculator.calculateCategoryScores(gaps || [], risks || []),
+        maturityLevel: this.calculateMaturityLevel(responses),
+        complianceScore: this.calculateComplianceScore(gaps || [])
+      };
+
+      return analysis;
+
+    } catch (error) {
+      console.error('Response analysis error:', error);
+      throw new AssessmentError('Response analysis failed');
+    }
+  }
+
+  /**
+   * Generate recommendations based on analysis
+   */
+  async generateRecommendations(
+    analysis: RiskAnalysis,
+    gaps: ComplianceGap[],
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): Promise<Recommendation[]> {
+    try {
+      return await this.recommendationGenerator.generateRecommendations(
+        gaps,
+        risks,
+        context
+      );
+    } catch (error) {
+      console.error('Recommendation generation error:', error);
+      return []; // Return empty array instead of failing the whole assessment
+    }
+  }
+
+  /**
+   * Calculate overall risk score
+   */
+  calculateRiskScore(gaps: ComplianceGap[], risks: RiskItem[]): number {
+    return this.scoreCalculator.calculateOverallScore(
+      gaps,
+      risks,
+      ASSESSMENT_CONFIG.scoring
+    );
+  }
+
+  // Private helper methods
+
+  private async getTemplate(templateId: string) {
+    return await prisma.template.findUnique({
+      where: { id: templateId },
+      include: {
+        sections: {
+          include: {
+            questions: true
+          },
+          orderBy: { order: 'asc' }
+        }
+      }
+    });
+  }
+
+  private async checkCredits(userId: string, options: any = {}) {
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId }
+    });
+
+    if (!subscription) {
+      throw new InsufficientCreditsError(1, 0);
+    }
+
+    const required = this.calculateCreditsUsed(options, null);
+    if (subscription.creditsBalance < required) {
+      throw new InsufficientCreditsError(required, subscription.creditsBalance);
+    }
+  }
+
+  private async createProcessingContext(
+    organizationId: string, 
+    userId: string
+  ): Promise<ProcessingContext> {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId }
+    });
+
+    const previousAssessments = await prisma.assessment.findMany({
+      where: { organizationId, status: AssessmentStatus.COMPLETED },
+      select: { id: true },
+      orderBy: { completedAt: 'desc' },
+      take: 5
+    });
+
+    return {
+      organizationId,
+      userId,
+      industry: organization?.industry || undefined,
+      companySize: organization?.size || undefined,
+      region: organization?.region || undefined,
+      previousAssessments: previousAssessments.map(a => a.id)
+    };
+  }
+
+  private async createAssessmentRecord(request: AssessmentRequest) {
+    return await prisma.assessment.create({
+      data: {
+        templateId: request.templateId,
+        organizationId: request.organizationId,
+        userId: request.userId,
+        status: AssessmentStatus.IN_PROGRESS,
+        responses: request.responses as any,
+        creditsUsed: 0
+      }
+    });
+  }
+
+  private async updateAssessmentRecord(assessmentId: string, result: AssessmentResult) {
+    await prisma.assessment.update({
+      where: { id: assessmentId },
+      data: {
+        status: result.status,
+        riskScore: result.riskScore,
+        aiAnalysis: {
+          analysis: result.analysis,
+          gaps: result.gaps,
+          risks: result.risks,
+          recommendations: result.recommendations,
+          metrics: result.metrics
+        },
+        completedAt: result.completedAt,
+        creditsUsed: result.creditsUsed
+      }
+    });
+
+    // Create gap records
+    if (result.gaps.length > 0) {
+      await prisma.gap.createMany({
+        data: result.gaps.map(gap => ({
+          assessmentId,
+          category: gap.category,
+          title: gap.title,
+          description: gap.description,
+          severity: gap.severity,
+          priority: gap.priority,
+          estimatedCost: gap.estimatedCost,
+          estimatedEffort: gap.estimatedEffort,
+          suggestedVendors: gap.suggestedActions
+        }))
+      });
+    }
+
+    // Create risk records
+    if (result.risks.length > 0) {
+      await prisma.risk.createMany({
+        data: result.risks.map(risk => ({
+          assessmentId,
+          category: risk.category,
+          title: risk.title,
+          description: risk.description,
+          likelihood: risk.likelihood,
+          impact: risk.impact,
+          riskLevel: risk.riskLevel,
+          mitigationStrategy: risk.mitigationStrategy
+        }))
+      });
+    }
+  }
+
+  private async updateAssessmentStatus(assessmentId: string, status: AssessmentStatus) {
+    await prisma.assessment.update({
+      where: { id: assessmentId },
+      data: { status }
+    });
+  }
+
+  private async deductCredits(userId: string, assessmentId: string, credits: number) {
+    await prisma.$transaction(async (tx) => {
+      // Update subscription balance
+      await tx.subscription.update({
+        where: { userId },
+        data: {
+          creditsBalance: { decrement: credits },
+          creditsUsed: { increment: credits }
+        }
+      });
+
+      // Create transaction record
+      const subscription = await tx.subscription.findUnique({
+        where: { userId }
+      });
+
+      if (subscription) {
+        await tx.creditTransaction.create({
+          data: {
+            subscriptionId: subscription.id,
+            assessmentId,
+            type: TransactionType.ASSESSMENT,
+            amount: -credits,
+            balance: subscription.creditsBalance - credits,
+            description: 'Assessment completed'
+          }
+        });
+      }
+    });
+  }
+
+  private validateResponses(responses: AssessmentResponse[], template: any) {
+    const questionIds = new Set(
+      template.sections.flatMap((section: any) => 
+        section.questions.map((q: any) => q.id)
+      )
+    );
+
+    for (const response of responses) {
+      if (!questionIds.has(response.questionId)) {
+        throw new ValidationError(`Invalid question ID: ${response.questionId}`);
+      }
+
+      // Additional validation could go here
+      if (response.value === null || response.value === undefined) {
+        const question = template.sections
+          .flatMap((s: any) => s.questions)
+          .find((q: any) => q.id === response.questionId);
+        
+        if (question?.required) {
+          throw new ValidationError(`Required question not answered: ${response.questionId}`);
+        }
+      }
+    }
+  }
+
+  private async analyzeDocuments(documents: any[], context: ProcessingContext): Promise<any[]> {
+    const results = [];
+    
+    for (const doc of documents) {
+      if (doc.analysisRequired) {
+        try {
+          const analysis = await this.documentAnalyzer.analyzeDocument(doc.s3Key);
+          results.push({
+            documentId: doc.id,
+            ...analysis
+          });
+        } catch (error) {
+          console.error(`Document analysis failed for ${doc.filename}:`, error);
+          // Continue with other documents
+        }
+      }
+    }
+
+    return results;
+  }
+
+  private calculateCreditsUsed(options: any = {}, metrics: AssessmentMetrics | null): number {
+    const config = ASSESSMENT_CONFIG.credits;
+    let credits = config.basicAssessment;
+
+    if (options.depth === 'comprehensive') {
+      credits = config.detailedAssessment;
+    }
+
+    if (options.includeDocumentAnalysis && metrics?.documentsAnalyzed) {
+      credits += config.documentAnalysis * metrics.documentsAnalyzed;
+    }
+
+    if (options.includeAIAnalysis || options.includeRecommendations !== false) {
+      credits += config.aiRecommendations;
+    }
+
+    return credits;
+  }
+
+  private calculateAverageConfidence(responses: AssessmentResponse[]): number {
+    const confidenceScores = responses
+      .map(r => r.confidence || 80)
+      .filter(c => c > 0);
+    
+    return confidenceScores.length > 0
+      ? confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length
+      : 80;
+  }
+
+  private assessResponseQuality(responses: AssessmentResponse[]): number {
+    // Simple quality assessment based on completeness and detail
+    let totalScore = 0;
+    
+    for (const response of responses) {
+      let score = 50; // Base score
+      
+      if (response.notes && response.notes.length > 10) score += 20;
+      if (response.evidence && response.evidence.length > 0) score += 15;
+      if (response.confidence && response.confidence >= 80) score += 10;
+      if (response.metadata && Object.keys(response.metadata).length > 0) score += 5;
+      
+      totalScore += Math.min(score, 100);
+    }
+    
+    return responses.length > 0 ? totalScore / responses.length : 0;
+  }
+
+  private calculateAnalysisDepth(depth: string): number {
+    switch (depth) {
+      case 'basic': return 30;
+      case 'comprehensive': return 100;
+      default: return 60; // standard
+    }
+  }
+
+  private calculateOverallRiskLevel(gaps: ComplianceGap[] = [], risks: RiskItem[] = []) {
+    const score = this.calculateRiskScore(gaps, risks);
+    
+    if (score >= 80) return 'CRITICAL' as any;
+    if (score >= 60) return 'HIGH' as any;
+    if (score >= 40) return 'MEDIUM' as any;
+    return 'LOW' as any;
+  }
+
+  private calculateMaturityLevel(responses: AssessmentResponse[]): number {
+    // Simplified maturity calculation
+    // In a real implementation, this would be based on maturity models
+    const qualityScore = this.assessResponseQuality(responses);
+    const confidenceScore = this.calculateAverageConfidence(responses);
+    
+    return Math.round((qualityScore + confidenceScore) / 2);
+  }
+
+  private calculateComplianceScore(gaps: ComplianceGap[]): number {
+    if (gaps.length === 0) return 100;
+    
+    const severityWeights = {
+      'CRITICAL': 40,
+      'HIGH': 20,
+      'MEDIUM': 10,
+      'LOW': 5
+    };
+    
+    const totalImpact = gaps.reduce((sum, gap) => 
+      sum + (severityWeights[gap.severity as keyof typeof severityWeights] || 5), 0);
+    
+    // Convert to compliance score (inverse of gap impact)
+    const maxPossibleImpact = gaps.length * 40;
+    return Math.max(0, 100 - (totalImpact / maxPossibleImpact * 100));
+  }
+}
+
+// Export the default instance
+export const assessmentEngine = new HeliolusAssessmentEngine();

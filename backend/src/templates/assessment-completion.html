@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment Complete - Heliolus</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Anta:wght@400&family=Barlow:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #ffffff;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #14212D;
+        }
+        .container {
+            background: #1e3449;
+            border: 1px solid rgba(59, 226, 233, 0.2);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-family: 'Anta', sans-serif;
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 15px;
+        }
+        .title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 25px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .content {
+            margin-bottom: 30px;
+            color: #ffffff;
+        }
+        .view-results-button {
+            display: inline-block;
+            background: #3BE2E9;
+            color: #14212D;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-align: center;
+            margin: 25px 0;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 226, 233, 0.3);
+        }
+        .view-results-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 226, 233, 0.4);
+            filter: brightness(1.1);
+        }
+        .button-container {
+            text-align: center;
+            margin: 35px 0;
+        }
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 40px;
+            padding-top: 25px;
+            border-top: 1px solid rgba(59, 226, 233, 0.3);
+        }
+        .assessment-highlight {
+            background: rgba(243, 69, 184, 0.1);
+            border: 1px solid rgba(243, 69, 184, 0.3);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .assessment-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #F345B8;
+            margin-bottom: 15px;
+        }
+        .next-steps {
+            background: rgba(59, 226, 233, 0.05);
+            border: 1px solid rgba(59, 226, 233, 0.2);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+        }
+        .next-steps h3 {
+            color: #3BE2E9;
+            margin-top: 0;
+        }
+        .feature-item {
+            margin: 12px 0;
+            padding-left: 25px;
+            position: relative;
+            color: #ffffff;
+        }
+        .feature-item::before {
+            content: "📊";
+            position: absolute;
+            left: 0;
+        }
+        .content p {
+            color: #ffffff;
+            margin-bottom: 16px;
+        }
+        .content ul {
+            color: #ffffff;
+            margin: 16px 0;
+            padding-left: 20px;
+        }
+        .content li {
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+        .content a {
+            color: #3BE2E9;
+            text-decoration: none;
+        }
+        .content a:hover {
+            color: #F345B8;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Heliolus AI</div>
+        </div>
+        
+        <h1 class="title">🎯 Assessment Complete!</h1>
+        
+        <div class="content">
+            <p>Hello {{name}},</p>
+            
+            <p>Great news! Your compliance assessment has been successfully completed and your results are now ready for review.</p>
+            
+            <div class="assessment-highlight">
+                <div class="assessment-title">{{assessmentTitle}}</div>
+                <p>Your comprehensive risk analysis has been generated with actionable insights and recommendations.</p>
+            </div>
+            
+            <div class="next-steps">
+                <h3>📈 What's included in your results:</h3>
+                <div class="feature-item">Detailed risk score and analysis</div>
+                <div class="feature-item">Compliance gaps identification</div>
+                <div class="feature-item">Vendor recommendations</div>
+                <div class="feature-item">Remediation strategies</div>
+                <div class="feature-item">Executive summary report</div>
+                <div class="feature-item">Downloadable PDF report</div>
+            </div>
+            
+            <p>Click the button below to view your detailed results and start implementing improvements:</p>
+            
+            <div class="button-container">
+                <a href="{{resultsUrl}}" class="view-results-button">View Assessment Results</a>
+            </div>
+            
+            <p><strong>Need help interpreting your results?</strong> Our compliance experts are available to help you understand your assessment outcomes and create an action plan. Contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            
+            <p><strong>What's next?</strong> Based on your assessment results, consider connecting with recommended vendors in our marketplace to address any identified gaps and strengthen your compliance posture.</p>
+            
+            <p>Thank you for using Heliolus to enhance your organization's compliance capabilities!</p>
+            
+            <p>Best regards,<br>
+            The Heliolus Team</p>
+        </div>
+        
+        <div class="footer">
+            <p>You're receiving this email because you completed an assessment on Heliolus.</p>
+            <p>&copy; 2024 Heliolus. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

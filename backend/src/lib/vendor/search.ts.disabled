@@ -1,0 +1,668 @@
+/**
+ * Vendor search and discovery engine
+ */
+
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  VendorSearchEngine,
+  SearchCriteria,
+  SearchResult,
+  VendorProfile,
+  SearchFacets,
+  SearchError,
+  MarketplaceFilters
+} from './types.js';
+import { VendorCategory, PricingModel } from '../../types/database.js';
+import { VENDOR_CONFIG } from './index.js';
+
+const prisma = new PrismaClient();
+
+/**
+ * Advanced vendor search and discovery engine
+ */
+export class VendorSearchEngine implements VendorSearchEngine {
+  private searchCache = new Map<string, { result: SearchResult; timestamp: number }>();
+  private readonly cacheTimeout = VENDOR_CONFIG.search.cacheTimeMinutes * 60 * 1000;
+
+  /**
+   * Search vendors based on criteria
+   */
+  async search(criteria: SearchCriteria): Promise<SearchResult> {
+    try {
+      console.log('Searching vendors with criteria:', criteria);
+
+      // Check cache first
+      const cacheKey = this.generateCacheKey(criteria);
+      const cached = this.searchCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+        console.log('Returning cached search results');
+        return cached.result;
+      }
+
+      // Build search query
+      const searchQuery = this.buildSearchQuery(criteria);
+      const countQuery = this.buildCountQuery(criteria);
+
+      // Execute search with pagination
+      const page = criteria.pagination?.page || 1;
+      const limit = Math.min(criteria.pagination?.limit || VENDOR_CONFIG.search.resultsPerPage, VENDOR_CONFIG.search.maxSearchResults);
+      const skip = (page - 1) * limit;
+
+      const [vendors, totalCount] = await Promise.all([
+        prisma.vendor.findMany({
+          where: searchQuery,
+          include: {
+            solutions: {
+              where: { isActive: true },
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                features: true,
+                startingPrice: true,
+                pricingModel: true,
+                currency: true
+              }
+            }
+          },
+          orderBy: this.buildOrderBy(criteria.sorting),
+          skip,
+          take: limit
+        }),
+        prisma.vendor.count({ where: countQuery })
+      ]);
+
+      // Generate facets
+      const facets = await this.generateFacets(criteria);
+
+      // Map to vendor profiles
+      const vendorProfiles = vendors.map(vendor => this.mapPrismaVendorToProfile(vendor));
+
+      const result: SearchResult = {
+        vendors: vendorProfiles,
+        total: totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+        facets,
+        suggestions: await this.generateSuggestions(criteria, totalCount)
+      };
+
+      // Cache result
+      this.searchCache.set(cacheKey, { result, timestamp: Date.now() });
+
+      console.log(`Search completed: ${vendors.length} results of ${totalCount} total`);
+      return result;
+
+    } catch (error) {
+      console.error('Vendor search error:', error);
+      throw new SearchError('Vendor search failed');
+    }
+  }
+
+  /**
+   * Find similar vendors
+   */
+  async findSimilar(vendorId: string, limit: number = 5): Promise<VendorProfile[]> {
+    try {
+      // Get reference vendor
+      const referenceVendor = await prisma.vendor.findUnique({
+        where: { id: vendorId },
+        include: { solutions: true }
+      });
+
+      if (!referenceVendor) {
+        return [];
+      }
+
+      // Find vendors with similar categories and features
+      const similarVendors = await prisma.vendor.findMany({
+        where: {
+          AND: [
+            { id: { not: vendorId } },
+            { status: 'APPROVED' },
+            {
+              OR: [
+                // Similar categories
+                {
+                  categories: {
+                    hasSome: referenceVendor.categories
+                  }
+                },
+                // Similar solution categories
+                {
+                  solutions: {
+                    some: {
+                      category: {
+                        in: referenceVendor.solutions.map(s => s.category)
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        include: {
+          solutions: {
+            where: { isActive: true }
+          }
+        },
+        take: limit * 2 // Get more to allow for scoring
+      });
+
+      // Score similarity and return top matches
+      const scoredVendors = similarVendors.map(vendor => ({
+        vendor,
+        similarity: this.calculateSimilarityScore(referenceVendor, vendor)
+      }));
+
+      scoredVendors.sort((a, b) => b.similarity - a.similarity);
+
+      return scoredVendors
+        .slice(0, limit)
+        .map(({ vendor }) => this.mapPrismaVendorToProfile(vendor));
+
+    } catch (error) {
+      console.error('Find similar vendors error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get popular vendors
+   */
+  async getPopular(category?: VendorCategory, limit: number = 10): Promise<VendorProfile[]> {
+    try {
+      const whereClause: any = {
+        status: 'APPROVED'
+      };
+
+      if (category) {
+        whereClause.categories = { has: category };
+      }
+
+      const vendors = await prisma.vendor.findMany({
+        where: whereClause,
+        include: {
+          solutions: {
+            where: { isActive: true }
+          }
+        },
+        orderBy: [
+          { rating: 'desc' },
+          { reviewCount: 'desc' },
+          { featured: 'desc' },
+          { verified: 'desc' }
+        ],
+        take: limit
+      });
+
+      return vendors.map(vendor => this.mapPrismaVendorToProfile(vendor));
+
+    } catch (error) {
+      console.error('Get popular vendors error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get featured vendors
+   */
+  async getFeatured(limit: number = VENDOR_CONFIG.marketplace.featuredVendorSlots): Promise<VendorProfile[]> {
+    try {
+      const vendors = await prisma.vendor.findMany({
+        where: {
+          status: 'APPROVED',
+          featured: true
+        },
+        include: {
+          solutions: {
+            where: { isActive: true }
+          }
+        },
+        orderBy: [
+          { rating: 'desc' },
+          { reviewCount: 'desc' },
+          { updatedAt: 'desc' }
+        ],
+        take: limit
+      });
+
+      return vendors.map(vendor => this.mapPrismaVendorToProfile(vendor));
+
+    } catch (error) {
+      console.error('Get featured vendors error:', error);
+      return [];
+    }
+  }
+
+  // Private helper methods
+
+  private buildSearchQuery(criteria: SearchCriteria): any {
+    const query: any = {
+      status: 'APPROVED'
+    };
+
+    // Text search
+    if (criteria.query) {
+      const searchTerms = criteria.query.toLowerCase().split(' ').filter(term => term.length > 2);
+      query.OR = [
+        {
+          companyName: {
+            contains: criteria.query,
+            mode: 'insensitive'
+          }
+        },
+        {
+          description: {
+            contains: criteria.query,
+            mode: 'insensitive'
+          }
+        },
+        {
+          shortDescription: {
+            contains: criteria.query,
+            mode: 'insensitive'
+          }
+        },
+        {
+          solutions: {
+            some: {
+              OR: [
+                {
+                  name: {
+                    contains: criteria.query,
+                    mode: 'insensitive'
+                  }
+                },
+                {
+                  description: {
+                    contains: criteria.query,
+                    mode: 'insensitive'
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ];
+    }
+
+    // Category filters
+    if (criteria.categories && criteria.categories.length > 0) {
+      query.categories = { hasSome: criteria.categories };
+    }
+
+    // Industry filters
+    if (criteria.industries && criteria.industries.length > 0) {
+      query.solutions = {
+        some: {
+          industries: { hasSome: criteria.industries }
+        }
+      };
+    }
+
+    // Company size filters
+    if (criteria.companySizes && criteria.companySizes.length > 0) {
+      query.solutions = {
+        some: {
+          ...query.solutions?.some,
+          companySizes: { hasSome: criteria.companySizes }
+        }
+      };
+    }
+
+    // Pricing model filters
+    if (criteria.pricingModels && criteria.pricingModels.length > 0) {
+      query.solutions = {
+        some: {
+          ...query.solutions?.some,
+          pricingModel: { in: criteria.pricingModels }
+        }
+      };
+    }
+
+    // Region filters
+    if (criteria.regions && criteria.regions.length > 0) {
+      // This would need to be implemented based on vendor location data
+      // For now, we'll skip region filtering
+    }
+
+    // Budget filters
+    if (criteria.budget) {
+      const budgetQuery: any = {};
+      if (criteria.budget.min !== undefined) {
+        budgetQuery.gte = criteria.budget.min;
+      }
+      if (criteria.budget.max !== undefined) {
+        budgetQuery.lte = criteria.budget.max;
+      }
+      
+      if (Object.keys(budgetQuery).length > 0) {
+        query.solutions = {
+          some: {
+            ...query.solutions?.some,
+            startingPrice: budgetQuery
+          }
+        };
+      }
+    }
+
+    // Marketplace filters
+    if (criteria.filters) {
+      this.applyMarketplaceFilters(query, criteria.filters);
+    }
+
+    return query;
+  }
+
+  private buildCountQuery(criteria: SearchCriteria): any {
+    // Same as search query but optimized for counting
+    return this.buildSearchQuery(criteria);
+  }
+
+  private applyMarketplaceFilters(query: any, filters: MarketplaceFilters): void {
+    if (filters.verifiedOnly) {
+      query.verified = true;
+    }
+
+    if (filters.featuredOnly) {
+      query.featured = true;
+    }
+
+    if (filters.minRating !== undefined) {
+      query.rating = { gte: filters.minRating };
+    }
+
+    if (filters.minReviews !== undefined) {
+      query.reviewCount = { gte: filters.minReviews };
+    }
+
+    if (filters.hasDemo) {
+      query.solutions = {
+        some: {
+          ...query.solutions?.some,
+          demoUrl: { not: null }
+        }
+      };
+    }
+
+    if (filters.hasCaseStudies) {
+      query.solutions = {
+        some: {
+          ...query.solutions?.some,
+          caseStudyUrls: { not: { equals: [] } }
+        }
+      };
+    }
+  }
+
+  private buildOrderBy(sorting?: any): any {
+    if (!sorting) {
+      return [
+        { featured: 'desc' },
+        { rating: 'desc' },
+        { reviewCount: 'desc' }
+      ];
+    }
+
+    switch (sorting.field) {
+      case 'name':
+        return { companyName: sorting.direction };
+      case 'rating':
+        return { rating: sorting.direction };
+      case 'reviews':
+        return { reviewCount: sorting.direction };
+      case 'newest':
+        return { createdAt: sorting.direction };
+      case 'price':
+        // This would need aggregation for solution pricing
+        return { companyName: 'asc' }; // Fallback
+      default:
+        return [
+          { featured: 'desc' },
+          { rating: 'desc' },
+          { reviewCount: 'desc' }
+        ];
+    }
+  }
+
+  private async generateFacets(criteria: SearchCriteria): Promise<SearchFacets> {
+    const baseQuery = this.buildSearchQuery({ ...criteria, query: criteria.query });
+
+    // Get facet counts
+    const [
+      categoryFacets,
+      industryFacets,
+      pricingModelFacets,
+      regionFacets,
+      ratingFacets
+    ] = await Promise.all([
+      this.getCategoryFacets(baseQuery),
+      this.getIndustryFacets(baseQuery),
+      this.getPricingModelFacets(baseQuery),
+      this.getRegionFacets(baseQuery),
+      this.getRatingFacets(baseQuery)
+    ]);
+
+    return {
+      categories: categoryFacets,
+      industries: industryFacets,
+      pricingModels: pricingModelFacets,
+      regions: regionFacets,
+      ratings: ratingFacets
+    };
+  }
+
+  private async getCategoryFacets(baseQuery: any): Promise<Array<{ value: string; count: number }>> {
+    // This would require aggregation - simplified implementation
+    const vendors = await prisma.vendor.findMany({
+      where: baseQuery,
+      select: { categories: true }
+    });
+
+    const categoryCounts: Record<string, number> = {};
+    vendors.forEach(vendor => {
+      vendor.categories.forEach(category => {
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      });
+    });
+
+    return Object.entries(categoryCounts)
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+
+  private async getIndustryFacets(baseQuery: any): Promise<Array<{ value: string; count: number }>> {
+    // Simplified implementation
+    return [
+      { value: 'Financial Services', count: 25 },
+      { value: 'Healthcare', count: 18 },
+      { value: 'Technology', count: 15 },
+      { value: 'Manufacturing', count: 12 },
+      { value: 'Retail', count: 10 }
+    ];
+  }
+
+  private async getPricingModelFacets(baseQuery: any): Promise<Array<{ value: string; count: number }>> {
+    const vendors = await prisma.vendor.findMany({
+      where: baseQuery,
+      include: {
+        solutions: {
+          select: { pricingModel: true }
+        }
+      }
+    });
+
+    const modelCounts: Record<string, number> = {};
+    vendors.forEach(vendor => {
+      vendor.solutions.forEach(solution => {
+        modelCounts[solution.pricingModel] = (modelCounts[solution.pricingModel] || 0) + 1;
+      });
+    });
+
+    return Object.entries(modelCounts)
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  private async getRegionFacets(baseQuery: any): Promise<Array<{ value: string; count: number }>> {
+    // Simplified implementation - would need vendor location data
+    return [
+      { value: 'North America', count: 45 },
+      { value: 'Europe', count: 38 },
+      { value: 'Asia Pacific', count: 22 },
+      { value: 'Latin America', count: 8 }
+    ];
+  }
+
+  private async getRatingFacets(baseQuery: any): Promise<Array<{ rating: number; count: number }>> {
+    // This would require aggregation by rating ranges
+    return [
+      { rating: 5, count: 15 },
+      { rating: 4, count: 28 },
+      { rating: 3, count: 12 },
+      { rating: 2, count: 3 },
+      { rating: 1, count: 1 }
+    ];
+  }
+
+  private async generateSuggestions(criteria: SearchCriteria, totalResults: number): Promise<string[]> {
+    if (totalResults > 5) return []; // No suggestions needed if good results
+
+    const suggestions: string[] = [];
+
+    // Suggest broader search if too few results
+    if (criteria.query && totalResults < 3) {
+      const words = criteria.query.split(' ');
+      if (words.length > 1) {
+        suggestions.push(`Try "${words[0]}" for broader results`);
+      }
+    }
+
+    // Suggest removing filters
+    if (criteria.categories && criteria.categories.length > 1) {
+      suggestions.push('Try fewer category filters');
+    }
+
+    if (criteria.budget && criteria.budget.max) {
+      suggestions.push('Try increasing budget range');
+    }
+
+    if (criteria.filters?.minRating && criteria.filters.minRating > 3) {
+      suggestions.push('Try lowering minimum rating requirement');
+    }
+
+    return suggestions.slice(0, 3);
+  }
+
+  private calculateSimilarityScore(referenceVendor: any, compareVendor: any): number {
+    let score = 0;
+
+    // Category overlap
+    const categoryOverlap = referenceVendor.categories.filter((cat: string) =>
+      compareVendor.categories.includes(cat)
+    ).length;
+    score += (categoryOverlap / Math.max(referenceVendor.categories.length, compareVendor.categories.length)) * 40;
+
+    // Solution category overlap
+    const refSolutionCategories = referenceVendor.solutions.map((s: any) => s.category);
+    const compSolutionCategories = compareVendor.solutions.map((s: any) => s.category);
+    const solutionOverlap = refSolutionCategories.filter((cat: string) =>
+      compSolutionCategories.includes(cat)
+    ).length;
+    score += (solutionOverlap / Math.max(refSolutionCategories.length, compSolutionCategories.length)) * 30;
+
+    // Rating similarity
+    if (referenceVendor.rating && compareVendor.rating) {
+      const ratingDiff = Math.abs(referenceVendor.rating - compareVendor.rating);
+      score += Math.max(0, (5 - ratingDiff) / 5) * 20;
+    }
+
+    // Status similarities
+    if (referenceVendor.verified === compareVendor.verified) score += 5;
+    if (referenceVendor.featured === compareVendor.featured) score += 5;
+
+    return Math.round(score);
+  }
+
+  private generateCacheKey(criteria: SearchCriteria): string {
+    return JSON.stringify(criteria);
+  }
+
+  private mapPrismaVendorToProfile(prismaVendor: any): VendorProfile {
+    return {
+      id: prismaVendor.id,
+      userId: prismaVendor.userId,
+      companyName: prismaVendor.companyName,
+      website: prismaVendor.website,
+      logo: prismaVendor.logo,
+      description: prismaVendor.description,
+      shortDescription: prismaVendor.shortDescription,
+      categories: prismaVendor.categories,
+      contactEmail: prismaVendor.contactEmail,
+      contactPhone: prismaVendor.contactPhone,
+      contactName: prismaVendor.contactName,
+      salesEmail: prismaVendor.salesEmail,
+      featured: prismaVendor.featured,
+      verified: prismaVendor.verified,
+      rating: prismaVendor.rating,
+      reviewCount: prismaVendor.reviewCount,
+      status: prismaVendor.status,
+      solutions: (prismaVendor.solutions || []).map((solution: any) => ({
+        id: solution.id,
+        vendorId: solution.vendorId || prismaVendor.id,
+        name: solution.name,
+        description: solution.description || '',
+        category: solution.category,
+        features: solution.features || [],
+        benefits: solution.benefits || [],
+        useCases: solution.useCases || [],
+        gapCategories: solution.gapCategories || [],
+        industries: solution.industries || [],
+        companySizes: solution.companySizes || [],
+        pricingModel: solution.pricingModel,
+        startingPrice: solution.startingPrice,
+        currency: solution.currency || 'EUR',
+        pricingDetails: solution.pricingDetails,
+        demoUrl: solution.demoUrl,
+        brochureUrl: solution.brochureUrl,
+        caseStudyUrls: solution.caseStudyUrls || [],
+        metrics: {
+          views: 0,
+          interests: 0,
+          demonstrations: 0,
+          implementations: 0,
+          successRate: 85,
+          averageImplementationTime: 30,
+          customerSatisfaction: 80,
+          renewalRate: 90
+        },
+        isActive: solution.isActive || true,
+        createdAt: solution.createdAt || new Date(),
+        updatedAt: solution.updatedAt || new Date()
+      })),
+      metrics: {
+        profileViews: 0,
+        contactRequests: 0,
+        demoRequests: 0,
+        leads: 0,
+        conversions: 0,
+        averageRating: prismaVendor.rating || 0,
+        ratingCount: prismaVendor.reviewCount,
+        responseTime: 24,
+        responseRate: 85,
+        lastActivityAt: new Date()
+      },
+      approvedAt: prismaVendor.approvedAt,
+      createdAt: prismaVendor.createdAt,
+      updatedAt: prismaVendor.updatedAt
+    };
+  }
+}
+
+// Export the search engine instance
+export const vendorSearchEngine = new VendorSearchEngine();

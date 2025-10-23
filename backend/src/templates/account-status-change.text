@@ -1,0 +1,38 @@
+{{companyName}} - Account Status Update
+
+Hello {{name}},
+
+This email is to inform you of an important update to your {{companyName}} account status.
+
+Account Status: {{status}}
+{{statusMessage}}
+
+{% if status == 'ACTIVE' %}
+🎉 Welcome back! You now have full access to all {{companyName}} features including:
+• Compliance assessments and reporting
+• Vendor marketplace access  
+• Risk management tools
+• AI-powered compliance insights
+{% endif %}
+
+{% if status == 'SUSPENDED' %}
+Need to resolve this? Our support team is here to help you understand the reason for suspension and guide you through the resolution process.
+
+Please contact us at {{supportEmail}} with your account details for immediate assistance.
+{% endif %}
+
+{% if status == 'DELETED' %}
+Data Retention: As per our data policy, your account data will be permanently removed from our systems within 30 days. If you believe this was done in error, please contact support immediately.
+{% endif %}
+
+If you have any questions about this status change or need assistance with your account, please don't hesitate to reach out to our support team at {{supportEmail}}.
+
+Thank you for being part of the {{companyName}} community.
+
+Best regards,
+The {{companyName}} Team
+
+---
+This account status notification was sent to the primary email address on your {{companyName}} account.
+
+© 2024 {{companyName}}. All rights reserved.

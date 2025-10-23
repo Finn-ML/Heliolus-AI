@@ -1,0 +1,56 @@
+/**
+ * Vendor recommendation engine
+ */
+
+import { VendorRecommendation, GapProfile, MatchingContext, VendorProfile } from './types.js';
+import { vendorMatchingEngine } from './matching.js';
+
+/**
+ * Generates intelligent vendor recommendations based on gaps and context
+ */
+export class VendorRecommendationEngine {
+  /**
+   * Generate comprehensive vendor recommendations
+   */
+  async generateRecommendations(
+    gaps: GapProfile[],
+    context: MatchingContext
+  ): Promise<VendorRecommendation[]> {
+    return await vendorMatchingEngine.generateRecommendations(gaps, context);
+  }
+
+  /**
+   * Get vendor recommendations for specific gap category
+   */
+  async getRecommendationsForCategory(
+    category: string,
+    context: MatchingContext
+  ): Promise<VendorRecommendation[]> {
+    const mockGap: GapProfile = {
+      id: `category-gap-${category}`,
+      category,
+      title: `${category} Solutions`,
+      description: `Find solutions for ${category} requirements`,
+      severity: 'MEDIUM' as any,
+      priority: 'MEDIUM_TERM' as any,
+      businessImpact: 'Improve compliance and operational efficiency',
+      requiredCapabilities: [category.toLowerCase()],
+      timeline: '3-6 months'
+    };
+
+    return await this.generateRecommendations([mockGap], context);
+  }
+
+  /**
+   * Compare vendors side by side
+   */
+  async compareVendors(vendorIds: string[]): Promise<any> {
+    // Implementation would compare vendors across multiple dimensions
+    return {
+      vendors: vendorIds,
+      comparison: 'Detailed comparison would be implemented here'
+    };
+  }
+}
+
+export const vendorRecommendationEngine = new VendorRecommendationEngine();

@@ -1,0 +1,26 @@
+{{companyName}} - Verify Your Email Address
+
+Hello {{name}},
+
+Thank you for signing up with {{companyName}}! To complete your account setup and start using our compliance platform, please verify your email address by visiting the following link:
+
+{{verificationUrl}}
+
+🔒 Security Note: This verification link will expire in 24 hours for your security. If you didn't create an account with {{companyName}}, you can safely ignore this email.
+
+Once your email is verified, you'll be able to:
+• Access your compliance dashboard
+• Run risk assessments  
+• Connect with compliance vendors
+• Generate detailed reports
+
+If you have any questions or need assistance, please contact our support team at {{supportEmail}}.
+
+Welcome to {{companyName}}!
+The {{companyName}} Team
+
+---
+This email was sent to {{email}}.
+If you didn't request this email, please ignore it.
+
+© 2024 {{companyName}}. All rights reserved.

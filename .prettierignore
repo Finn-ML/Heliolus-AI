@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Generated files
+coverage/
+.next/
+
+# Docker files
+Dockerfile*
+
+# Config files
+package-lock.json
+*/package-lock.json
+
+# Prisma generated files
+prisma/generated/

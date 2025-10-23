@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Status Update - Heliolus</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Anta:wght@400&family=Barlow:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #ffffff;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #14212D;
+        }
+        .container {
+            background: #1e3449;
+            border: 1px solid rgba(59, 226, 233, 0.2);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-family: 'Anta', sans-serif;
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 15px;
+        }
+        .title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 25px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .content {
+            margin-bottom: 30px;
+            color: #ffffff;
+        }
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 40px;
+            padding-top: 25px;
+            border-top: 1px solid rgba(59, 226, 233, 0.3);
+        }
+        .status-box {
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .status-active {
+            background: rgba(59, 226, 233, 0.1);
+            border: 1px solid rgba(59, 226, 233, 0.3);
+            color: #ffffff;
+        }
+        .status-suspended {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            color: #ffffff;
+        }
+        .status-deleted {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ffffff;
+        }
+        .status-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .status-active .status-title {
+            color: #3BE2E9;
+        }
+        .status-suspended .status-title {
+            color: #fbbf24;
+        }
+        .status-deleted .status-title {
+            color: #ef4444;
+        }
+        .contact-support {
+            background: rgba(243, 69, 184, 0.1);
+            border: 1px solid rgba(243, 69, 184, 0.3);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+        }
+        .content p {
+            color: #ffffff;
+            margin-bottom: 16px;
+        }
+        .content ul {
+            color: #ffffff;
+            margin: 16px 0;
+            padding-left: 20px;
+        }
+        .content li {
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+        .content a {
+            color: #3BE2E9;
+            text-decoration: none;
+        }
+        .content a:hover {
+            color: #F345B8;
+            text-decoration: underline;
+        }
+        .contact-support p {
+            color: #ffffff;
+            margin-bottom: 12px;
+        }
+        .contact-support a {
+            color: #F345B8;
+        }
+        .contact-support a:hover {
+            color: #3BE2E9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Heliolus AI</div>
+        </div>
+        
+        <h1 class="title">📧 Account Status Update</h1>
+        
+        <div class="content">
+            <p>Hello {{name}},</p>
+            
+            <p>This email is to inform you of an important update to your Heliolus account status.</p>
+            
+            <div class="status-box status-{{status|lower}}">
+                <div class="status-title">Account Status: {{status}}</div>
+                <p>{{statusMessage}}</p>
+            </div>
+            
+            {% if status == 'ACTIVE' %}
+            <p><strong>🎉 Welcome back!</strong> You now have full access to all Heliolus features including:</p>
+            <ul>
+                <li>Compliance assessments and reporting</li>
+                <li>Vendor marketplace access</li>
+                <li>Risk management tools</li>
+                <li>AI-powered compliance insights</li>
+            </ul>
+            {% endif %}
+            
+            {% if status == 'SUSPENDED' %}
+            <div class="contact-support">
+                <p><strong>Need to resolve this?</strong> Our support team is here to help you understand the reason for suspension and guide you through the resolution process.</p>
+                <p>Please contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a> with your account details for immediate assistance.</p>
+            </div>
+            {% endif %}
+            
+            {% if status == 'DELETED' %}
+            <p><strong>Data Retention:</strong> As per our data policy, your account data will be permanently removed from our systems within 30 days. If you believe this was done in error, please contact support immediately.</p>
+            {% endif %}
+            
+            <p>If you have any questions about this status change or need assistance with your account, please don't hesitate to reach out to our support team at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            
+            <p>Thank you for being part of the Heliolus community.</p>
+            
+            <p>Best regards,<br>
+            The Heliolus Team</p>
+        </div>
+        
+        <div class="footer">
+            <p>This account status notification was sent to the primary email address on your Heliolus account.</p>
+            <p>&copy; 2024 Heliolus. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

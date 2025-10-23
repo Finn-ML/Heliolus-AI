@@ -1,0 +1,389 @@
+/**
+ * Role-based access control and permissions
+ */
+
+import { UserRole, UserStatus } from '../../types/database.js';
+import { 
+  UserSession, 
+  PermissionCheck, 
+  InsufficientPermissionsError,
+  AccountSuspendedError
+} from './types.js';
+
+// Permission definitions
+export enum Permission {
+  // User permissions
+  USER_READ = 'user:read',
+  USER_UPDATE = 'user:update',
+  USER_DELETE = 'user:delete',
+  
+  // Organization permissions
+  ORG_READ = 'organization:read',
+  ORG_UPDATE = 'organization:update',
+  ORG_DELETE = 'organization:delete',
+  ORG_MEMBERS_MANAGE = 'organization:members:manage',
+  
+  // Assessment permissions
+  ASSESSMENT_CREATE = 'assessment:create',
+  ASSESSMENT_READ = 'assessment:read',
+  ASSESSMENT_UPDATE = 'assessment:update',
+  ASSESSMENT_DELETE = 'assessment:delete',
+  ASSESSMENT_EXECUTE = 'assessment:execute',
+  
+  // Document permissions
+  DOCUMENT_UPLOAD = 'document:upload',
+  DOCUMENT_READ = 'document:read',
+  DOCUMENT_UPDATE = 'document:update',
+  DOCUMENT_DELETE = 'document:delete',
+  
+  // Vendor permissions
+  VENDOR_READ = 'vendor:read',
+  VENDOR_UPDATE = 'vendor:update',
+  VENDOR_CREATE_SOLUTION = 'vendor:solution:create',
+  VENDOR_UPDATE_SOLUTION = 'vendor:solution:update',
+  VENDOR_DELETE_SOLUTION = 'vendor:solution:delete',
+  VENDOR_VIEW_CONTACTS = 'vendor:contacts:view',
+  
+  // Marketplace permissions
+  MARKETPLACE_BROWSE = 'marketplace:browse',
+  MARKETPLACE_CONTACT = 'marketplace:contact',
+  
+  // Subscription permissions
+  SUBSCRIPTION_READ = 'subscription:read',
+  SUBSCRIPTION_UPDATE = 'subscription:update',
+  SUBSCRIPTION_CANCEL = 'subscription:cancel',
+  
+  // Payment permissions
+  PAYMENT_READ = 'payment:read',
+  PAYMENT_PROCESS = 'payment:process',
+  
+  // Report permissions
+  REPORT_CREATE = 'report:create',
+  REPORT_READ = 'report:read',
+  REPORT_SHARE = 'report:share',
+  REPORT_DELETE = 'report:delete',
+  
+  // Admin permissions
+  ADMIN_USERS_MANAGE = 'admin:users:manage',
+  ADMIN_VENDORS_MANAGE = 'admin:vendors:manage',
+  ADMIN_SYSTEM_CONFIG = 'admin:system:config',
+  ADMIN_AUDIT_LOGS = 'admin:audit:logs',
+  ADMIN_TEMPLATES_MANAGE = 'admin:templates:manage',
+}
+
+// Role permission mappings
+const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+  [UserRole.USER]: [
+    Permission.USER_READ,
+    Permission.USER_UPDATE,
+    Permission.ORG_READ,
+    Permission.ORG_UPDATE,
+    Permission.ASSESSMENT_CREATE,
+    Permission.ASSESSMENT_READ,
+    Permission.ASSESSMENT_UPDATE,
+    Permission.ASSESSMENT_DELETE,
+    Permission.ASSESSMENT_EXECUTE,
+    Permission.DOCUMENT_UPLOAD,
+    Permission.DOCUMENT_READ,
+    Permission.DOCUMENT_UPDATE,
+    Permission.DOCUMENT_DELETE,
+    Permission.VENDOR_READ,
+    Permission.MARKETPLACE_BROWSE,
+    Permission.MARKETPLACE_CONTACT,
+    Permission.SUBSCRIPTION_READ,
+    Permission.SUBSCRIPTION_UPDATE,
+    Permission.SUBSCRIPTION_CANCEL,
+    Permission.PAYMENT_READ,
+    Permission.PAYMENT_PROCESS,
+    Permission.REPORT_CREATE,
+    Permission.REPORT_READ,
+    Permission.REPORT_SHARE,
+    Permission.REPORT_DELETE,
+  ],
+
+  [UserRole.VENDOR]: [
+    Permission.USER_READ,
+    Permission.USER_UPDATE,
+    Permission.VENDOR_READ,
+    Permission.VENDOR_UPDATE,
+    Permission.VENDOR_CREATE_SOLUTION,
+    Permission.VENDOR_UPDATE_SOLUTION,
+    Permission.VENDOR_DELETE_SOLUTION,
+    Permission.VENDOR_VIEW_CONTACTS,
+    Permission.MARKETPLACE_BROWSE,
+    Permission.SUBSCRIPTION_READ,
+    Permission.SUBSCRIPTION_UPDATE,
+    Permission.SUBSCRIPTION_CANCEL,
+    Permission.PAYMENT_READ,
+  ],
+
+  [UserRole.ADMIN]: [
+    // Admins have all permissions
+    ...Object.values(Permission)
+  ],
+};
+
+/**
+ * Check if user has specific permission
+ */
+export function hasPermission(user: UserSession, permission: Permission): boolean {
+  // Check account status
+  if (user.status !== UserStatus.ACTIVE) {
+    return false;
+  }
+
+  // Get role permissions
+  const rolePermissions = ROLE_PERMISSIONS[user.role] || [];
+  return rolePermissions.includes(permission);
+}
+
+/**
+ * Check multiple permissions (AND logic)
+ */
+export function hasAllPermissions(user: UserSession, permissions: Permission[]): boolean {
+  return permissions.every(permission => hasPermission(user, permission));
+}
+
+/**
+ * Check multiple permissions (OR logic)
+ */
+export function hasAnyPermission(user: UserSession, permissions: Permission[]): boolean {
+  return permissions.some(permission => hasPermission(user, permission));
+}
+
+/**
+ * Require permission or throw error
+ */
+export function requirePermission(
+  user: UserSession, 
+  permission: Permission,
+  resource?: string
+): void {
+  if (user.status !== UserStatus.ACTIVE) {
+    throw new AccountSuspendedError();
+  }
+
+  if (!hasPermission(user, permission)) {
+    throw new InsufficientPermissionsError(permission, resource);
+  }
+}
+
+/**
+ * Require multiple permissions (AND logic) or throw error
+ */
+export function requireAllPermissions(
+  user: UserSession, 
+  permissions: Permission[],
+  resource?: string
+): void {
+  if (user.status !== UserStatus.ACTIVE) {
+    throw new AccountSuspendedError();
+  }
+
+  if (!hasAllPermissions(user, permissions)) {
+    throw new InsufficientPermissionsError(permissions.join(', '), resource);
+  }
+}
+
+/**
+ * Check ownership of resource
+ */
+export function isOwner(user: UserSession, resourceUserId: string): boolean {
+  return user.id === resourceUserId;
+}
+
+/**
+ * Check organization membership
+ */
+export function isOrganizationMember(user: UserSession, organizationId: string): boolean {
+  return user.organizationId === organizationId;
+}
+
+/**
+ * Check vendor ownership
+ */
+export function isVendorOwner(user: UserSession, vendorId: string): boolean {
+  return user.vendorId === vendorId;
+}
+
+/**
+ * Advanced permission check with context
+ */
+export function checkPermission(user: UserSession, check: PermissionCheck): boolean {
+  // Basic permission check
+  const permission = check.action as Permission;
+  if (!hasPermission(user, permission)) {
+    return false;
+  }
+
+  // Resource-specific checks
+  switch (check.resource) {
+    case 'user':
+      // Users can only access their own data (unless admin)
+      if (check.resourceId && user.role !== UserRole.ADMIN) {
+        return isOwner(user, check.resourceId);
+      }
+      return true;
+
+    case 'organization':
+      // Users can only access their own organization
+      if (check.resourceId && user.role !== UserRole.ADMIN) {
+        return isOrganizationMember(user, check.resourceId);
+      }
+      return true;
+
+    case 'assessment':
+    case 'document':
+    case 'report':
+      // Users can only access resources from their organization
+      if (check.organizationId && user.role !== UserRole.ADMIN) {
+        return isOrganizationMember(user, check.organizationId);
+      }
+      return true;
+
+    case 'vendor':
+    case 'solution':
+      // Vendors can only access their own resources
+      if (check.resourceId && user.role === UserRole.VENDOR) {
+        return isVendorOwner(user, check.resourceId);
+      }
+      return true;
+
+    default:
+      return true;
+  }
+}
+
+/**
+ * Get user permissions list
+ */
+export function getUserPermissions(user: UserSession): Permission[] {
+  if (user.status !== UserStatus.ACTIVE) {
+    return [];
+  }
+
+  return ROLE_PERMISSIONS[user.role] || [];
+}
+
+/**
+ * Check if user can perform action on resource
+ */
+export function canPerformAction(
+  user: UserSession,
+  action: string,
+  resource: string,
+  resourceId?: string,
+  organizationId?: string
+): boolean {
+  return checkPermission(user, {
+    action,
+    resource,
+    resourceId,
+    organizationId
+  });
+}
+
+/**
+ * Middleware helper for permission checking
+ */
+export function createPermissionMiddleware(
+  requiredPermission: Permission,
+  options: {
+    requireOwnership?: boolean;
+    requireOrganizationMembership?: boolean;
+    requireVendorOwnership?: boolean;
+    resourceIdParam?: string;
+    organizationIdParam?: string;
+  } = {}
+) {
+  return (user: UserSession, params: Record<string, any> = {}) => {
+    // Check basic permission
+    requirePermission(user, requiredPermission);
+
+    // Check ownership if required
+    if (options.requireOwnership && options.resourceIdParam) {
+      const resourceId = params[options.resourceIdParam];
+      if (resourceId && !isOwner(user, resourceId) && user.role !== UserRole.ADMIN) {
+        throw new InsufficientPermissionsError();
+      }
+    }
+
+    // Check organization membership if required
+    if (options.requireOrganizationMembership && options.organizationIdParam) {
+      const organizationId = params[options.organizationIdParam];
+      if (organizationId && !isOrganizationMember(user, organizationId) && user.role !== UserRole.ADMIN) {
+        throw new InsufficientPermissionsError();
+      }
+    }
+
+    // Check vendor ownership if required
+    if (options.requireVendorOwnership && user.role === UserRole.VENDOR) {
+      const vendorId = params.vendorId || user.vendorId;
+      if (vendorId && !isVendorOwner(user, vendorId)) {
+        throw new InsufficientPermissionsError();
+      }
+    }
+
+    return true;
+  };
+}
+
+// Common permission middleware factories
+export const requireUserPermission = (permission: Permission) =>
+  createPermissionMiddleware(permission, { requireOwnership: true, resourceIdParam: 'userId' });
+
+export const requireOrganizationPermission = (permission: Permission) =>
+  createPermissionMiddleware(permission, { 
+    requireOrganizationMembership: true, 
+    organizationIdParam: 'organizationId' 
+  });
+
+export const requireVendorPermission = (permission: Permission) =>
+  createPermissionMiddleware(permission, { 
+    requireVendorOwnership: true 
+  });
+
+export const requireAdminPermission = (permission: Permission) =>
+  createPermissionMiddleware(permission);
+
+/**
+ * Permission helpers for common actions
+ */
+export const PermissionHelpers = {
+  canReadUser: (user: UserSession, targetUserId?: string) =>
+    hasPermission(user, Permission.USER_READ) && 
+    (user.role === UserRole.ADMIN || !targetUserId || isOwner(user, targetUserId)),
+
+  canUpdateUser: (user: UserSession, targetUserId?: string) =>
+    hasPermission(user, Permission.USER_UPDATE) && 
+    (user.role === UserRole.ADMIN || !targetUserId || isOwner(user, targetUserId)),
+
+  canReadOrganization: (user: UserSession, organizationId?: string) =>
+    hasPermission(user, Permission.ORG_READ) && 
+    (user.role === UserRole.ADMIN || !organizationId || isOrganizationMember(user, organizationId)),
+
+  canUpdateOrganization: (user: UserSession, organizationId?: string) =>
+    hasPermission(user, Permission.ORG_UPDATE) && 
+    (user.role === UserRole.ADMIN || !organizationId || isOrganizationMember(user, organizationId)),
+
+  canCreateAssessment: (user: UserSession) =>
+    hasPermission(user, Permission.ASSESSMENT_CREATE) && user.emailVerified,
+
+  canReadAssessment: (user: UserSession, organizationId?: string) =>
+    hasPermission(user, Permission.ASSESSMENT_READ) && 
+    (user.role === UserRole.ADMIN || !organizationId || isOrganizationMember(user, organizationId)),
+
+  canManageVendorSolutions: (user: UserSession, vendorId?: string) =>
+    user.role === UserRole.VENDOR && 
+    hasPermission(user, Permission.VENDOR_CREATE_SOLUTION) &&
+    (!vendorId || isVendorOwner(user, vendorId)),
+
+  canProcessPayments: (user: UserSession) =>
+    hasPermission(user, Permission.PAYMENT_PROCESS) && user.emailVerified,
+
+  canAccessMarketplace: (user: UserSession) =>
+    hasPermission(user, Permission.MARKETPLACE_BROWSE) && user.emailVerified,
+
+  isSystemAdmin: (user: UserSession) =>
+    user.role === UserRole.ADMIN && user.status === UserStatus.ACTIVE,
+};

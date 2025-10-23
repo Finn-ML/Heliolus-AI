@@ -1,0 +1,373 @@
+/**
+ * Subscription management implementation
+ */
+
+import Stripe from 'stripe';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  SubscriptionManager,
+  Subscription,
+  CreateSubscriptionData,
+  UpdateSubscriptionData,
+  CancelOptions,
+  SubscriptionResult,
+  SubscriptionError
+} from './types.js';
+import { stripeProvider } from './stripe.js';
+import { PAYMENT_CONFIG } from './index.js';
+import { SubscriptionPlan, SubscriptionStatus, TransactionType } from '../../types/database.js';
+
+const prisma = new PrismaClient();
+const stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {
+  apiVersion: PAYMENT_CONFIG.stripe.apiVersion
+});
+
+/**
+ * Comprehensive subscription management
+ */
+export class HeliolusSubscriptionManager implements SubscriptionManager {
+  /**
+   * Create new subscription
+   */
+  async createSubscription(data: CreateSubscriptionData): Promise<Subscription> {
+    try {
+      console.log(`Creating subscription for customer ${data.customerId}`);
+
+      // Get plan configuration
+      const planConfig = PAYMENT_CONFIG.subscriptions.plans[data.plan];
+      if (!planConfig) {
+        throw new SubscriptionError(`Invalid subscription plan: ${data.plan}`);
+      }
+
+      let stripeSubscription: Stripe.Subscription;
+
+      if (data.plan === SubscriptionPlan.FREE) {
+        // Handle free plan - no Stripe subscription needed
+        const subscription = await this.createDatabaseSubscription(data, null);
+        
+        // Add initial credits for free plan
+        await this.addPlanCredits(subscription.id, planConfig.credits, 'Free plan credits');
+        
+        return subscription;
+      } else {
+        // Create Stripe subscription for paid plans
+        const priceId = await this.getOrCreateStripePriceId(data.plan, planConfig.price);
+        
+        stripeSubscription = await stripe.subscriptions.create({
+          customer: data.customerId,
+          items: [{ price: priceId }],
+          payment_behavior: 'default_incomplete',
+          payment_settings: { save_default_payment_method: 'on_subscription' },
+          expand: ['latest_invoice.payment_intent'],
+          trial_period_days: data.trialPeriodDays || PAYMENT_CONFIG.subscriptions.trialPeriodDays,
+          metadata: data.metadata || {}
+        });
+
+        // Create database subscription
+        const subscription = await this.createDatabaseSubscription(data, stripeSubscription.id);
+        
+        // Add plan credits
+        await this.addPlanCredits(subscription.id, planConfig.credits, `${data.plan} plan credits`);
+        
+        return subscription;
+      }
+    } catch (error) {
+      console.error('Create subscription error:', error);
+      throw error instanceof SubscriptionError ? error : new SubscriptionError('Failed to create subscription');
+    }
+  }
+
+  /**
+   * Update subscription
+   */
+  async updateSubscription(subscriptionId: string, data: UpdateSubscriptionData): Promise<Subscription> {
+    try {
+      const dbSubscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId }
+      });
+
+      if (!dbSubscription) {
+        throw new SubscriptionError('Subscription not found');
+      }
+
+      // Update Stripe subscription if it exists
+      if (dbSubscription.stripeSubscriptionId && data.plan) {
+        const planConfig = PAYMENT_CONFIG.subscriptions.plans[data.plan];
+        if (!planConfig) {
+          throw new SubscriptionError(`Invalid subscription plan: ${data.plan}`);
+        }
+
+        const priceId = await this.getOrCreateStripePriceId(data.plan, planConfig.price);
+        
+        await stripe.subscriptions.update(dbSubscription.stripeSubscriptionId, {
+          items: [{
+            id: (await stripe.subscriptions.retrieve(dbSubscription.stripeSubscriptionId)).items.data[0].id,
+            price: priceId
+          }],
+          proration_behavior: data.prorationBehavior || 'create_prorations'
+        });
+      }
+
+      // Update database subscription
+      const updatedSubscription = await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          plan: data.plan || dbSubscription.plan,
+          stripePaymentMethodId: data.paymentMethodId || dbSubscription.stripePaymentMethodId
+        }
+      });
+
+      return this.mapDatabaseSubscription(updatedSubscription);
+    } catch (error) {
+      console.error('Update subscription error:', error);
+      throw error instanceof SubscriptionError ? error : new SubscriptionError('Failed to update subscription');
+    }
+  }
+
+  /**
+   * Cancel subscription
+   */
+  async cancelSubscription(subscriptionId: string, options?: CancelOptions): Promise<Subscription> {
+    try {
+      const dbSubscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId }
+      });
+
+      if (!dbSubscription) {
+        throw new SubscriptionError('Subscription not found');
+      }
+
+      // Cancel Stripe subscription if it exists
+      if (dbSubscription.stripeSubscriptionId) {
+        if (options?.immediately) {
+          await stripe.subscriptions.cancel(dbSubscription.stripeSubscriptionId);
+        } else {
+          await stripe.subscriptions.update(dbSubscription.stripeSubscriptionId, {
+            cancel_at_period_end: true
+          });
+        }
+      }
+
+      // Update database subscription
+      const canceledAt = options?.immediately ? new Date() : null;
+      const updatedSubscription = await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          status: options?.immediately ? SubscriptionStatus.CANCELED : SubscriptionStatus.ACTIVE,
+          canceledAt,
+          cancelAt: options?.immediately ? null : dbSubscription.currentPeriodEnd
+        }
+      });
+
+      return this.mapDatabaseSubscription(updatedSubscription);
+    } catch (error) {
+      console.error('Cancel subscription error:', error);
+      throw error instanceof SubscriptionError ? error : new SubscriptionError('Failed to cancel subscription');
+    }
+  }
+
+  /**
+   * Pause subscription
+   */
+  async pauseSubscription(subscriptionId: string): Promise<Subscription> {
+    try {
+      const dbSubscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId }
+      });
+
+      if (!dbSubscription) {
+        throw new SubscriptionError('Subscription not found');
+      }
+
+      // Pause Stripe subscription if it exists
+      if (dbSubscription.stripeSubscriptionId) {
+        await stripe.subscriptions.update(dbSubscription.stripeSubscriptionId, {
+          pause_collection: {
+            behavior: 'mark_uncollectible'
+          }
+        });
+      }
+
+      // Update database subscription
+      const updatedSubscription = await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          status: SubscriptionStatus.PAST_DUE // Using PAST_DUE to represent paused
+        }
+      });
+
+      return this.mapDatabaseSubscription(updatedSubscription);
+    } catch (error) {
+      console.error('Pause subscription error:', error);
+      throw error instanceof SubscriptionError ? error : new SubscriptionError('Failed to pause subscription');
+    }
+  }
+
+  /**
+   * Resume subscription
+   */
+  async resumeSubscription(subscriptionId: string): Promise<Subscription> {
+    try {
+      const dbSubscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId }
+      });
+
+      if (!dbSubscription) {
+        throw new SubscriptionError('Subscription not found');
+      }
+
+      // Resume Stripe subscription if it exists
+      if (dbSubscription.stripeSubscriptionId) {
+        await stripe.subscriptions.update(dbSubscription.stripeSubscriptionId, {
+          pause_collection: ''
+        });
+      }
+
+      // Update database subscription
+      const updatedSubscription = await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          status: SubscriptionStatus.ACTIVE
+        }
+      });
+
+      return this.mapDatabaseSubscription(updatedSubscription);
+    } catch (error) {
+      console.error('Resume subscription error:', error);
+      throw error instanceof SubscriptionError ? error : new SubscriptionError('Failed to resume subscription');
+    }
+  }
+
+  /**
+   * Get subscription
+   */
+  async getSubscription(subscriptionId: string): Promise<Subscription | null> {
+    try {
+      const dbSubscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId }
+      });
+
+      if (!dbSubscription) {
+        return null;
+      }
+
+      return this.mapDatabaseSubscription(dbSubscription);
+    } catch (error) {
+      console.error('Get subscription error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * List subscriptions for customer
+   */
+  async listSubscriptions(customerId: string): Promise<Subscription[]> {
+    try {
+      const dbSubscriptions = await prisma.subscription.findMany({
+        where: { stripeCustomerId: customerId },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return dbSubscriptions.map(sub => this.mapDatabaseSubscription(sub));
+    } catch (error) {
+      console.error('List subscriptions error:', error);
+      return [];
+    }
+  }
+
+  // Private helper methods
+
+  private async createDatabaseSubscription(
+    data: CreateSubscriptionData,
+    stripeSubscriptionId: string | null
+  ): Promise<Subscription> {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    const dbSubscription = await prisma.subscription.create({
+      data: {
+        userId: data.customerId, // Assuming customer ID is user ID
+        plan: data.plan,
+        status: SubscriptionStatus.ACTIVE,
+        stripeCustomerId: data.customerId,
+        stripeSubscriptionId,
+        stripePaymentMethodId: data.paymentMethodId,
+        creditsBalance: 0,
+        creditsUsed: 0,
+        creditsPurchased: 0,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        trialEnd: data.trialPeriodDays ? new Date(now.getTime() + data.trialPeriodDays * 24 * 60 * 60 * 1000) : null
+      }
+    });
+
+    return this.mapDatabaseSubscription(dbSubscription);
+  }
+
+  private async addPlanCredits(subscriptionId: string, credits: number, description: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      // Update subscription balance
+      const subscription = await tx.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          creditsBalance: { increment: credits },
+          creditsPurchased: { increment: credits }
+        }
+      });
+
+      // Create transaction record
+      await tx.creditTransaction.create({
+        data: {
+          subscriptionId,
+          type: TransactionType.BONUS,
+          amount: credits,
+          balance: subscription.creditsBalance + credits,
+          description
+        }
+      });
+    });
+  }
+
+  private async getOrCreateStripePriceId(plan: SubscriptionPlan, amount: number): Promise<string> {
+    // In a real implementation, you would store price IDs in configuration or database
+    // For now, we'll create prices dynamically (not recommended for production)
+    try {
+      const price = await stripe.prices.create({
+        unit_amount: amount,
+        currency: 'eur',
+        recurring: {
+          interval: 'month'
+        },
+        product_data: {
+          name: `${plan} Plan`,
+          description: `Heliolus ${plan} subscription plan`
+        }
+      });
+
+      return price.id;
+    } catch (error) {
+      console.error('Error creating Stripe price:', error);
+      throw new SubscriptionError('Failed to create subscription price');
+    }
+  }
+
+  private mapDatabaseSubscription(dbSubscription: any): Subscription {
+    return {
+      id: dbSubscription.id,
+      customerId: dbSubscription.stripeCustomerId || dbSubscription.userId,
+      plan: dbSubscription.plan,
+      status: dbSubscription.status,
+      currentPeriodStart: dbSubscription.currentPeriodStart,
+      currentPeriodEnd: dbSubscription.currentPeriodEnd,
+      trialEnd: dbSubscription.trialEnd,
+      canceledAt: dbSubscription.canceledAt,
+      cancelAtPeriodEnd: !!dbSubscription.cancelAt,
+      defaultPaymentMethod: dbSubscription.stripePaymentMethodId,
+      createdAt: dbSubscription.createdAt,
+      updatedAt: dbSubscription.updatedAt
+    };
+  }
+}
+
+// Export the subscription manager instance
+export const subscriptionManager = new HeliolusSubscriptionManager();

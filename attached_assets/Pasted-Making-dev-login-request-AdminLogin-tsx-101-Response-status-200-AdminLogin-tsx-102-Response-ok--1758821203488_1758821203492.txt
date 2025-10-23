@@ -1,0 +1,50 @@
+Making dev login request...
+AdminLogin.tsx:101 Response status: 200
+AdminLogin.tsx:102 Response ok: true
+AdminLogin.tsx:105 Response result: Object
+AdminLogin.tsx:108 Login successful, calling login function
+vendors:1 A soft navigation has been detected: https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/admin/vendors
+2VendorManagement.tsx:305 Uncaught TypeError: vendorsResponse?.data?.map is not a function
+    at VendorManagement (VendorManagement.tsx:305:42)
+    at renderWithHooks (chunk-AVJPV5ZH.js?v=08fd0909:11548:26)
+    at updateFunctionComponent (chunk-AVJPV5ZH.js?v=08fd0909:14582:28)
+    at beginWork (chunk-AVJPV5ZH.js?v=08fd0909:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-AVJPV5ZH.js?v=08fd0909:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-AVJPV5ZH.js?v=08fd0909:3699:24)
+    at invokeGuardedCallback (chunk-AVJPV5ZH.js?v=08fd0909:3733:39)
+    at beginWork$1 (chunk-AVJPV5ZH.js?v=08fd0909:19765:15)
+    at performUnitOfWork (chunk-AVJPV5ZH.js?v=08fd0909:19198:20)
+    at workLoopSync (chunk-AVJPV5ZH.js?v=08fd0909:19137:13)
+chunk-AVJPV5ZH.js?v=08fd0909:14032 The above error occurred in the <VendorManagement> component:
+
+    at VendorManagement (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/pages/admin/VendorManagement.tsx:219:21)
+    at AdminRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/AdminRoute.tsx:25:3)
+    at RenderedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=08fd0909:4088:5)
+    at Routes (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=08fd0909:4558:5)
+    at div
+    at Router (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=08fd0909:4501:15)
+    at BrowserRouter (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=08fd0909:5247:5)
+    at Provider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/chunk-ANXU5LOI.js?v=08fd0909:38:15)
+    at TooltipProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=08fd0909:65:5)
+    at O (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=08fd0909:23:25)
+    at z (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=08fd0909:21:18)
+    at AuthProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/AuthContext.tsx:20:32)
+    at QueryClientProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=08fd0909:3022:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ chunk-AVJPV5ZH.js?v=08fd0909:14032
+Show 1 more frame
+Show less
+chunk-AVJPV5ZH.js?v=08fd0909:9129 Uncaught TypeError: vendorsResponse?.data?.map is not a function
+    at VendorManagement (VendorManagement.tsx:305:42)
+    at renderWithHooks (chunk-AVJPV5ZH.js?v=08fd0909:11548:26)
+    at updateFunctionComponent (chunk-AVJPV5ZH.js?v=08fd0909:14582:28)
+    at beginWork (chunk-AVJPV5ZH.js?v=08fd0909:15924:22)
+    at beginWork$1 (chunk-AVJPV5ZH.js?v=08fd0909:19753:22)
+    at performUnitOfWork (chunk-AVJPV5ZH.js?v=08fd0909:19198:20)
+    at workLoopSync (chunk-AVJPV5ZH.js?v=08fd0909:19137:13)
+    at renderRootSync (chunk-AVJPV5ZH.js?v=08fd0909:19116:15)
+    at recoverFromConcurrentError (chunk-AVJPV5ZH.js?v=08fd0909:18736:28)
+    at performSyncWorkOnRoot (chunk-AVJPV5ZH.js?v=08fd0909:18879:28)

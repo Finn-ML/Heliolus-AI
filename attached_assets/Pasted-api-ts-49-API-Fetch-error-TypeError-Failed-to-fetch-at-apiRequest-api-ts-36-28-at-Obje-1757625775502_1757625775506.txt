@@ -1,0 +1,50 @@
+api.ts:49 [API] Fetch error: TypeError: Failed to fetch
+    at apiRequest (api.ts:36:28)
+    at Object.getMyOrganization (api.ts:167:28)
+    at fetchUserOrganization (BusinessProfile.tsx:93:50)
+    at BusinessProfile.tsx:86:7
+    at commitHookEffectListMount (chunk-AVJPV5ZH.js?v=02d1138e:16915:34)
+    at commitPassiveMountOnFiber (chunk-AVJPV5ZH.js?v=02d1138e:18156:19)
+    at commitPassiveMountEffects_complete (chunk-AVJPV5ZH.js?v=02d1138e:18129:17)
+    at commitPassiveMountEffects_begin (chunk-AVJPV5ZH.js?v=02d1138e:18119:15)
+    at commitPassiveMountEffects (chunk-AVJPV5ZH.js?v=02d1138e:18109:11)
+    at flushPassiveEffectsImpl (chunk-AVJPV5ZH.js?v=02d1138e:19490:11)
+BusinessProfile.tsx:113 Error fetching user organization: TypeError: Failed to fetch
+    at apiRequest (api.ts:36:28)
+    at Object.getMyOrganization (api.ts:167:28)
+    at fetchUserOrganization (BusinessProfile.tsx:93:50)
+    at BusinessProfile.tsx:86:7
+    at commitHookEffectListMount (chunk-AVJPV5ZH.js?v=02d1138e:16915:34)
+    at commitPassiveMountOnFiber (chunk-AVJPV5ZH.js?v=02d1138e:18156:19)
+    at commitPassiveMountEffects_complete (chunk-AVJPV5ZH.js?v=02d1138e:18129:17)
+    at commitPassiveMountEffects_begin (chunk-AVJPV5ZH.js?v=02d1138e:18119:15)
+    at commitPassiveMountEffects (chunk-AVJPV5ZH.js?v=02d1138e:18109:11)
+    at flushPassiveEffectsImpl (chunk-AVJPV5ZH.js?v=02d1138e:19490:11)
+api.ts:32 [API] Request to: http://localhost:3001/v1/organizations
+api.ts:33 [API] Method: POST
+localhost:3001/v1/organizations:1 
+ Failed to load resource: net::ERR_CONNECTION_REFUSED
+api.ts:49 [API] Fetch error: TypeError: Failed to fetch
+    at apiRequest (api.ts:36:28)
+    at Object.createOrganization (api.ts:179:28)
+    at saveBusinessProfile (BusinessProfile.tsx:328:42)
+    at HTMLUnknownElement.callCallback2 (chunk-AVJPV5ZH.js?v=02d1138e:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-AVJPV5ZH.js?v=02d1138e:3699:24)
+    at invokeGuardedCallback (chunk-AVJPV5ZH.js?v=02d1138e:3733:39)
+    at invokeGuardedCallbackAndCatchFirstError (chunk-AVJPV5ZH.js?v=02d1138e:3736:33)
+    at executeDispatch (chunk-AVJPV5ZH.js?v=02d1138e:7014:11)
+    at processDispatchQueueItemsInOrder (chunk-AVJPV5ZH.js?v=02d1138e:7034:15)
+    at processDispatchQueue (chunk-AVJPV5ZH.js?v=02d1138e:7043:13)
+BusinessProfile.tsx:367 Error saving profile: TypeError: Failed to fetch
+    at apiRequest (api.ts:36:28)
+    at Object.createOrganization (api.ts:179:28)
+    at saveBusinessProfile (BusinessProfile.tsx:328:42)
+    at HTMLUnknownElement.callCallback2 (chunk-AVJPV5ZH.js?v=02d1138e:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-AVJPV5ZH.js?v=02d1138e:3699:24)
+    at invokeGuardedCallback (chunk-AVJPV5ZH.js?v=02d1138e:3733:39)
+    at invokeGuardedCallbackAndCatchFirstError (chunk-AVJPV5ZH.js?v=02d1138e:3736:33)
+    at executeDispatch (chunk-AVJPV5ZH.js?v=02d1138e:7014:11)
+    at processDispatchQueueItemsInOrder (chunk-AVJPV5ZH.js?v=02d1138e:7034:15)
+    at processDispatchQueue (chunk-AVJPV5ZH.js?v=02d1138e:7043:13)
+﻿
+

@@ -1,0 +1,736 @@
+/**
+ * Assessment template management and processing
+ */
+
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  AssessmentTemplate,
+  TemplateSection,
+  TemplateQuestion,
+  ScoringConfig,
+  ValidationError,
+  TemplateNotFoundError
+} from './types.js';
+import { TemplateCategory, QuestionType } from '../../types/database.js';
+
+const prisma = new PrismaClient();
+
+// Validation schemas
+const TemplateSchema = z.object({
+  name: z.string().min(1).max(255),
+  slug: z.string().min(1).max(100),
+  description: z.string().min(1),
+  category: z.nativeEnum(TemplateCategory),
+  sections: z.array(z.object({
+    title: z.string().min(1).max(255),
+    description: z.string().optional(),
+    weight: z.number().min(0).max(1),
+    order: z.number().int().min(0),
+    questions: z.array(z.object({
+      text: z.string().min(1),
+      type: z.nativeEnum(QuestionType),
+      required: z.boolean(),
+      options: z.array(z.string()).optional(),
+      validation: z.record(z.any()).optional(),
+      helpText: z.string().optional(),
+      weight: z.number().min(0).max(1),
+      order: z.number().int().min(0)
+    }))
+  })),
+  scoringCriteria: z.record(z.any()).optional(),
+  aiPrompts: z.record(z.string()).optional()
+});
+
+/**
+ * Assessment template manager
+ */
+export class TemplateManager {
+  /**
+   * Get template by ID with full structure
+   */
+  async getTemplate(templateId: string): Promise<AssessmentTemplate | null> {
+    try {
+      const template = await prisma.template.findUnique({
+        where: { id: templateId },
+        include: {
+          sections: {
+            include: {
+              questions: true
+            },
+            orderBy: { order: 'asc' }
+          }
+        }
+      });
+
+      if (!template) {
+        return null;
+      }
+
+      return this.mapPrismaTemplateToAssessmentTemplate(template);
+    } catch (error) {
+      console.error('Error fetching template:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get template by slug
+   */
+  async getTemplateBySlug(slug: string): Promise<AssessmentTemplate | null> {
+    try {
+      const template = await prisma.template.findUnique({
+        where: { slug },
+        include: {
+          sections: {
+            include: {
+              questions: true
+            },
+            orderBy: { order: 'asc' }
+          }
+        }
+      });
+
+      if (!template) {
+        return null;
+      }
+
+      return this.mapPrismaTemplateToAssessmentTemplate(template);
+    } catch (error) {
+      console.error('Error fetching template by slug:', error);
+      return null;
+    }
+  }
+
+  /**
+   * List available templates
+   */
+  async listTemplates(
+    category?: TemplateCategory,
+    activeOnly: boolean = true
+  ): Promise<AssessmentTemplate[]> {
+    try {
+      const where: any = {};
+      if (category) where.category = category;
+      if (activeOnly) where.isActive = true;
+
+      const templates = await prisma.template.findMany({
+        where,
+        include: {
+          sections: {
+            include: {
+              questions: true
+            },
+            orderBy: { order: 'asc' }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return templates.map(template => this.mapPrismaTemplateToAssessmentTemplate(template));
+    } catch (error) {
+      console.error('Error listing templates:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Create new template
+   */
+  async createTemplate(templateData: Omit<AssessmentTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<AssessmentTemplate> {
+    try {
+      // Validate template data
+      const validatedData = TemplateSchema.parse({
+        ...templateData,
+        sections: templateData.sections.map(section => ({
+          ...section,
+          questions: section.questions.map(q => ({
+            ...q,
+            validation: q.validation || {}
+          }))
+        }))
+      });
+
+      // Create template with sections and questions
+      const template = await prisma.template.create({
+        data: {
+          name: validatedData.name,
+          slug: validatedData.slug,
+          description: validatedData.description,
+          category: validatedData.category,
+          version: templateData.version || '1.0',
+          isActive: templateData.isActive ?? true,
+          createdBy: 'system', // In real app, this would be the user ID
+          scoringCriteria: validatedData.scoringCriteria || {},
+          aiPrompts: validatedData.aiPrompts || {},
+          sections: {
+            create: validatedData.sections.map(section => ({
+              title: section.title,
+              description: section.description,
+              weight: section.weight,
+              order: section.order,
+              questions: {
+                create: section.questions.map(question => ({
+                  text: question.text,
+                  type: question.type,
+                  required: question.required,
+                  options: question.options || [],
+                  validation: question.validation || {},
+                  helpText: question.helpText,
+                  weight: question.weight,
+                  order: question.order
+                }))
+              }
+            }))
+          }
+        },
+        include: {
+          sections: {
+            include: {
+              questions: true
+            },
+            orderBy: { order: 'asc' }
+          }
+        }
+      });
+
+      return this.mapPrismaTemplateToAssessmentTemplate(template);
+    } catch (error) {
+      console.error('Error creating template:', error);
+      
+      if (error instanceof z.ZodError) {
+        throw new ValidationError(`Template validation failed: ${error.errors[0].message}`);
+      }
+      
+      throw new Error('Failed to create template');
+    }
+  }
+
+  /**
+   * Update template
+   */
+  async updateTemplate(
+    templateId: string, 
+    updates: Partial<AssessmentTemplate>
+  ): Promise<AssessmentTemplate> {
+    try {
+      const existingTemplate = await this.getTemplate(templateId);
+      if (!existingTemplate) {
+        throw new TemplateNotFoundError(templateId);
+      }
+
+      // Update basic template fields
+      const updateData: any = {};
+      if (updates.name) updateData.name = updates.name;
+      if (updates.description) updateData.description = updates.description;
+      if (updates.category) updateData.category = updates.category;
+      if (updates.version) updateData.version = updates.version;
+      if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
+      if (updates.scoringCriteria) updateData.scoringCriteria = updates.scoringCriteria;
+      if (updates.aiPrompts) updateData.aiPrompts = updates.aiPrompts;
+
+      const template = await prisma.template.update({
+        where: { id: templateId },
+        data: updateData,
+        include: {
+          sections: {
+            include: {
+              questions: true
+            },
+            orderBy: { order: 'asc' }
+          }
+        }
+      });
+
+      return this.mapPrismaTemplateToAssessmentTemplate(template);
+    } catch (error) {
+      console.error('Error updating template:', error);
+      
+      if (error instanceof TemplateNotFoundError) {
+        throw error;
+      }
+      
+      throw new Error('Failed to update template');
+    }
+  }
+
+  /**
+   * Validate template structure and content
+   */
+  validateTemplate(template: AssessmentTemplate): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    // Basic validation
+    if (!template.name || template.name.trim().length === 0) {
+      errors.push('Template name is required');
+    }
+
+    if (!template.slug || template.slug.trim().length === 0) {
+      errors.push('Template slug is required');
+    }
+
+    if (!template.sections || template.sections.length === 0) {
+      errors.push('Template must have at least one section');
+    }
+
+    // Section validation
+    let totalWeight = 0;
+    template.sections?.forEach((section, sectionIndex) => {
+      if (!section.title || section.title.trim().length === 0) {
+        errors.push(`Section ${sectionIndex + 1}: Title is required`);
+      }
+
+      if (section.weight < 0 || section.weight > 1) {
+        errors.push(`Section ${sectionIndex + 1}: Weight must be between 0 and 1`);
+      }
+      totalWeight += section.weight;
+
+      if (!section.questions || section.questions.length === 0) {
+        errors.push(`Section ${sectionIndex + 1}: Must have at least one question`);
+      }
+
+      // Question validation
+      section.questions?.forEach((question, questionIndex) => {
+        if (!question.text || question.text.trim().length === 0) {
+          errors.push(`Section ${sectionIndex + 1}, Question ${questionIndex + 1}: Text is required`);
+        }
+
+        if (question.type === QuestionType.SELECT || question.type === QuestionType.MULTISELECT) {
+          if (!question.options || question.options.length === 0) {
+            errors.push(`Section ${sectionIndex + 1}, Question ${questionIndex + 1}: Select questions must have options`);
+          }
+        }
+
+        if (question.weight < 0 || question.weight > 1) {
+          errors.push(`Section ${sectionIndex + 1}, Question ${questionIndex + 1}: Weight must be between 0 and 1`);
+        }
+      });
+    });
+
+    // Section weights should sum to approximately 1
+    if (Math.abs(totalWeight - 1) > 0.1) {
+      errors.push('Section weights should sum to approximately 1.0');
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  /**
+   * Clone template with new name/slug
+   */
+  async cloneTemplate(
+    templateId: string, 
+    newName: string, 
+    newSlug: string
+  ): Promise<AssessmentTemplate> {
+    try {
+      const originalTemplate = await this.getTemplate(templateId);
+      if (!originalTemplate) {
+        throw new TemplateNotFoundError(templateId);
+      }
+
+      const clonedTemplate: Omit<AssessmentTemplate, 'id' | 'createdAt' | 'updatedAt'> = {
+        ...originalTemplate,
+        name: newName,
+        slug: newSlug,
+        version: '1.0'
+      };
+
+      return await this.createTemplate(clonedTemplate);
+    } catch (error) {
+      console.error('Error cloning template:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get template statistics
+   */
+  async getTemplateStats(templateId: string): Promise<{
+    totalSections: number;
+    totalQuestions: number;
+    requiredQuestions: number;
+    avgSectionWeight: number;
+    avgQuestionWeight: number;
+    questionTypes: Record<string, number>;
+  }> {
+    try {
+      const template = await this.getTemplate(templateId);
+      if (!template) {
+        throw new TemplateNotFoundError(templateId);
+      }
+
+      const totalSections = template.sections.length;
+      const totalQuestions = template.sections.reduce((sum, section) => sum + section.questions.length, 0);
+      const requiredQuestions = template.sections.reduce(
+        (sum, section) => sum + section.questions.filter(q => q.required).length, 
+        0
+      );
+
+      const avgSectionWeight = totalSections > 0 
+        ? template.sections.reduce((sum, section) => sum + section.weight, 0) / totalSections 
+        : 0;
+
+      const avgQuestionWeight = totalQuestions > 0
+        ? template.sections.reduce(
+            (sum, section) => sum + section.questions.reduce((qSum, q) => qSum + q.weight, 0),
+            0
+          ) / totalQuestions
+        : 0;
+
+      const questionTypes: Record<string, number> = {};
+      template.sections.forEach(section => {
+        section.questions.forEach(question => {
+          questionTypes[question.type] = (questionTypes[question.type] || 0) + 1;
+        });
+      });
+
+      return {
+        totalSections,
+        totalQuestions,
+        requiredQuestions,
+        avgSectionWeight: Math.round(avgSectionWeight * 1000) / 1000,
+        avgQuestionWeight: Math.round(avgQuestionWeight * 1000) / 1000,
+        questionTypes
+      };
+    } catch (error) {
+      console.error('Error getting template stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate AI prompts for template
+   */
+  generateAIPrompts(template: AssessmentTemplate): Record<string, string> {
+    const prompts: Record<string, string> = {};
+
+    // Gap analysis prompt
+    prompts.gapAnalysis = `
+Analyze assessment responses for the ${template.name} template to identify compliance gaps.
+
+Template Context:
+- Category: ${template.category}
+- Sections: ${template.sections.map(s => s.title).join(', ')}
+
+Focus Areas:
+${template.sections.map(section => `
+- ${section.title}: ${section.description || 'No description'}
+  Questions: ${section.questions.length}
+`).join('')}
+
+Instructions:
+1. Identify specific gaps where current practices don't meet requirements
+2. Consider the template's focus on ${template.category.toLowerCase().replace('_', ' ')}
+3. Provide actionable recommendations aligned with the assessment structure
+4. Prioritize gaps based on severity and business impact
+`;
+
+    // Risk assessment prompt
+    prompts.riskAssessment = `
+Assess risks based on ${template.name} assessment responses.
+
+Risk Categories to Consider:
+- Regulatory compliance risks related to ${template.category.toLowerCase()}
+- Operational risks from identified gaps
+- Governance and oversight risks
+- Reputational and business risks
+
+Assessment Structure:
+${template.sections.map(section => `
+- ${section.title} (Weight: ${section.weight})
+  Key areas: ${section.questions.map(q => q.text).slice(0, 3).join('; ')}${section.questions.length > 3 ? '...' : ''}
+`).join('')}
+
+Focus on risks that align with the template's ${template.category.toLowerCase()} focus.
+`;
+
+    // Recommendation prompt
+    prompts.recommendations = `
+Generate recommendations based on ${template.name} assessment results.
+
+Template Focus: ${template.category.toLowerCase().replace('_', ' ')}
+
+Recommendation Categories:
+1. Quick wins that can be implemented rapidly
+2. Strategic improvements aligned with ${template.category} best practices
+3. Vendor solutions that address multiple gaps
+4. Process improvements that enhance overall compliance
+
+Consider the assessment structure:
+${template.sections.map(s => `- ${s.title} (${s.questions.length} questions)`).join('\n')}
+
+Provide specific, actionable recommendations with implementation guidance.
+`;
+
+    return prompts;
+  }
+
+  /**
+   * Map Prisma template to AssessmentTemplate
+   */
+  private mapPrismaTemplateToAssessmentTemplate(prismaTemplate: any): AssessmentTemplate {
+    return {
+      id: prismaTemplate.id,
+      name: prismaTemplate.name,
+      slug: prismaTemplate.slug,
+      description: prismaTemplate.description,
+      category: prismaTemplate.category,
+      version: prismaTemplate.version,
+      isActive: prismaTemplate.isActive,
+      createdAt: prismaTemplate.createdAt,
+      updatedAt: prismaTemplate.updatedAt,
+      scoringCriteria: this.mapScoringCriteria(prismaTemplate.scoringCriteria),
+      aiPrompts: prismaTemplate.aiPrompts || {},
+      sections: prismaTemplate.sections.map((section: any) => this.mapTemplateSection(section))
+    };
+  }
+
+  private mapTemplateSection(prismaSection: any): TemplateSection {
+    return {
+      id: prismaSection.id,
+      title: prismaSection.title,
+      description: prismaSection.description,
+      weight: prismaSection.weight,
+      order: prismaSection.order,
+      questions: prismaSection.questions
+        .sort((a: any, b: any) => a.order - b.order)
+        .map((question: any) => this.mapTemplateQuestion(question))
+    };
+  }
+
+  private mapTemplateQuestion(prismaQuestion: any): TemplateQuestion {
+    return {
+      id: prismaQuestion.id,
+      text: prismaQuestion.text,
+      type: prismaQuestion.type,
+      required: prismaQuestion.required,
+      options: prismaQuestion.options,
+      validation: prismaQuestion.validation || {},
+      helpText: prismaQuestion.helpText,
+      weight: prismaQuestion.weight || 1,
+      order: prismaQuestion.order,
+      scoring: this.mapQuestionScoring(prismaQuestion.validation)
+    };
+  }
+
+  private mapScoringCriteria(scoringData: any): ScoringConfig {
+    const defaultScoring: ScoringConfig = {
+      weights: {
+        compliance: 0.3,
+        risk: 0.4,
+        maturity: 0.2,
+        documentation: 0.1
+      },
+      thresholds: {
+        low: 30,
+        medium: 60,
+        high: 80
+      },
+      methodology: 'weighted',
+      version: '1.0'
+    };
+
+    if (!scoringData || typeof scoringData !== 'object') {
+      return defaultScoring;
+    }
+
+    return {
+      weights: { ...defaultScoring.weights, ...scoringData.weights },
+      thresholds: { ...defaultScoring.thresholds, ...scoringData.thresholds },
+      methodology: scoringData.methodology || defaultScoring.methodology,
+      version: scoringData.version || defaultScoring.version
+    };
+  }
+
+  private mapQuestionScoring(validation: any): any {
+    if (!validation || typeof validation !== 'object') {
+      return undefined;
+    }
+
+    return {
+      method: validation.scoringMethod || 'binary',
+      scoreMap: validation.scoreMap || {},
+      maxScore: validation.maxScore || 100,
+      riskCategories: validation.riskCategories || []
+    };
+  }
+}
+
+// Pre-built template definitions
+export const DEFAULT_TEMPLATES = {
+  FINANCIAL_CRIME: {
+    name: 'Financial Crime Risk Assessment',
+    slug: 'financial-crime-risk',
+    description: 'Comprehensive assessment of anti-money laundering, sanctions, and financial crime controls',
+    category: TemplateCategory.FINANCIAL_CRIME,
+    version: '1.0',
+    isActive: true,
+    sections: [
+      {
+        title: 'Customer Due Diligence',
+        description: 'Assessment of customer onboarding and ongoing monitoring processes',
+        weight: 0.25,
+        order: 1,
+        questions: [
+          {
+            text: 'Do you have documented customer due diligence procedures?',
+            type: QuestionType.BOOLEAN,
+            required: true,
+            weight: 0.3,
+            order: 1,
+            helpText: 'CDD procedures should cover customer identification, verification, and risk assessment'
+          },
+          {
+            text: 'How do you conduct enhanced due diligence for high-risk customers?',
+            type: QuestionType.TEXT,
+            required: true,
+            weight: 0.4,
+            order: 2,
+            helpText: 'Describe specific measures for politically exposed persons, high-risk jurisdictions, etc.'
+          },
+          {
+            text: 'What is your customer risk rating methodology?',
+            type: QuestionType.SELECT,
+            required: true,
+            options: ['No formal methodology', 'Basic risk categories', 'Comprehensive risk scoring', 'Advanced analytics-based'],
+            weight: 0.3,
+            order: 3
+          }
+        ]
+      },
+      {
+        title: 'Transaction Monitoring',
+        description: 'Assessment of transaction monitoring and suspicious activity detection',
+        weight: 0.3,
+        order: 2,
+        questions: [
+          {
+            text: 'Do you have automated transaction monitoring systems?',
+            type: QuestionType.BOOLEAN,
+            required: true,
+            weight: 0.4,
+            order: 1
+          },
+          {
+            text: 'How frequently do you review and tune monitoring scenarios?',
+            type: QuestionType.SELECT,
+            required: true,
+            options: ['Never', 'Annually', 'Quarterly', 'Monthly', 'Continuously'],
+            weight: 0.3,
+            order: 2
+          },
+          {
+            text: 'Describe your process for investigating alerts',
+            type: QuestionType.TEXT,
+            required: true,
+            weight: 0.3,
+            order: 3
+          }
+        ]
+      }
+    ],
+    scoringCriteria: {
+      weights: {
+        compliance: 0.4,
+        risk: 0.3,
+        maturity: 0.2,
+        documentation: 0.1
+      },
+      thresholds: {
+        low: 25,
+        medium: 50,
+        high: 75
+      }
+    },
+    aiPrompts: {}
+  },
+
+  DATA_PRIVACY: {
+    name: 'Data Privacy Compliance Assessment',
+    slug: 'data-privacy-compliance',
+    description: 'GDPR, CCPA, and general data privacy compliance assessment',
+    category: TemplateCategory.DATA_PRIVACY,
+    version: '1.0',
+    isActive: true,
+    sections: [
+      {
+        title: 'Data Processing Governance',
+        description: 'Assessment of data processing policies and governance',
+        weight: 0.3,
+        order: 1,
+        questions: [
+          {
+            text: 'Do you maintain a record of processing activities?',
+            type: QuestionType.BOOLEAN,
+            required: true,
+            weight: 0.25,
+            order: 1
+          },
+          {
+            text: 'Do you have a designated Data Protection Officer or privacy lead?',
+            type: QuestionType.BOOLEAN,
+            required: true,
+            weight: 0.25,
+            order: 2
+          },
+          {
+            text: 'How do you conduct privacy impact assessments?',
+            type: QuestionType.TEXT,
+            required: true,
+            weight: 0.5,
+            order: 3
+          }
+        ]
+      },
+      {
+        title: 'Individual Rights',
+        description: 'Assessment of data subject rights implementation',
+        weight: 0.25,
+        order: 2,
+        questions: [
+          {
+            text: 'Can individuals easily access their personal data?',
+            type: QuestionType.SELECT,
+            required: true,
+            options: ['No process in place', 'Manual process only', 'Semi-automated', 'Fully automated'],
+            weight: 0.3,
+            order: 1
+          },
+          {
+            text: 'How do you handle data deletion requests?',
+            type: QuestionType.TEXT,
+            required: true,
+            weight: 0.4,
+            order: 2
+          },
+          {
+            text: 'What is your typical response time for data subject requests?',
+            type: QuestionType.SELECT,
+            required: true,
+            options: ['Over 30 days', '15-30 days', '5-14 days', 'Under 5 days'],
+            weight: 0.3,
+            order: 3
+          }
+        ]
+      }
+    ],
+    scoringCriteria: {
+      weights: {
+        compliance: 0.35,
+        risk: 0.35,
+        maturity: 0.2,
+        documentation: 0.1
+      },
+      thresholds: {
+        low: 30,
+        medium: 60,
+        high: 80
+      }
+    },
+    aiPrompts: {}
+  }
+};
+
+// Export the template manager instance
+export const templateManager = new TemplateManager();

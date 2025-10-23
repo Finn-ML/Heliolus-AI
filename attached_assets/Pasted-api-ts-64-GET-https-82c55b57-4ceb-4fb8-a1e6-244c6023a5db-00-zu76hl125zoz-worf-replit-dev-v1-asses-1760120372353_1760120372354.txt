@@ -1,0 +1,175 @@
+api.ts:64  GET https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/v1/assessments/cmgl67cx10001s3mmju45xhpj/results 500 (Internal Server Error)
+apiRequest @ api.ts:64
+getAssessmentResults @ api.ts:192
+queryFn @ AssessmentResults.tsx:70
+fetchFn @ @tanstack_react-query.js?v=9745fd17:1097
+run @ @tanstack_react-query.js?v=9745fd17:795
+start @ @tanstack_react-query.js?v=9745fd17:838
+fetch @ @tanstack_react-query.js?v=9745fd17:1144
+executeFetch_fn @ @tanstack_react-query.js?v=9745fd17:1639
+onSubscribe @ @tanstack_react-query.js?v=9745fd17:1335
+subscribe @ @tanstack_react-query.js?v=9745fd17:24
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:3239
+subscribeToStore @ chunk-GNC7SI6A.js?v=9745fd17:11984
+commitHookEffectListMount @ chunk-GNC7SI6A.js?v=9745fd17:16915
+commitPassiveMountOnFiber @ chunk-GNC7SI6A.js?v=9745fd17:18156
+commitPassiveMountEffects_complete @ chunk-GNC7SI6A.js?v=9745fd17:18129
+commitPassiveMountEffects_begin @ chunk-GNC7SI6A.js?v=9745fd17:18119
+commitPassiveMountEffects @ chunk-GNC7SI6A.js?v=9745fd17:18109
+flushPassiveEffectsImpl @ chunk-GNC7SI6A.js?v=9745fd17:19490
+flushPassiveEffects @ chunk-GNC7SI6A.js?v=9745fd17:19447
+performSyncWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18868
+flushSyncCallbacks @ chunk-GNC7SI6A.js?v=9745fd17:9119
+commitRootImpl @ chunk-GNC7SI6A.js?v=9745fd17:19432
+commitRoot @ chunk-GNC7SI6A.js?v=9745fd17:19277
+finishConcurrentRender @ chunk-GNC7SI6A.js?v=9745fd17:18805
+performConcurrentWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18718
+workLoop @ chunk-GNC7SI6A.js?v=9745fd17:197
+flushWork @ chunk-GNC7SI6A.js?v=9745fd17:176
+performWorkUntilDeadline @ chunk-GNC7SI6A.js?v=9745fd17:384Understand this error
+api.ts:65 [API] Response status: 500
+api.ts:83 [API] Error response: {message: 'Internal server error', code: 'INTERNAL_ERROR', statusCode: 500, timestamp: '2025-10-10T18:19:15.986Z'}
+apiRequest @ api.ts:83
+await in apiRequest
+getAssessmentResults @ api.ts:192
+queryFn @ AssessmentResults.tsx:70
+fetchFn @ @tanstack_react-query.js?v=9745fd17:1097
+run @ @tanstack_react-query.js?v=9745fd17:795
+start @ @tanstack_react-query.js?v=9745fd17:838
+fetch @ @tanstack_react-query.js?v=9745fd17:1144
+executeFetch_fn @ @tanstack_react-query.js?v=9745fd17:1639
+onSubscribe @ @tanstack_react-query.js?v=9745fd17:1335
+subscribe @ @tanstack_react-query.js?v=9745fd17:24
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:3239
+subscribeToStore @ chunk-GNC7SI6A.js?v=9745fd17:11984
+commitHookEffectListMount @ chunk-GNC7SI6A.js?v=9745fd17:16915
+commitPassiveMountOnFiber @ chunk-GNC7SI6A.js?v=9745fd17:18156
+commitPassiveMountEffects_complete @ chunk-GNC7SI6A.js?v=9745fd17:18129
+commitPassiveMountEffects_begin @ chunk-GNC7SI6A.js?v=9745fd17:18119
+commitPassiveMountEffects @ chunk-GNC7SI6A.js?v=9745fd17:18109
+flushPassiveEffectsImpl @ chunk-GNC7SI6A.js?v=9745fd17:19490
+flushPassiveEffects @ chunk-GNC7SI6A.js?v=9745fd17:19447
+performSyncWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18868
+flushSyncCallbacks @ chunk-GNC7SI6A.js?v=9745fd17:9119
+commitRootImpl @ chunk-GNC7SI6A.js?v=9745fd17:19432
+commitRoot @ chunk-GNC7SI6A.js?v=9745fd17:19277
+finishConcurrentRender @ chunk-GNC7SI6A.js?v=9745fd17:18805
+performConcurrentWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18718
+workLoop @ chunk-GNC7SI6A.js?v=9745fd17:197
+flushWork @ chunk-GNC7SI6A.js?v=9745fd17:176
+performWorkUntilDeadline @ chunk-GNC7SI6A.js?v=9745fd17:384Understand this error
+api.ts:60 [API] Request to: /v1/assessments/cmgl67cx10001s3mmju45xhpj/results
+api.ts:61 [API] Method: GET
+api.ts:64  GET https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/v1/assessments/cmgl67cx10001s3mmju45xhpj/results 500 (Internal Server Error)
+apiRequest @ api.ts:64
+getAssessmentResults @ api.ts:192
+queryFn @ AssessmentResults.tsx:70
+fetchFn @ @tanstack_react-query.js?v=9745fd17:1097
+run @ @tanstack_react-query.js?v=9745fd17:795
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:820
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:816
+Promise.catch
+run @ @tanstack_react-query.js?v=9745fd17:799
+start @ @tanstack_react-query.js?v=9745fd17:838
+fetch @ @tanstack_react-query.js?v=9745fd17:1144
+executeFetch_fn @ @tanstack_react-query.js?v=9745fd17:1639
+onSubscribe @ @tanstack_react-query.js?v=9745fd17:1335
+subscribe @ @tanstack_react-query.js?v=9745fd17:24
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:3239
+subscribeToStore @ chunk-GNC7SI6A.js?v=9745fd17:11984
+commitHookEffectListMount @ chunk-GNC7SI6A.js?v=9745fd17:16915
+commitPassiveMountOnFiber @ chunk-GNC7SI6A.js?v=9745fd17:18156
+commitPassiveMountEffects_complete @ chunk-GNC7SI6A.js?v=9745fd17:18129
+commitPassiveMountEffects_begin @ chunk-GNC7SI6A.js?v=9745fd17:18119
+commitPassiveMountEffects @ chunk-GNC7SI6A.js?v=9745fd17:18109
+flushPassiveEffectsImpl @ chunk-GNC7SI6A.js?v=9745fd17:19490
+flushPassiveEffects @ chunk-GNC7SI6A.js?v=9745fd17:19447
+performSyncWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18868
+flushSyncCallbacks @ chunk-GNC7SI6A.js?v=9745fd17:9119
+commitRootImpl @ chunk-GNC7SI6A.js?v=9745fd17:19432
+commitRoot @ chunk-GNC7SI6A.js?v=9745fd17:19277
+finishConcurrentRender @ chunk-GNC7SI6A.js?v=9745fd17:18805
+performConcurrentWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18718
+workLoop @ chunk-GNC7SI6A.js?v=9745fd17:197
+flushWork @ chunk-GNC7SI6A.js?v=9745fd17:176
+performWorkUntilDeadline @ chunk-GNC7SI6A.js?v=9745fd17:384Understand this error
+api.ts:65 [API] Response status: 500
+api.ts:83 [API] Error response: {message: 'Internal server error', code: 'INTERNAL_ERROR', statusCode: 500, timestamp: '2025-10-10T18:19:17.317Z'}
+apiRequest @ api.ts:83
+await in apiRequest
+getAssessmentResults @ api.ts:192
+queryFn @ AssessmentResults.tsx:70
+fetchFn @ @tanstack_react-query.js?v=9745fd17:1097
+run @ @tanstack_react-query.js?v=9745fd17:795
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:820
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:816
+Promise.catch
+run @ @tanstack_react-query.js?v=9745fd17:799
+start @ @tanstack_react-query.js?v=9745fd17:838
+fetch @ @tanstack_react-query.js?v=9745fd17:1144
+executeFetch_fn @ @tanstack_react-query.js?v=9745fd17:1639
+onSubscribe @ @tanstack_react-query.js?v=9745fd17:1335
+subscribe @ @tanstack_react-query.js?v=9745fd17:24
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:3239
+subscribeToStore @ chunk-GNC7SI6A.js?v=9745fd17:11984
+commitHookEffectListMount @ chunk-GNC7SI6A.js?v=9745fd17:16915
+commitPassiveMountOnFiber @ chunk-GNC7SI6A.js?v=9745fd17:18156
+commitPassiveMountEffects_complete @ chunk-GNC7SI6A.js?v=9745fd17:18129
+commitPassiveMountEffects_begin @ chunk-GNC7SI6A.js?v=9745fd17:18119
+commitPassiveMountEffects @ chunk-GNC7SI6A.js?v=9745fd17:18109
+flushPassiveEffectsImpl @ chunk-GNC7SI6A.js?v=9745fd17:19490
+flushPassiveEffects @ chunk-GNC7SI6A.js?v=9745fd17:19447
+performSyncWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18868
+flushSyncCallbacks @ chunk-GNC7SI6A.js?v=9745fd17:9119
+commitRootImpl @ chunk-GNC7SI6A.js?v=9745fd17:19432
+commitRoot @ chunk-GNC7SI6A.js?v=9745fd17:19277
+finishConcurrentRender @ chunk-GNC7SI6A.js?v=9745fd17:18805
+performConcurrentWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18718
+workLoop @ chunk-GNC7SI6A.js?v=9745fd17:197
+flushWork @ chunk-GNC7SI6A.js?v=9745fd17:176
+performWorkUntilDeadline @ chunk-GNC7SI6A.js?v=9745fd17:384Understand this error
+api.ts:60 [API] Request to: /v1/assessments/cmgl67cx10001s3mmju45xhpj/results
+api.ts:61 [API] Method: GET
+api.ts:64  GET https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/v1/assessments/cmgl67cx10001s3mmju45xhpj/results 500 (Internal Server Error)
+apiRequest @ api.ts:64
+getAssessmentResults @ api.ts:192
+queryFn @ AssessmentResults.tsx:70
+fetchFn @ @tanstack_react-query.js?v=9745fd17:1097
+run @ @tanstack_react-query.js?v=9745fd17:795
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:820
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:816
+Promise.catch
+run @ @tanstack_react-query.js?v=9745fd17:799
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:820
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:816
+Promise.catch
+run @ @tanstack_react-query.js?v=9745fd17:799
+start @ @tanstack_react-query.js?v=9745fd17:838
+fetch @ @tanstack_react-query.js?v=9745fd17:1144
+executeFetch_fn @ @tanstack_react-query.js?v=9745fd17:1639
+onSubscribe @ @tanstack_react-query.js?v=9745fd17:1335
+subscribe @ @tanstack_react-query.js?v=9745fd17:24
+(anonymous) @ @tanstack_react-query.js?v=9745fd17:3239
+subscribeToStore @ chunk-GNC7SI6A.js?v=9745fd17:11984
+commitHookEffectListMount @ chunk-GNC7SI6A.js?v=9745fd17:16915
+commitPassiveMountOnFiber @ chunk-GNC7SI6A.js?v=9745fd17:18156
+commitPassiveMountEffects_complete @ chunk-GNC7SI6A.js?v=9745fd17:18129
+commitPassiveMountEffects_begin @ chunk-GNC7SI6A.js?v=9745fd17:18119
+commitPassiveMountEffects @ chunk-GNC7SI6A.js?v=9745fd17:18109
+flushPassiveEffectsImpl @ chunk-GNC7SI6A.js?v=9745fd17:19490
+flushPassiveEffects @ chunk-GNC7SI6A.js?v=9745fd17:19447
+performSyncWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18868
+flushSyncCallbacks @ chunk-GNC7SI6A.js?v=9745fd17:9119
+commitRootImpl @ chunk-GNC7SI6A.js?v=9745fd17:19432
+commitRoot @ chunk-GNC7SI6A.js?v=9745fd17:19277
+finishConcurrentRender @ chunk-GNC7SI6A.js?v=9745fd17:18805
+performConcurrentWorkOnRoot @ chunk-GNC7SI6A.js?v=9745fd17:18718
+workLoop @ chunk-GNC7SI6A.js?v=9745fd17:197
+flushWork @ chunk-GNC7SI6A.js?v=9745fd17:176
+performWorkUntilDeadline @ chunk-GNC7SI6A.js?v=9745fd17:384Understand this error
+api.ts:65 [API] Response status: 500
+api.ts:83 [API] Error response: {message: 'Internal server error', code: 'INTERNAL_ERROR', statusCode: 500, timestamp: '2025-10-10T18:19:19.655Z'}

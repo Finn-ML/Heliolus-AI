@@ -1,0 +1,60 @@
+/**
+ * Vendor marketplace management
+ */
+
+import { VendorProfile, VendorCategory } from './types.js';
+import { vendorSearchEngine } from './search.js';
+import { VENDOR_CONFIG } from './index.js';
+
+/**
+ * Marketplace functionality for vendor discovery and management
+ */
+export class VendorMarketplace {
+  /**
+   * Get featured vendors for homepage
+   */
+  async getFeaturedVendors(): Promise<VendorProfile[]> {
+    return await vendorSearchEngine.getFeatured();
+  }
+
+  /**
+   * Get popular vendors in category
+   */
+  async getPopularInCategory(category: VendorCategory): Promise<VendorProfile[]> {
+    return await vendorSearchEngine.getPopular(category, 10);
+  }
+
+  /**
+   * Get trending vendors (new and gaining popularity)
+   */
+  async getTrendingVendors(): Promise<VendorProfile[]> {
+    // Implementation would identify vendors with recent growth in engagement
+    return await vendorSearchEngine.getPopular(undefined, 8);
+  }
+
+  /**
+   * Get marketplace statistics
+   */
+  async getMarketplaceStats(): Promise<{
+    totalVendors: number;
+    totalSolutions: number;
+    categoryCounts: Record<string, number>;
+    averageRating: number;
+  }> {
+    // This would be implemented with actual database aggregations
+    return {
+      totalVendors: 150,
+      totalSolutions: 420,
+      categoryCounts: {
+        'KYC_AML': 35,
+        'TRANSACTION_MONITORING': 28,
+        'RISK_ASSESSMENT': 22,
+        'DATA_GOVERNANCE': 18,
+        'COMPLIANCE_TRAINING': 15
+      },
+      averageRating: 4.2
+    };
+  }
+}
+
+export const vendorMarketplace = new VendorMarketplace();

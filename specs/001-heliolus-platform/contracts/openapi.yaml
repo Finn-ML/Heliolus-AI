@@ -1,0 +1,1566 @@
+openapi: 3.0.3
+info:
+  title: Heliolus Compliance Assessment Platform API
+  description: API for compliance assessment, gap analysis, and vendor marketplace
+  version: 1.0.0
+  contact:
+    name: Heliolus Support
+    email: support@heliolus.com
+
+servers:
+  - url: https://api.heliolus.com/v1
+    description: Production
+  - url: https://staging-api.heliolus.com/v1
+    description: Staging
+  - url: http://localhost:3001/v1
+    description: Development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication and registration
+  - name: Users
+    description: User management
+  - name: Organizations
+    description: Organization profiles
+  - name: Assessments
+    description: Compliance assessments
+  - name: Templates
+    description: Assessment templates
+  - name: Vendors
+    description: Vendor marketplace
+  - name: Subscriptions
+    description: Subscription management
+  - name: Reports
+    description: Assessment reports
+  - name: Documents
+    description: Document management
+
+paths:
+  # Authentication
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, firstName, lastName, organizationName]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                organizationName:
+                  type: string
+      responses:
+        201:
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        409:
+          description: Email already exists
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login user
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/verify-email:
+    post:
+      tags: [Authentication]
+      summary: Verify email address
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        200:
+          description: Email verified
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/forgot-password:
+    post:
+      tags: [Authentication]
+      summary: Request password reset
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        200:
+          description: Reset email sent
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /auth/reset-password:
+    post:
+      tags: [Authentication]
+      summary: Reset password
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        200:
+          description: Password reset successful
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  # Users
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      operationId: getCurrentUser
+      responses:
+        200:
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags: [Users]
+      summary: Update current user
+      operationId: updateCurrentUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+      responses:
+        200:
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  # Organizations
+  /organizations:
+    post:
+      tags: [Organizations]
+      summary: Create organization
+      operationId: createOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, country]
+              properties:
+                name:
+                  type: string
+                website:
+                  type: string
+                  format: uri
+                industry:
+                  type: string
+                size:
+                  $ref: '#/components/schemas/CompanySize'
+                country:
+                  type: string
+                region:
+                  type: string
+                description:
+                  type: string
+      responses:
+        201:
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /organizations/{id}:
+    get:
+      tags: [Organizations]
+      summary: Get organization
+      operationId: getOrganization
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Organizations]
+      summary: Update organization
+      operationId: updateOrganization
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                website:
+                  type: string
+                industry:
+                  type: string
+                size:
+                  $ref: '#/components/schemas/CompanySize'
+                description:
+                  type: string
+      responses:
+        200:
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/{id}/parse-website:
+    post:
+      tags: [Organizations]
+      summary: Parse organization website
+      operationId: parseWebsite
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Website parsed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  parsedData:
+                    type: object
+                  gaps:
+                    type: array
+                    items:
+                      type: object
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  # Documents
+  /organizations/{id}/documents:
+    get:
+      tags: [Documents]
+      summary: List organization documents
+      operationId: listDocuments
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Document list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+
+    post:
+      tags: [Documents]
+      summary: Upload document
+      operationId: uploadDocument
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                documentType:
+                  $ref: '#/components/schemas/DocumentType'
+      responses:
+        201:
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /documents/{id}:
+    get:
+      tags: [Documents]
+      summary: Get document
+      operationId: getDocument
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Documents]
+      summary: Delete document
+      operationId: deleteDocument
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        204:
+          description: Document deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # Templates
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List templates
+      operationId: listTemplates
+      parameters:
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/TemplateCategory'
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        200:
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+
+  /templates/{id}:
+    get:
+      tags: [Templates]
+      summary: Get template
+      operationId: getTemplate
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # Assessments
+  /assessments:
+    get:
+      tags: [Assessments]
+      summary: List assessments
+      operationId: listAssessments
+      parameters:
+        - name: organizationId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssessmentStatus'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        200:
+          description: Assessment list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assessment'
+
+    post:
+      tags: [Assessments]
+      summary: Create assessment
+      operationId: createAssessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, templateId]
+              properties:
+                organizationId:
+                  type: string
+                templateId:
+                  type: string
+      responses:
+        201:
+          description: Assessment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        402:
+          description: Insufficient credits
+
+  /assessments/{id}:
+    get:
+      tags: [Assessments]
+      summary: Get assessment
+      operationId: getAssessment
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Assessment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Assessments]
+      summary: Update assessment
+      operationId: updateAssessment
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                responses:
+                  type: object
+                status:
+                  $ref: '#/components/schemas/AssessmentStatus'
+      responses:
+        200:
+          description: Assessment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /assessments/{id}/complete:
+    post:
+      tags: [Assessments]
+      summary: Complete assessment
+      operationId: completeAssessment
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Assessment completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /assessments/{id}/gaps:
+    get:
+      tags: [Assessments]
+      summary: Get assessment gaps
+      operationId: getAssessmentGaps
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - name: severity
+          in: query
+          schema:
+            $ref: '#/components/schemas/Severity'
+      responses:
+        200:
+          description: Gap list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Gap'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /assessments/{id}/risks:
+    get:
+      tags: [Assessments]
+      summary: Get assessment risks
+      operationId: getAssessmentRisks
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/RiskCategory'
+      responses:
+        200:
+          description: Risk list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Risk'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # Reports
+  /assessments/{id}/report:
+    post:
+      tags: [Reports]
+      summary: Generate report
+      operationId: generateReport
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, format]
+              properties:
+                type:
+                  $ref: '#/components/schemas/ReportType'
+                format:
+                  $ref: '#/components/schemas/ReportFormat'
+      responses:
+        201:
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        402:
+          description: Premium feature required
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /reports/{id}:
+    get:
+      tags: [Reports]
+      summary: Get report
+      operationId: getReport
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /reports/{id}/download:
+    get:
+      tags: [Reports]
+      summary: Download report
+      operationId: downloadReport
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Report file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        402:
+          description: Premium feature required
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # Vendors
+  /vendors:
+    get:
+      tags: [Vendors]
+      summary: List vendors
+      operationId: listVendors
+      parameters:
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/VendorCategory'
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+        - name: verified
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        200:
+          description: Vendor list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vendor'
+
+  /vendors/{id}:
+    get:
+      tags: [Vendors]
+      summary: Get vendor
+      operationId: getVendor
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Vendor details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /vendors/{id}/solutions:
+    get:
+      tags: [Vendors]
+      summary: Get vendor solutions
+      operationId: getVendorSolutions
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Solution list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Solution'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /vendors/{id}/contact:
+    post:
+      tags: [Vendors]
+      summary: Contact vendor
+      operationId: contactVendor
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, message]
+              properties:
+                type:
+                  $ref: '#/components/schemas/ContactType'
+                message:
+                  type: string
+                requirements:
+                  type: object
+                budget:
+                  type: string
+                timeline:
+                  type: string
+      responses:
+        201:
+          description: Contact request sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorContact'
+        402:
+          description: Premium feature required
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /vendors/compare:
+    post:
+      tags: [Vendors]
+      summary: Compare vendors
+      operationId: compareVendors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vendorIds]
+              properties:
+                vendorIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 2
+                  maxItems: 4
+      responses:
+        200:
+          description: Vendor comparison
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vendors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vendor'
+                  comparison:
+                    type: object
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /gaps/{id}/vendor-matches:
+    get:
+      tags: [Vendors]
+      summary: Get vendor matches for gap
+      operationId: getVendorMatches
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        200:
+          description: Vendor matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VendorMatch'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # Subscriptions
+  /subscriptions/current:
+    get:
+      tags: [Subscriptions]
+      summary: Get current subscription
+      operationId: getCurrentSubscription
+      responses:
+        200:
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /subscriptions/plans:
+    get:
+      tags: [Subscriptions]
+      summary: List subscription plans
+      operationId: listSubscriptionPlans
+      responses:
+        200:
+          description: Plan list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    plan:
+                      $ref: '#/components/schemas/SubscriptionPlan'
+                    price:
+                      type: number
+                    currency:
+                      type: string
+                    features:
+                      type: array
+                      items:
+                        type: string
+                    credits:
+                      type: integer
+
+  /subscriptions/checkout:
+    post:
+      tags: [Subscriptions]
+      summary: Create checkout session
+      operationId: createCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan]
+              properties:
+                plan:
+                  $ref: '#/components/schemas/SubscriptionPlan'
+      responses:
+        200:
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  url:
+                    type: string
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /subscriptions/cancel:
+    post:
+      tags: [Subscriptions]
+      summary: Cancel subscription
+      operationId: cancelSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                immediately:
+                  type: boolean
+                  default: false
+      responses:
+        200:
+          description: Subscription canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /subscriptions/credits:
+    get:
+      tags: [Subscriptions]
+      summary: Get credit balance
+      operationId: getCreditBalance
+      responses:
+        200:
+          description: Credit balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balance:
+                    type: integer
+                  used:
+                    type: integer
+                  purchased:
+                    type: integer
+
+  /subscriptions/credits/purchase:
+    post:
+      tags: [Subscriptions]
+      summary: Purchase credits
+      operationId: purchaseCredits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+                  minimum: 1
+      responses:
+        200:
+          description: Credits purchased
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  url:
+                    type: string
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /subscriptions/invoices:
+    get:
+      tags: [Subscriptions]
+      summary: List invoices
+      operationId: listInvoices
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        200:
+          description: Invoice list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invoice'
+
+  # Webhooks
+  /webhooks/stripe:
+    post:
+      tags: [Webhooks]
+      summary: Stripe webhook
+      operationId: stripeWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        200:
+          description: Webhook processed
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        emailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    UserRole:
+      type: string
+      enum: [ADMIN, USER, VENDOR]
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        website:
+          type: string
+        industry:
+          type: string
+        size:
+          $ref: '#/components/schemas/CompanySize'
+        country:
+          type: string
+        region:
+          type: string
+        description:
+          type: string
+        onboardingCompleted:
+          type: boolean
+        riskProfile:
+          $ref: '#/components/schemas/RiskProfile'
+        createdAt:
+          type: string
+          format: date-time
+
+    CompanySize:
+      type: string
+      enum: [STARTUP, SMB, MIDMARKET, ENTERPRISE]
+
+    RiskProfile:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        createdAt:
+          type: string
+          format: date-time
+
+    DocumentType:
+      type: string
+      enum: [POLICY, ANNUAL_REPORT, COMPLIANCE_CERT, AUDIT_REPORT, OTHER]
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/TemplateCategory'
+        version:
+          type: string
+        isActive:
+          type: boolean
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateSection'
+
+    TemplateCategory:
+      type: string
+      enum: [FINANCIAL_CRIME, TRADE_COMPLIANCE, DATA_PRIVACY, CYBERSECURITY, ESG]
+
+    TemplateSection:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateQuestion'
+        weight:
+          type: number
+        order:
+          type: integer
+
+    TemplateQuestion:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        type:
+          $ref: '#/components/schemas/QuestionType'
+        required:
+          type: boolean
+        options:
+          type: array
+          items:
+            type: string
+        helpText:
+          type: string
+        order:
+          type: integer
+
+    QuestionType:
+      type: string
+      enum: [TEXT, NUMBER, SELECT, MULTISELECT, BOOLEAN, FILE, DATE]
+
+    Assessment:
+      type: object
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        templateId:
+          type: string
+        status:
+          $ref: '#/components/schemas/AssessmentStatus'
+        responses:
+          type: object
+        riskScore:
+          type: number
+        creditsUsed:
+          type: integer
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AssessmentStatus:
+      type: string
+      enum: [DRAFT, IN_PROGRESS, COMPLETED, FAILED]
+
+    Gap:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          $ref: '#/components/schemas/Severity'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        estimatedCost:
+          $ref: '#/components/schemas/CostRange'
+        estimatedEffort:
+          $ref: '#/components/schemas/EffortRange'
+
+    Severity:
+      type: string
+      enum: [CRITICAL, HIGH, MEDIUM, LOW]
+
+    Priority:
+      type: string
+      enum: [IMMEDIATE, SHORT_TERM, MEDIUM_TERM, LONG_TERM]
+
+    CostRange:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+
+    EffortRange:
+      type: string
+      enum: [DAYS, WEEKS, MONTHS, QUARTERS]
+
+    Risk:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          $ref: '#/components/schemas/RiskCategory'
+        title:
+          type: string
+        description:
+          type: string
+        likelihood:
+          $ref: '#/components/schemas/Likelihood'
+        impact:
+          $ref: '#/components/schemas/Impact'
+        riskLevel:
+          $ref: '#/components/schemas/RiskLevel'
+        mitigationStrategy:
+          type: string
+
+    RiskCategory:
+      type: string
+      enum: [GEOGRAPHIC, TRANSACTION, GOVERNANCE, OPERATIONAL, REGULATORY, REPUTATIONAL]
+
+    Likelihood:
+      type: string
+      enum: [RARE, UNLIKELY, POSSIBLE, LIKELY, CERTAIN]
+
+    Impact:
+      type: string
+      enum: [NEGLIGIBLE, MINOR, MODERATE, MAJOR, CATASTROPHIC]
+
+    RiskLevel:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+        assessmentId:
+          type: string
+        type:
+          $ref: '#/components/schemas/ReportType'
+        format:
+          $ref: '#/components/schemas/ReportFormat'
+        isPublic:
+          type: boolean
+        viewCount:
+          type: integer
+        downloadCount:
+          type: integer
+        pdfUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ReportType:
+      type: string
+      enum: [EXECUTIVE_SUMMARY, DETAILED, COMPLIANCE_MATRIX, GAP_ANALYSIS, VENDOR_RECOMMENDATIONS]
+
+    ReportFormat:
+      type: string
+      enum: [PDF, HTML, JSON, EXCEL]
+
+    Vendor:
+      type: object
+      properties:
+        id:
+          type: string
+        companyName:
+          type: string
+        website:
+          type: string
+        logo:
+          type: string
+        description:
+          type: string
+        shortDescription:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorCategory'
+        featured:
+          type: boolean
+        verified:
+          type: boolean
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+
+    VendorCategory:
+      type: string
+      enum:
+        [
+          KYC_AML,
+          TRANSACTION_MONITORING,
+          SANCTIONS_SCREENING,
+          TRADE_SURVEILLANCE,
+          RISK_ASSESSMENT,
+          COMPLIANCE_TRAINING,
+          REGULATORY_REPORTING,
+          DATA_GOVERNANCE,
+        ]
+
+    Solution:
+      type: object
+      properties:
+        id:
+          type: string
+        vendorId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/VendorCategory'
+        features:
+          type: array
+          items:
+            type: string
+        pricingModel:
+          $ref: '#/components/schemas/PricingModel'
+        startingPrice:
+          type: number
+        currency:
+          type: string
+
+    PricingModel:
+      type: string
+      enum: [SUBSCRIPTION, LICENSE, USAGE, CUSTOM]
+
+    VendorMatch:
+      type: object
+      properties:
+        id:
+          type: string
+        gapId:
+          type: string
+        vendorId:
+          type: string
+        solutionId:
+          type: string
+        matchScore:
+          type: number
+        matchReasons:
+          type: array
+          items:
+            type: string
+
+    VendorContact:
+      type: object
+      properties:
+        id:
+          type: string
+        vendorId:
+          type: string
+        type:
+          $ref: '#/components/schemas/ContactType'
+        message:
+          type: string
+        status:
+          $ref: '#/components/schemas/ContactStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    ContactType:
+      type: string
+      enum: [DEMO_REQUEST, INFO_REQUEST, RFP, PRICING, GENERAL]
+
+    ContactStatus:
+      type: string
+      enum: [PENDING, ACKNOWLEDGED, IN_PROGRESS, COMPLETED, REJECTED]
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        plan:
+          $ref: '#/components/schemas/SubscriptionPlan'
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+        creditsBalance:
+          type: integer
+        creditsUsed:
+          type: integer
+        currentPeriodStart:
+          type: string
+          format: date-time
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        cancelAt:
+          type: string
+          format: date-time
+
+    SubscriptionPlan:
+      type: string
+      enum: [FREE, PREMIUM, ENTERPRISE]
+
+    SubscriptionStatus:
+      type: string
+      enum: [ACTIVE, TRIALING, PAST_DUE, CANCELED, UNPAID]
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+        number:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        status:
+          $ref: '#/components/schemas/InvoiceStatus'
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        pdfUrl:
+          type: string
+
+    InvoiceStatus:
+      type: string
+      enum: [DRAFT, OPEN, PAID, VOID, UNCOLLECTIBLE]

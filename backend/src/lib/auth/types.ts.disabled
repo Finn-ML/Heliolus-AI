@@ -1,0 +1,204 @@
+/**
+ * Authentication types and interfaces
+ */
+
+import { UserRole, UserStatus } from '../../types/database.js';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  status: UserStatus;
+  emailVerified: boolean;
+  organizationId?: string;
+  vendorId?: string;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  organizationName?: string;
+  website?: string;
+  industry?: string;
+  country: string;
+  isVendor?: boolean;
+}
+
+export interface EmailVerificationData {
+  token: string;
+  email?: string;
+}
+
+export interface PasswordResetData {
+  token: string;
+  newPassword: string;
+  email?: string;
+}
+
+export interface AuthResult<T = AuthUser> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  token?: string;
+  refreshToken?: string;
+}
+
+export interface UserSession {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  status: UserStatus;
+  emailVerified: boolean;
+  organizationId?: string;
+  vendorId?: string;
+  iat?: number;
+  exp?: number;
+  iss?: string;
+  aud?: string;
+}
+
+export interface JWTPayload extends UserSession {
+  iat: number;
+  exp: number;
+  iss: string;
+  aud: string;
+}
+
+export interface PermissionCheck {
+  action: string;
+  resource: string;
+  resourceId?: string;
+  organizationId?: string;
+}
+
+export interface PasswordRequirements {
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumbers: boolean;
+  requireSpecialChars: boolean;
+}
+
+export interface EmailConfig {
+  verificationTokenExpiry: number;
+  passwordResetTokenExpiry: number;
+  maxVerificationAttempts: number;
+  maxPasswordResetAttempts: number;
+}
+
+export interface AuthConfig {
+  jwt: {
+    expiresIn: string;
+    secret: string;
+    algorithm: string;
+    issuer: string;
+    audience: string;
+  };
+  password: PasswordRequirements;
+  email: EmailConfig;
+  session: {
+    maxAge: number;
+    refreshThreshold: number;
+  };
+}
+
+// Error types
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 401
+  ) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+export class ValidationError extends AuthError {
+  constructor(message: string, public field?: string) {
+    super(message, 'VALIDATION_ERROR', 400);
+    this.name = 'ValidationError';
+  }
+}
+
+export class UserNotFoundError extends AuthError {
+  constructor() {
+    super('User not found', 'USER_NOT_FOUND', 404);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+export class InvalidCredentialsError extends AuthError {
+  constructor() {
+    super('Invalid credentials', 'INVALID_CREDENTIALS', 401);
+    this.name = 'InvalidCredentialsError';
+  }
+}
+
+export class EmailNotVerifiedError extends AuthError {
+  constructor() {
+    super('Email not verified', 'EMAIL_NOT_VERIFIED', 403);
+    this.name = 'EmailNotVerifiedError';
+  }
+}
+
+export class AccountSuspendedError extends AuthError {
+  constructor() {
+    super('Account suspended', 'ACCOUNT_SUSPENDED', 403);
+    this.name = 'AccountSuspendedError';
+  }
+}
+
+export class TokenExpiredError extends AuthError {
+  constructor() {
+    super('Token expired', 'TOKEN_EXPIRED', 401);
+    this.name = 'TokenExpiredError';
+  }
+}
+
+export class InvalidTokenError extends AuthError {
+  constructor() {
+    super('Invalid token', 'INVALID_TOKEN', 401);
+    this.name = 'InvalidTokenError';
+  }
+}
+
+export class DuplicateEmailError extends AuthError {
+  constructor() {
+    super('Email already registered', 'DUPLICATE_EMAIL', 409);
+    this.name = 'DuplicateEmailError';
+  }
+}
+
+export class WeakPasswordError extends ValidationError {
+  constructor(requirements: string[]) {
+    super(`Password does not meet requirements: ${requirements.join(', ')}`, 'password');
+    this.name = 'WeakPasswordError';
+  }
+}
+
+export class InsufficientPermissionsError extends AuthError {
+  constructor(action?: string, resource?: string) {
+    const message = action && resource 
+      ? `Insufficient permissions for ${action} on ${resource}`
+      : 'Insufficient permissions';
+    super(message, 'INSUFFICIENT_PERMISSIONS', 403);
+    this.name = 'InsufficientPermissionsError';
+  }
+}

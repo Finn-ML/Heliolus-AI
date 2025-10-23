@@ -1,0 +1,803 @@
+/**
+ * Risk assessment and analysis engine
+ */
+
+import OpenAI from 'openai';
+import { z } from 'zod';
+import {
+  RiskAnalyzer as IRiskAnalyzer,
+  AssessmentResponse,
+  ProcessingContext,
+  ComplianceGap,
+  RiskItem,
+  AIAnalysisError
+} from './types.js';
+import { RiskCategory, RiskLevel, Likelihood, Impact } from '../../types/database.js';
+import { ASSESSMENT_CONFIG } from './index.js';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Risk analysis prompt templates
+const RISK_ANALYSIS_PROMPTS = {
+  assess: `You are a risk management expert analyzing assessment responses and compliance gaps to identify operational and regulatory risks.
+
+Context:
+- Industry: {industry}
+- Company Size: {companySize}
+- Region: {region}
+
+Assessment Responses:
+{responses}
+
+Identified Compliance Gaps:
+{gaps}
+
+Instructions:
+1. Analyze responses and gaps to identify specific risks
+2. Consider interconnected risks and cascade effects
+3. Focus on both inherent and residual risks
+4. Consider the organization's industry and regulatory environment
+
+For each risk identified, provide:
+- Category (GEOGRAPHIC/TRANSACTION/GOVERNANCE/OPERATIONAL/REGULATORY/REPUTATIONAL)
+- Specific title (concise but descriptive)
+- Detailed description of the risk
+- Likelihood assessment (RARE/UNLIKELY/POSSIBLE/LIKELY/CERTAIN)
+- Impact assessment (NEGLIGIBLE/MINOR/MODERATE/MAJOR/CATASTROPHIC)
+- Overall risk level (LOW/MEDIUM/HIGH/CRITICAL)
+- Current controls in place
+- Control effectiveness (0-100)
+- Residual risk level after controls
+- Suggested mitigation strategy
+- Owner role recommendation
+
+Respond with a valid JSON array of risk objects.`,
+
+  validate: `Validate and refine the following risk assessment:
+
+Risks to Validate:
+{risks}
+
+Organization Context:
+- Industry: {industry}
+- Size: {companySize}
+- Region: {region}
+- Regulatory Framework: {frameworks}
+
+For each risk, provide:
+1. Validation score (0-100)
+2. Risk level accuracy assessment
+3. Mitigation strategy effectiveness
+4. Any additional controls to consider
+
+Respond with JSON: [{"riskId": "string", "validationScore": number, "refinedRiskLevel": "string", "additionalControls": ["string"]}]`
+};
+
+/**
+ * Advanced risk identification and assessment
+ */
+export class RiskAnalyzer implements IRiskAnalyzer {
+  private readonly maxRetries = 3;
+  private readonly baseDelay = 1000;
+
+  /**
+   * Assess risks from assessment responses and identified gaps
+   */
+  async assessRisks(
+    responses: AssessmentResponse[],
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): Promise<RiskItem[]> {
+    try {
+      console.log(`Assessing risks from ${responses.length} responses and ${gaps.length} gaps`);
+
+      // Step 1: AI-powered risk identification
+      const aiRisks = await this.performAIRiskAnalysis(responses, gaps, context);
+
+      // Step 2: Rule-based risk identification
+      const ruleBasedRisks = await this.identifyRuleBasedRisks(responses, gaps, context);
+
+      // Step 3: Gap-derived risks
+      const gapRisks = this.deriveRisksFromGaps(gaps);
+
+      // Step 4: Combine and deduplicate risks
+      const allRisks = [...aiRisks, ...ruleBasedRisks, ...gapRisks];
+      const uniqueRisks = this.deduplicateRisks(allRisks);
+
+      // Step 5: Calculate risk interconnections and cascade effects
+      const interconnectedRisks = this.analyzeRiskInterconnections(uniqueRisks);
+
+      // Step 6: Validate and refine risks
+      const validatedRisks = await this.validateRisks(interconnectedRisks, context);
+
+      console.log(`Identified ${validatedRisks.length} validated risks`);
+      return validatedRisks;
+
+    } catch (error) {
+      console.error('Risk assessment error:', error);
+      
+      // Fallback to rule-based analysis
+      try {
+        const ruleBasedRisks = await this.identifyRuleBasedRisks(responses, gaps, context);
+        const gapRisks = this.deriveRisksFromGaps(gaps);
+        return this.deduplicateRisks([...ruleBasedRisks, ...gapRisks]);
+      } catch (fallbackError) {
+        console.error('Fallback risk analysis failed:', fallbackError);
+        return [];
+      }
+    }
+  }
+
+  /**
+   * Perform AI-powered risk analysis
+   */
+  private async performAIRiskAnalysis(
+    responses: AssessmentResponse[],
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): Promise<RiskItem[]> {
+    const prompt = this.buildRiskAnalysisPrompt(responses, gaps, context);
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: ASSESSMENT_CONFIG.openai.model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert risk analyst specializing in operational and regulatory risk assessment.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: ASSESSMENT_CONFIG.openai.maxTokens,
+          temperature: ASSESSMENT_CONFIG.openai.temperature,
+          response_format: { type: 'json_object' }
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+
+        const result = JSON.parse(content);
+        const risks = Array.isArray(result) ? result : result.risks || [];
+        
+        return risks.map((risk: any, index: number) => this.normalizeRisk(risk, index));
+
+      } catch (error) {
+        console.error(`Risk analysis attempt ${attempt + 1} failed:`, error);
+        
+        if (attempt === this.maxRetries - 1) {
+          throw new AIAnalysisError(`Failed after ${this.maxRetries} attempts: ${error}`);
+        }
+        
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, this.baseDelay * Math.pow(2, attempt)));
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Identify risks using rule-based logic
+   */
+  private async identifyRuleBasedRisks(
+    responses: AssessmentResponse[],
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): Promise<RiskItem[]> {
+    const risks: RiskItem[] = [];
+
+    // Operational risks
+    risks.push(...this.identifyOperationalRisks(responses, context));
+    
+    // Regulatory risks
+    risks.push(...this.identifyRegulatoryRisks(responses, gaps, context));
+    
+    // Technology risks
+    risks.push(...this.identifyTechnologyRisks(responses, context));
+    
+    // Governance risks
+    risks.push(...this.identifyGovernanceRisks(responses, context));
+    
+    // Reputational risks
+    risks.push(...this.identifyReputationalRisks(responses, gaps, context));
+    
+    // Geographic risks
+    risks.push(...this.identifyGeographicRisks(responses, context));
+
+    return risks;
+  }
+
+  private identifyOperationalRisks(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): RiskItem[] {
+    const risks: RiskItem[] = [];
+
+    // Process documentation risk
+    const processDocResponses = responses.filter(r =>
+      String(r.value).toLowerCase().includes('process') ||
+      String(r.value).toLowerCase().includes('procedure'));
+
+    if (processDocResponses.length < 5) {
+      risks.push({
+        id: `risk-process-doc-${Date.now()}`,
+        category: RiskCategory.OPERATIONAL,
+        title: 'Inadequate Process Documentation',
+        description: 'Lack of documented processes may lead to operational inconsistencies and errors.',
+        likelihood: Likelihood.LIKELY,
+        impact: Impact.MODERATE,
+        riskLevel: RiskLevel.MEDIUM,
+        currentControls: ['Ad-hoc documentation', 'Tribal knowledge'],
+        controlEffectiveness: 30,
+        residualRisk: RiskLevel.MEDIUM,
+        mitigationStrategy: 'Implement comprehensive process documentation and regular review cycles',
+        ownerRole: 'Operations Manager',
+        dueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days
+      });
+    }
+
+    // Staff training risk
+    const trainingResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('training') ||
+      String(r.value).toLowerCase().includes('education'));
+
+    if (!trainingResponse || 
+        String(trainingResponse.value).toLowerCase().includes('no') ||
+        String(trainingResponse.value).toLowerCase().includes('none')) {
+      
+      risks.push({
+        id: `risk-staff-training-${Date.now()}`,
+        category: RiskCategory.OPERATIONAL,
+        title: 'Insufficient Staff Training',
+        description: 'Inadequate training programs may result in compliance violations and operational errors.',
+        likelihood: Likelihood.POSSIBLE,
+        impact: Impact.MAJOR,
+        riskLevel: RiskLevel.HIGH,
+        currentControls: ['On-the-job learning', 'Informal mentoring'],
+        controlEffectiveness: 25,
+        residualRisk: RiskLevel.HIGH,
+        mitigationStrategy: 'Develop comprehensive training program with regular updates and assessments',
+        ownerRole: 'HR Manager'
+      });
+    }
+
+    return risks;
+  }
+
+  private identifyRegulatoryRisks(
+    responses: AssessmentResponse[],
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): RiskItem[] {
+    const risks: RiskItem[] = [];
+
+    // Regulatory change risk
+    const regulatoryMonitoringResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('regulatory') ||
+      String(r.value).toLowerCase().includes('compliance monitoring'));
+
+    if (!regulatoryMonitoringResponse) {
+      risks.push({
+        id: `risk-regulatory-change-${Date.now()}`,
+        category: RiskCategory.REGULATORY,
+        title: 'Regulatory Change Risk',
+        description: 'Lack of regulatory monitoring may result in non-compliance with new or updated regulations.',
+        likelihood: Likelihood.LIKELY,
+        impact: Impact.MAJOR,
+        riskLevel: RiskLevel.HIGH,
+        currentControls: ['Occasional legal updates'],
+        controlEffectiveness: 20,
+        residualRisk: RiskLevel.HIGH,
+        mitigationStrategy: 'Implement regulatory monitoring and change management system',
+        ownerRole: 'Chief Compliance Officer'
+      });
+    }
+
+    // High-severity gaps create regulatory risks
+    const criticalGaps = gaps.filter(gap => gap.severity === 'CRITICAL');
+    if (criticalGaps.length > 0) {
+      risks.push({
+        id: `risk-critical-gaps-${Date.now()}`,
+        category: RiskCategory.REGULATORY,
+        title: 'Critical Compliance Gaps',
+        description: `${criticalGaps.length} critical compliance gaps identified that may lead to regulatory action.`,
+        likelihood: Likelihood.CERTAIN,
+        impact: Impact.CATASTROPHIC,
+        riskLevel: RiskLevel.CRITICAL,
+        currentControls: ['Basic compliance measures'],
+        controlEffectiveness: 10,
+        residualRisk: RiskLevel.CRITICAL,
+        mitigationStrategy: 'Immediate remediation of critical gaps with dedicated resources',
+        ownerRole: 'Chief Compliance Officer'
+      });
+    }
+
+    return risks;
+  }
+
+  private identifyTechnologyRisks(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): RiskItem[] {
+    const risks: RiskItem[] = [];
+
+    // Cybersecurity risk
+    const cyberResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('cybersecurity') ||
+      String(r.value).toLowerCase().includes('information security'));
+
+    if (!cyberResponse) {
+      risks.push({
+        id: `risk-cybersecurity-${Date.now()}`,
+        category: RiskCategory.OPERATIONAL,
+        title: 'Cybersecurity Risk',
+        description: 'Inadequate cybersecurity measures may lead to data breaches and system compromises.',
+        likelihood: Likelihood.POSSIBLE,
+        impact: Impact.CATASTROPHIC,
+        riskLevel: RiskLevel.CRITICAL,
+        currentControls: ['Basic antivirus', 'Password policies'],
+        controlEffectiveness: 30,
+        residualRisk: RiskLevel.HIGH,
+        mitigationStrategy: 'Implement comprehensive cybersecurity framework with regular assessments',
+        ownerRole: 'Chief Information Security Officer'
+      });
+    }
+
+    // Data backup and recovery risk
+    const backupResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('backup') ||
+      String(r.value).toLowerCase().includes('disaster recovery'));
+
+    if (!backupResponse) {
+      risks.push({
+        id: `risk-data-backup-${Date.now()}`,
+        category: RiskCategory.OPERATIONAL,
+        title: 'Data Loss Risk',
+        description: 'Inadequate backup and recovery procedures may result in permanent data loss.',
+        likelihood: Likelihood.UNLIKELY,
+        impact: Impact.CATASTROPHIC,
+        riskLevel: RiskLevel.HIGH,
+        currentControls: ['Ad-hoc backups'],
+        controlEffectiveness: 20,
+        residualRisk: RiskLevel.HIGH,
+        mitigationStrategy: 'Implement automated backup system with regular recovery testing',
+        ownerRole: 'IT Manager'
+      });
+    }
+
+    return risks;
+  }
+
+  private identifyGovernanceRisks(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): RiskItem[] {
+    const risks: RiskItem[] = [];
+
+    // Board oversight risk for larger companies
+    if (context.companySize === 'ENTERPRISE') {
+      const boardOversightResponse = responses.find(r =>
+        String(r.value).toLowerCase().includes('board') ||
+        String(r.value).toLowerCase().includes('oversight'));
+
+      if (!boardOversightResponse) {
+        risks.push({
+          id: `risk-board-oversight-${Date.now()}`,
+          category: RiskCategory.GOVERNANCE,
+          title: 'Insufficient Board Oversight',
+          description: 'Lack of proper board oversight may lead to governance failures and regulatory scrutiny.',
+          likelihood: Likelihood.POSSIBLE,
+          impact: Impact.MAJOR,
+          riskLevel: RiskLevel.HIGH,
+          currentControls: ['Management reporting'],
+          controlEffectiveness: 40,
+          residualRisk: RiskLevel.MEDIUM,
+          mitigationStrategy: 'Establish board committees with clear oversight responsibilities',
+          ownerRole: 'Board Chair'
+        });
+      }
+    }
+
+    return risks;
+  }
+
+  private identifyReputationalRisks(
+    responses: AssessmentResponse[],
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): RiskItem[] {
+    const risks: RiskItem[] = [];
+
+    // Customer complaints handling
+    const complaintsResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('complaint') ||
+      String(r.value).toLowerCase().includes('customer service'));
+
+    if (!complaintsResponse) {
+      risks.push({
+        id: `risk-customer-complaints-${Date.now()}`,
+        category: RiskCategory.REPUTATIONAL,
+        title: 'Customer Complaint Management Risk',
+        description: 'Poor complaint handling may damage customer relationships and brand reputation.',
+        likelihood: Likelihood.LIKELY,
+        impact: Impact.MODERATE,
+        riskLevel: RiskLevel.MEDIUM,
+        currentControls: ['Basic customer service'],
+        controlEffectiveness: 50,
+        residualRisk: RiskLevel.MEDIUM,
+        mitigationStrategy: 'Implement formal complaint management system with tracking and resolution',
+        ownerRole: 'Customer Service Manager'
+      });
+    }
+
+    // Data privacy risks create reputational exposure
+    const privacyGaps = gaps.filter(gap => 
+      gap.category.toLowerCase().includes('privacy') || 
+      gap.category.toLowerCase().includes('data'));
+
+    if (privacyGaps.length > 0) {
+      risks.push({
+        id: `risk-privacy-reputation-${Date.now()}`,
+        category: RiskCategory.REPUTATIONAL,
+        title: 'Data Privacy Reputation Risk',
+        description: 'Privacy gaps may lead to customer trust loss and negative publicity.',
+        likelihood: Likelihood.POSSIBLE,
+        impact: Impact.MAJOR,
+        riskLevel: RiskLevel.HIGH,
+        currentControls: ['Basic privacy measures'],
+        controlEffectiveness: 30,
+        residualRisk: RiskLevel.HIGH,
+        mitigationStrategy: 'Address privacy gaps and implement transparent privacy practices',
+        ownerRole: 'Chief Privacy Officer'
+      });
+    }
+
+    return risks;
+  }
+
+  private identifyGeographicRisks(
+    responses: AssessmentResponse[],
+    context: ProcessingContext
+  ): RiskItem[] {
+    const risks: RiskItem[] = [];
+
+    // Multi-jurisdiction risk
+    const jurisdictionResponse = responses.find(r =>
+      String(r.value).toLowerCase().includes('jurisdiction') ||
+      String(r.value).toLowerCase().includes('international') ||
+      String(r.value).toLowerCase().includes('cross-border'));
+
+    if (jurisdictionResponse) {
+      risks.push({
+        id: `risk-multi-jurisdiction-${Date.now()}`,
+        category: RiskCategory.GEOGRAPHIC,
+        title: 'Multi-Jurisdiction Compliance Risk',
+        description: 'Operating across multiple jurisdictions creates complex compliance requirements.',
+        likelihood: Likelihood.CERTAIN,
+        impact: Impact.MAJOR,
+        riskLevel: RiskLevel.HIGH,
+        currentControls: ['Local legal counsel'],
+        controlEffectiveness: 60,
+        residualRisk: RiskLevel.MEDIUM,
+        mitigationStrategy: 'Develop jurisdiction-specific compliance matrix and monitoring',
+        ownerRole: 'General Counsel'
+      });
+    }
+
+    return risks;
+  }
+
+  /**
+   * Derive risks from identified compliance gaps
+   */
+  private deriveRisksFromGaps(gaps: ComplianceGap[]): RiskItem[] {
+    return gaps.map((gap, index) => {
+      const riskLevel = this.mapSeverityToRiskLevel(gap.severity);
+      const likelihood = this.inferLikelihoodFromGap(gap);
+      const impact = this.inferImpactFromGap(gap);
+
+      return {
+        id: `risk-from-gap-${gap.id}`,
+        category: this.mapGapCategoryToRiskCategory(gap.category),
+        title: `Risk from ${gap.title}`,
+        description: `The compliance gap "${gap.title}" creates risk of ${gap.businessImpact.toLowerCase()}.`,
+        likelihood,
+        impact,
+        riskLevel,
+        currentControls: [`Existing measures for ${gap.category.toLowerCase()}`],
+        controlEffectiveness: this.estimateControlEffectiveness(gap),
+        residualRisk: riskLevel,
+        mitigationStrategy: gap.suggestedActions.slice(0, 2).join(' and '),
+        ownerRole: this.suggestOwnerRole(gap.category)
+      };
+    });
+  }
+
+  private mapSeverityToRiskLevel(severity: string): RiskLevel {
+    switch (severity) {
+      case 'CRITICAL': return RiskLevel.CRITICAL;
+      case 'HIGH': return RiskLevel.HIGH;
+      case 'MEDIUM': return RiskLevel.MEDIUM;
+      case 'LOW': return RiskLevel.LOW;
+      default: return RiskLevel.MEDIUM;
+    }
+  }
+
+  private inferLikelihoodFromGap(gap: ComplianceGap): Likelihood {
+    // Infer likelihood based on gap size and current state
+    if (gap.gapSize > 80) return Likelihood.CERTAIN;
+    if (gap.gapSize > 60) return Likelihood.LIKELY;
+    if (gap.gapSize > 40) return Likelihood.POSSIBLE;
+    if (gap.gapSize > 20) return Likelihood.UNLIKELY;
+    return Likelihood.RARE;
+  }
+
+  private inferImpactFromGap(gap: ComplianceGap): Impact {
+    // Infer impact based on business impact description
+    const businessImpact = gap.businessImpact.toLowerCase();
+    
+    if (businessImpact.includes('catastrophic') || businessImpact.includes('critical')) {
+      return Impact.CATASTROPHIC;
+    }
+    if (businessImpact.includes('major') || businessImpact.includes('significant')) {
+      return Impact.MAJOR;
+    }
+    if (businessImpact.includes('moderate')) {
+      return Impact.MODERATE;
+    }
+    if (businessImpact.includes('minor')) {
+      return Impact.MINOR;
+    }
+    
+    return Impact.MODERATE;
+  }
+
+  private mapGapCategoryToRiskCategory(category: string): RiskCategory {
+    const categoryLower = category.toLowerCase();
+    
+    if (categoryLower.includes('governance')) return RiskCategory.GOVERNANCE;
+    if (categoryLower.includes('regulatory') || categoryLower.includes('compliance')) return RiskCategory.REGULATORY;
+    if (categoryLower.includes('reputation') || categoryLower.includes('brand')) return RiskCategory.REPUTATIONAL;
+    if (categoryLower.includes('geographic') || categoryLower.includes('jurisdiction')) return RiskCategory.GEOGRAPHIC;
+    if (categoryLower.includes('transaction') || categoryLower.includes('financial')) return RiskCategory.TRANSACTION;
+    
+    return RiskCategory.OPERATIONAL;
+  }
+
+  private estimateControlEffectiveness(gap: ComplianceGap): number {
+    // Estimate based on gap size (inverse relationship)
+    return Math.max(10, 100 - gap.gapSize);
+  }
+
+  private suggestOwnerRole(category: string): string {
+    const categoryLower = category.toLowerCase();
+    
+    if (categoryLower.includes('privacy') || categoryLower.includes('data')) return 'Chief Privacy Officer';
+    if (categoryLower.includes('security') || categoryLower.includes('cyber')) return 'Chief Information Security Officer';
+    if (categoryLower.includes('financial') || categoryLower.includes('transaction')) return 'Chief Financial Officer';
+    if (categoryLower.includes('governance')) return 'Chief Executive Officer';
+    if (categoryLower.includes('compliance') || categoryLower.includes('regulatory')) return 'Chief Compliance Officer';
+    if (categoryLower.includes('risk')) return 'Chief Risk Officer';
+    
+    return 'Chief Operating Officer';
+  }
+
+  /**
+   * Remove duplicate risks
+   */
+  private deduplicateRisks(risks: RiskItem[]): RiskItem[] {
+    const uniqueRisks: RiskItem[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const risk of risks) {
+      const normalizedTitle = risk.title.toLowerCase().trim();
+      
+      if (!seenTitles.has(normalizedTitle)) {
+        seenTitles.add(normalizedTitle);
+        uniqueRisks.push(risk);
+      }
+    }
+
+    return uniqueRisks;
+  }
+
+  /**
+   * Analyze risk interconnections and cascade effects
+   */
+  private analyzeRiskInterconnections(risks: RiskItem[]): RiskItem[] {
+    // Simple interconnection analysis - in practice, this would be more sophisticated
+    const interconnectedRisks = [...risks];
+
+    // Look for risks that might amplify each other
+    for (let i = 0; i < risks.length; i++) {
+      for (let j = i + 1; j < risks.length; j++) {
+        const risk1 = risks[i];
+        const risk2 = risks[j];
+
+        // If both are high-level risks in related categories, increase impact
+        if (this.areRisksRelated(risk1, risk2) && 
+            (risk1.riskLevel === RiskLevel.HIGH || risk1.riskLevel === RiskLevel.CRITICAL) &&
+            (risk2.riskLevel === RiskLevel.HIGH || risk2.riskLevel === RiskLevel.CRITICAL)) {
+          
+          // Update mitigation strategy to mention interconnected risk
+          if (risk1.mitigationStrategy) {
+            risk1.mitigationStrategy += ` (Note: Address in conjunction with ${risk2.title})`;
+          }
+        }
+      }
+    }
+
+    return interconnectedRisks;
+  }
+
+  private areRisksRelated(risk1: RiskItem, risk2: RiskItem): boolean {
+    // Simple relatedness check - could be enhanced with ML/NLP
+    const relatedCategories = [
+      [RiskCategory.OPERATIONAL, RiskCategory.REGULATORY],
+      [RiskCategory.GOVERNANCE, RiskCategory.REGULATORY],
+      [RiskCategory.REPUTATIONAL, RiskCategory.REGULATORY]
+    ];
+
+    return relatedCategories.some(group => 
+      group.includes(risk1.category) && group.includes(risk2.category));
+  }
+
+  /**
+   * Validate risks using AI
+   */
+  private async validateRisks(
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): Promise<RiskItem[]> {
+    if (risks.length === 0) return risks;
+
+    try {
+      const prompt = RISK_ANALYSIS_PROMPTS.validate
+        .replace('{risks}', JSON.stringify(risks.slice(0, 10), null, 2))
+        .replace('{industry}', context.industry || 'General')
+        .replace('{companySize}', context.companySize || 'Unknown')
+        .replace('{region}', context.region || 'Global')
+        .replace('{frameworks}', context.regulatoryFrameworks?.join(', ') || 'General');
+
+      const completion = await openai.chat.completions.create({
+        model: ASSESSMENT_CONFIG.openai.model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are validating risk assessment results for accuracy and completeness.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (content) {
+        const validationResults = JSON.parse(content);
+        const results = Array.isArray(validationResults) ? validationResults : validationResults.results || [];
+        
+        // Apply validation feedback to risks
+        const validatedRisks = risks.map(risk => {
+          const validation = results.find((r: any) => r.riskId === risk.id);
+          if (validation && validation.validationScore >= 60) {
+            // Apply refinements if suggested
+            if (validation.refinedRiskLevel && validation.refinedRiskLevel !== risk.riskLevel) {
+              risk.riskLevel = validation.refinedRiskLevel as RiskLevel;
+            }
+            if (validation.additionalControls && validation.additionalControls.length > 0) {
+              risk.currentControls = [...risk.currentControls, ...validation.additionalControls];
+            }
+          }
+          return risk;
+        }).filter(risk => {
+          // Keep risks with validation score >= 60 or no validation
+          const validation = results.find((r: any) => r.riskId === risk.id);
+          return !validation || validation.validationScore >= 60;
+        });
+
+        console.log(`Validated ${validatedRisks.length} of ${risks.length} risks`);
+        return validatedRisks;
+      }
+    } catch (error) {
+      console.error('Risk validation failed, returning all risks:', error);
+    }
+
+    return risks;
+  }
+
+  /**
+   * Build risk analysis prompt
+   */
+  private buildRiskAnalysisPrompt(
+    responses: AssessmentResponse[],
+    gaps: ComplianceGap[],
+    context: ProcessingContext
+  ): string {
+    const responseText = responses
+      .map(r => `Q: ${r.questionId}\nA: ${JSON.stringify(r.value)}\nNotes: ${r.notes || 'None'}`)
+      .join('\n\n');
+
+    const gapText = gaps
+      .map(g => `Title: ${g.title}\nSeverity: ${g.severity}\nDescription: ${g.description}`)
+      .join('\n\n');
+
+    return RISK_ANALYSIS_PROMPTS.assess
+      .replace('{industry}', context.industry || 'General')
+      .replace('{companySize}', context.companySize || 'Unknown')
+      .replace('{region}', context.region || 'Global')
+      .replace('{responses}', responseText)
+      .replace('{gaps}', gapText);
+  }
+
+  /**
+   * Normalize risk object structure
+   */
+  private normalizeRisk(risk: any, index: number): RiskItem {
+    return {
+      id: risk.id || `risk-${Date.now()}-${index}`,
+      category: this.normalizeRiskCategory(risk.category),
+      title: risk.title || 'Unnamed Risk',
+      description: risk.description || '',
+      likelihood: this.normalizeLikelihood(risk.likelihood),
+      impact: this.normalizeImpact(risk.impact),
+      riskLevel: this.normalizeRiskLevel(risk.riskLevel),
+      currentControls: Array.isArray(risk.currentControls) 
+        ? risk.currentControls 
+        : (risk.currentControls ? [risk.currentControls] : []),
+      controlEffectiveness: Math.min(100, Math.max(0, risk.controlEffectiveness || 50)),
+      residualRisk: this.normalizeRiskLevel(risk.residualRisk) || this.normalizeRiskLevel(risk.riskLevel),
+      mitigationStrategy: risk.mitigationStrategy,
+      ownerRole: risk.ownerRole,
+      dueDate: risk.dueDate ? new Date(risk.dueDate) : undefined
+    };
+  }
+
+  private normalizeRiskCategory(category: any): RiskCategory {
+    const str = String(category).toUpperCase();
+    const validCategories = ['GEOGRAPHIC', 'TRANSACTION', 'GOVERNANCE', 'OPERATIONAL', 'REGULATORY', 'REPUTATIONAL'];
+    if (validCategories.includes(str)) {
+      return str as RiskCategory;
+    }
+    return RiskCategory.OPERATIONAL;
+  }
+
+  private normalizeLikelihood(likelihood: any): Likelihood {
+    const str = String(likelihood).toUpperCase();
+    const validLikelihoods = ['RARE', 'UNLIKELY', 'POSSIBLE', 'LIKELY', 'CERTAIN'];
+    if (validLikelihoods.includes(str)) {
+      return str as Likelihood;
+    }
+    return Likelihood.POSSIBLE;
+  }
+
+  private normalizeImpact(impact: any): Impact {
+    const str = String(impact).toUpperCase();
+    const validImpacts = ['NEGLIGIBLE', 'MINOR', 'MODERATE', 'MAJOR', 'CATASTROPHIC'];
+    if (validImpacts.includes(str)) {
+      return str as Impact;
+    }
+    return Impact.MODERATE;
+  }
+
+  private normalizeRiskLevel(riskLevel: any): RiskLevel {
+    const str = String(riskLevel).toUpperCase();
+    const validLevels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    if (validLevels.includes(str)) {
+      return str as RiskLevel;
+    }
+    return RiskLevel.MEDIUM;
+  }
+}

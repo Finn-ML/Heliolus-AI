@@ -1,0 +1,326 @@
+/**
+ * JWT token generation and validation utilities
+ */
+
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { 
+  JWTPayload, 
+  UserSession, 
+  AuthUser,
+  TokenExpiredError,
+  InvalidTokenError
+} from './types.js';
+import { AUTH_CONFIG } from './index.js';
+
+// Validation schemas
+const JWTPayloadSchema = z.object({
+  id: z.string().cuid(),
+  email: z.string().email(),
+  firstName: z.string(),
+  lastName: z.string(),
+  role: z.enum(['ADMIN', 'USER', 'VENDOR']),
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'DELETED']),
+  emailVerified: z.boolean(),
+  organizationId: z.string().cuid().optional(),
+  vendorId: z.string().cuid().optional(),
+  iat: z.number(),
+  exp: z.number(),
+  iss: z.string(),
+  aud: z.string(),
+});
+
+/**
+ * Generate JWT token for authenticated user
+ */
+export function generateToken(user: AuthUser): string {
+  const payload: Omit<JWTPayload, 'iat' | 'exp'> = {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    status: user.status,
+    emailVerified: user.emailVerified,
+    organizationId: user.organizationId,
+    vendorId: user.vendorId,
+    iss: AUTH_CONFIG.jwt.issuer,
+    aud: AUTH_CONFIG.jwt.audience,
+  };
+
+  return jwt.sign(payload, AUTH_CONFIG.jwt.secret, {
+    expiresIn: AUTH_CONFIG.jwt.expiresIn,
+    algorithm: AUTH_CONFIG.jwt.algorithm as jwt.Algorithm,
+    issuer: AUTH_CONFIG.jwt.issuer,
+    audience: AUTH_CONFIG.jwt.audience,
+  });
+}
+
+/**
+ * Generate refresh token (longer expiry, limited payload)
+ */
+export function generateRefreshToken(userId: string): string {
+  const payload = {
+    id: userId,
+    type: 'refresh',
+    iss: AUTH_CONFIG.jwt.issuer,
+    aud: AUTH_CONFIG.jwt.audience,
+  };
+
+  return jwt.sign(payload, AUTH_CONFIG.jwt.secret, {
+    expiresIn: '30d', // Refresh tokens last longer
+    algorithm: AUTH_CONFIG.jwt.algorithm as jwt.Algorithm,
+    issuer: AUTH_CONFIG.jwt.issuer,
+    audience: AUTH_CONFIG.jwt.audience,
+  });
+}
+
+/**
+ * Verify and decode JWT token
+ */
+export function verifyToken(token: string): JWTPayload {
+  try {
+    const decoded = jwt.verify(token, AUTH_CONFIG.jwt.secret, {
+      algorithms: [AUTH_CONFIG.jwt.algorithm as jwt.Algorithm],
+      issuer: AUTH_CONFIG.jwt.issuer,
+      audience: AUTH_CONFIG.jwt.audience,
+    }) as unknown;
+
+    // Validate the payload structure
+    const validPayload = JWTPayloadSchema.parse(decoded);
+    return validPayload;
+
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new TokenExpiredError();
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new InvalidTokenError();
+    }
+    if (error instanceof z.ZodError) {
+      throw new InvalidTokenError();
+    }
+    throw error;
+  }
+}
+
+/**
+ * Verify refresh token
+ */
+export function verifyRefreshToken(token: string): { id: string; type: string } {
+  try {
+    const decoded = jwt.verify(token, AUTH_CONFIG.jwt.secret, {
+      algorithms: [AUTH_CONFIG.jwt.algorithm as jwt.Algorithm],
+      issuer: AUTH_CONFIG.jwt.issuer,
+      audience: AUTH_CONFIG.jwt.audience,
+    }) as any;
+
+    if (decoded.type !== 'refresh') {
+      throw new InvalidTokenError();
+    }
+
+    return { id: decoded.id, type: decoded.type };
+
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new TokenExpiredError();
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new InvalidTokenError();
+    }
+    throw error;
+  }
+}
+
+/**
+ * Decode token without verification (for debugging/inspection)
+ */
+export function decodeToken(token: string): JWTPayload | null {
+  try {
+    const decoded = jwt.decode(token) as JWTPayload;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if token is expired (without verification)
+ */
+export function isTokenExpired(token: string): boolean {
+  const decoded = decodeToken(token);
+  if (!decoded || !decoded.exp) {
+    return true;
+  }
+  
+  const currentTime = Math.floor(Date.now() / 1000);
+  return decoded.exp < currentTime;
+}
+
+/**
+ * Get token expiry time
+ */
+export function getTokenExpiry(token: string): Date | null {
+  const decoded = decodeToken(token);
+  if (!decoded || !decoded.exp) {
+    return null;
+  }
+  
+  return new Date(decoded.exp * 1000);
+}
+
+/**
+ * Check if token needs refresh (within threshold)
+ */
+export function shouldRefreshToken(token: string): boolean {
+  const decoded = decodeToken(token);
+  if (!decoded || !decoded.exp) {
+    return true;
+  }
+  
+  const currentTime = Math.floor(Date.now() / 1000);
+  const refreshThreshold = Math.floor(AUTH_CONFIG.session.refreshThreshold / 1000);
+  
+  return (decoded.exp - currentTime) < refreshThreshold;
+}
+
+/**
+ * Extract user session from token
+ */
+export function extractUserSession(token: string): UserSession {
+  const payload = verifyToken(token);
+  
+  return {
+    id: payload.id,
+    email: payload.email,
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    role: payload.role,
+    status: payload.status,
+    emailVerified: payload.emailVerified,
+    organizationId: payload.organizationId,
+    vendorId: payload.vendorId,
+    iat: payload.iat,
+    exp: payload.exp,
+    iss: payload.iss,
+    aud: payload.aud,
+  };
+}
+
+/**
+ * Generate token pair (access + refresh)
+ */
+export function generateTokenPair(user: AuthUser): { accessToken: string; refreshToken: string } {
+  return {
+    accessToken: generateToken(user),
+    refreshToken: generateRefreshToken(user.id),
+  };
+}
+
+/**
+ * Validate token format (basic structure check)
+ */
+export function isValidTokenFormat(token: string): boolean {
+  if (!token || typeof token !== 'string') {
+    return false;
+  }
+  
+  // JWT should have 3 parts separated by dots
+  const parts = token.split('.');
+  return parts.length === 3;
+}
+
+/**
+ * Generate email verification token
+ */
+export function generateEmailVerificationToken(email: string): string {
+  const payload = {
+    email,
+    type: 'email_verification',
+    iss: AUTH_CONFIG.jwt.issuer,
+    aud: AUTH_CONFIG.jwt.audience,
+  };
+
+  return jwt.sign(payload, AUTH_CONFIG.jwt.secret, {
+    expiresIn: '24h',
+    algorithm: AUTH_CONFIG.jwt.algorithm as jwt.Algorithm,
+    issuer: AUTH_CONFIG.jwt.issuer,
+    audience: AUTH_CONFIG.jwt.audience,
+  });
+}
+
+/**
+ * Generate password reset token
+ */
+export function generatePasswordResetToken(userId: string, email: string): string {
+  const payload = {
+    id: userId,
+    email,
+    type: 'password_reset',
+    iss: AUTH_CONFIG.jwt.issuer,
+    aud: AUTH_CONFIG.jwt.audience,
+  };
+
+  return jwt.sign(payload, AUTH_CONFIG.jwt.secret, {
+    expiresIn: '2h',
+    algorithm: AUTH_CONFIG.jwt.algorithm as jwt.Algorithm,
+    issuer: AUTH_CONFIG.jwt.issuer,
+    audience: AUTH_CONFIG.jwt.audience,
+  });
+}
+
+/**
+ * Verify email verification token
+ */
+export function verifyEmailVerificationToken(token: string): { email: string } {
+  try {
+    const decoded = jwt.verify(token, AUTH_CONFIG.jwt.secret, {
+      algorithms: [AUTH_CONFIG.jwt.algorithm as jwt.Algorithm],
+      issuer: AUTH_CONFIG.jwt.issuer,
+      audience: AUTH_CONFIG.jwt.audience,
+    }) as any;
+
+    if (decoded.type !== 'email_verification') {
+      throw new InvalidTokenError();
+    }
+
+    return { email: decoded.email };
+
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new TokenExpiredError();
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new InvalidTokenError();
+    }
+    throw error;
+  }
+}
+
+/**
+ * Verify password reset token
+ */
+export function verifyPasswordResetToken(token: string): { id: string; email: string } {
+  try {
+    const decoded = jwt.verify(token, AUTH_CONFIG.jwt.secret, {
+      algorithms: [AUTH_CONFIG.jwt.algorithm as jwt.Algorithm],
+      issuer: AUTH_CONFIG.jwt.issuer,
+      audience: AUTH_CONFIG.jwt.audience,
+    }) as any;
+
+    if (decoded.type !== 'password_reset') {
+      throw new InvalidTokenError();
+    }
+
+    return { id: decoded.id, email: decoded.email };
+
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new TokenExpiredError();
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new InvalidTokenError();
+    }
+    throw error;
+  }
+}

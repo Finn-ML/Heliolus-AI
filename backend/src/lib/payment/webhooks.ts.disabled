@@ -1,0 +1,459 @@
+/**
+ * Stripe webhook handling system
+ */
+
+import Stripe from 'stripe';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  WebhookHandler,
+  WebhookEvent,
+  WebhookResult,
+  PaymentError
+} from './types.js';
+import { PAYMENT_CONFIG } from './index.js';
+import { SubscriptionStatus, InvoiceStatus, TransactionType } from '../../types/database.js';
+
+const prisma = new PrismaClient();
+const stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {
+  apiVersion: PAYMENT_CONFIG.stripe.apiVersion
+});
+
+/**
+ * Comprehensive webhook event handling
+ */
+export class HeliolusWebhookHandler implements WebhookHandler {
+  /**
+   * Handle incoming webhook event
+   */
+  async handleWebhook(payload: string | Buffer, signature: string): Promise<WebhookResult> {
+    try {
+      // Verify webhook signature
+      const event = stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        PAYMENT_CONFIG.stripe.webhookSecret
+      );
+
+      console.log(`Processing webhook event: ${event.type}`);
+
+      // Process the event based on type
+      let result: any;
+      switch (event.type) {
+        // Customer events
+        case 'customer.created':
+          result = await this.handleCustomerCreated(event.data.object as Stripe.Customer);
+          break;
+        case 'customer.updated':
+          result = await this.handleCustomerUpdated(event.data.object as Stripe.Customer);
+          break;
+        case 'customer.deleted':
+          result = await this.handleCustomerDeleted(event.data.object as Stripe.Customer);
+          break;
+
+        // Subscription events
+        case 'customer.subscription.created':
+          result = await this.handleSubscriptionCreated(event.data.object as Stripe.Subscription);
+          break;
+        case 'customer.subscription.updated':
+          result = await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+          break;
+        case 'customer.subscription.deleted':
+          result = await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+          break;
+        case 'customer.subscription.trial_will_end':
+          result = await this.handleTrialWillEnd(event.data.object as Stripe.Subscription);
+          break;
+
+        // Invoice events
+        case 'invoice.created':
+          result = await this.handleInvoiceCreated(event.data.object as Stripe.Invoice);
+          break;
+        case 'invoice.updated':
+          result = await this.handleInvoiceUpdated(event.data.object as Stripe.Invoice);
+          break;
+        case 'invoice.paid':
+          result = await this.handleInvoicePaid(event.data.object as Stripe.Invoice);
+          break;
+        case 'invoice.payment_failed':
+          result = await this.handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+          break;
+        case 'invoice.finalized':
+          result = await this.handleInvoiceFinalized(event.data.object as Stripe.Invoice);
+          break;
+
+        // Payment events
+        case 'payment_intent.succeeded':
+          result = await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+          break;
+        case 'payment_intent.payment_failed':
+          result = await this.handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+          break;
+
+        // Payment method events
+        case 'payment_method.attached':
+          result = await this.handlePaymentMethodAttached(event.data.object as Stripe.PaymentMethod);
+          break;
+        case 'payment_method.detached':
+          result = await this.handlePaymentMethodDetached(event.data.object as Stripe.PaymentMethod);
+          break;
+
+        default:
+          console.log(`Unhandled webhook event type: ${event.type}`);
+          result = { handled: false, message: 'Event type not handled' };
+      }
+
+      // Log webhook event
+      await this.logWebhookEvent(event, result);
+
+      return {
+        success: true,
+        eventType: event.type,
+        data: result
+      };
+    } catch (error) {
+      console.error('Webhook handling error:', error);
+      return {
+        success: false,
+        error: error instanceof PaymentError ? error.message : 'Webhook processing failed'
+      };
+    }
+  }
+
+  // Customer event handlers
+
+  private async handleCustomerCreated(customer: Stripe.Customer): Promise<any> {
+    console.log(`Customer created: ${customer.id}`);
+    
+    // Update user record with Stripe customer ID if needed
+    if (customer.email) {
+      await prisma.user.updateMany({
+        where: { email: customer.email },
+        data: { stripeCustomerId: customer.id }
+      });
+    }
+
+    return { customerId: customer.id, handled: true };
+  }
+
+  private async handleCustomerUpdated(customer: Stripe.Customer): Promise<any> {
+    console.log(`Customer updated: ${customer.id}`);
+    
+    // Sync customer data
+    if (customer.email) {
+      await prisma.user.updateMany({
+        where: { stripeCustomerId: customer.id },
+        data: {
+          email: customer.email,
+          firstName: customer.name?.split(' ')[0] || undefined,
+          lastName: customer.name?.split(' ').slice(1).join(' ') || undefined
+        }
+      });
+    }
+
+    return { customerId: customer.id, handled: true };
+  }
+
+  private async handleCustomerDeleted(customer: Stripe.Customer): Promise<any> {
+    console.log(`Customer deleted: ${customer.id}`);
+    
+    // Clean up customer data
+    await prisma.user.updateMany({
+      where: { stripeCustomerId: customer.id },
+      data: { stripeCustomerId: null }
+    });
+
+    return { customerId: customer.id, handled: true };
+  }
+
+  // Subscription event handlers
+
+  private async handleSubscriptionCreated(subscription: Stripe.Subscription): Promise<any> {
+    console.log(`Subscription created: ${subscription.id}`);
+    
+    // This is typically handled by the subscription creation flow
+    // But we can update status if needed
+    await prisma.subscription.updateMany({
+      where: { stripeSubscriptionId: subscription.id },
+      data: {
+        status: this.mapStripeSubscriptionStatus(subscription.status),
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        trialEnd: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null
+      }
+    });
+
+    return { subscriptionId: subscription.id, handled: true };
+  }
+
+  private async handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<any> {
+    console.log(`Subscription updated: ${subscription.id}`);
+    
+    // Update subscription status and period
+    const dbSubscription = await prisma.subscription.findFirst({
+      where: { stripeSubscriptionId: subscription.id }
+    });
+
+    if (dbSubscription) {
+      await prisma.subscription.update({
+        where: { id: dbSubscription.id },
+        data: {
+          status: this.mapStripeSubscriptionStatus(subscription.status),
+          currentPeriodStart: new Date(subscription.current_period_start * 1000),
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          trialEnd: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
+          cancelAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
+          canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null
+        }
+      });
+
+      // If subscription was canceled, log it
+      if (subscription.status === 'canceled') {
+        console.log(`Subscription ${subscription.id} was canceled`);
+      }
+    }
+
+    return { subscriptionId: subscription.id, handled: true };
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<any> {
+    console.log(`Subscription deleted: ${subscription.id}`);
+    
+    // Update subscription status to canceled
+    await prisma.subscription.updateMany({
+      where: { stripeSubscriptionId: subscription.id },
+      data: {
+        status: SubscriptionStatus.CANCELED,
+        canceledAt: new Date()
+      }
+    });
+
+    return { subscriptionId: subscription.id, handled: true };
+  }
+
+  private async handleTrialWillEnd(subscription: Stripe.Subscription): Promise<any> {
+    console.log(`Trial will end for subscription: ${subscription.id}`);
+    
+    // This is a good place to send email notifications to users
+    // about their trial ending
+    
+    return { subscriptionId: subscription.id, handled: true };
+  }
+
+  // Invoice event handlers
+
+  private async handleInvoiceCreated(invoice: Stripe.Invoice): Promise<any> {
+    console.log(`Invoice created: ${invoice.id}`);
+    
+    // Create or update invoice record
+    await this.upsertInvoiceFromStripe(invoice);
+    
+    return { invoiceId: invoice.id, handled: true };
+  }
+
+  private async handleInvoiceUpdated(invoice: Stripe.Invoice): Promise<any> {
+    console.log(`Invoice updated: ${invoice.id}`);
+    
+    // Update invoice record
+    await this.upsertInvoiceFromStripe(invoice);
+    
+    return { invoiceId: invoice.id, handled: true };
+  }
+
+  private async handleInvoicePaid(invoice: Stripe.Invoice): Promise<any> {
+    console.log(`Invoice paid: ${invoice.id}`);
+    
+    // Update invoice status
+    const dbInvoice = await this.upsertInvoiceFromStripe(invoice);
+    
+    // Add credits if this is a credit purchase
+    if (invoice.subscription && dbInvoice) {
+      const subscription = await prisma.subscription.findFirst({
+        where: { stripeSubscriptionId: invoice.subscription as string }
+      });
+
+      if (subscription) {
+        // Calculate credits to add based on amount paid
+        const creditsToAdd = Math.floor(invoice.amount_paid / 100); // 1 credit per cent
+        
+        await prisma.$transaction(async (tx) => {
+          await tx.subscription.update({
+            where: { id: subscription.id },
+            data: {
+              creditsBalance: { increment: creditsToAdd },
+              creditsPurchased: { increment: creditsToAdd }
+            }
+          });
+
+          await tx.creditTransaction.create({
+            data: {
+              subscriptionId: subscription.id,
+              type: TransactionType.PURCHASE,
+              amount: creditsToAdd,
+              balance: subscription.creditsBalance + creditsToAdd,
+              description: `Payment received for invoice ${invoice.id}`,
+              reference: invoice.id
+            }
+          });
+        });
+      }
+    }
+    
+    return { invoiceId: invoice.id, handled: true };
+  }
+
+  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<any> {
+    console.log(`Invoice payment failed: ${invoice.id}`);
+    
+    // Update invoice status
+    await this.upsertInvoiceFromStripe(invoice);
+    
+    // Handle failed payment - maybe pause subscription or send notification
+    if (invoice.subscription) {
+      await prisma.subscription.updateMany({
+        where: { stripeSubscriptionId: invoice.subscription as string },
+        data: { status: SubscriptionStatus.PAST_DUE }
+      });
+    }
+    
+    return { invoiceId: invoice.id, handled: true };
+  }
+
+  private async handleInvoiceFinalized(invoice: Stripe.Invoice): Promise<any> {
+    console.log(`Invoice finalized: ${invoice.id}`);
+    
+    // Update invoice status
+    await this.upsertInvoiceFromStripe(invoice);
+    
+    return { invoiceId: invoice.id, handled: true };
+  }
+
+  // Payment event handlers
+
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<any> {
+    console.log(`Payment intent succeeded: ${paymentIntent.id}`);
+    
+    // Payment was successful - this is usually handled by invoice.paid event
+    // but we can add additional logic here if needed
+    
+    return { paymentIntentId: paymentIntent.id, handled: true };
+  }
+
+  private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent): Promise<any> {
+    console.log(`Payment intent failed: ${paymentIntent.id}`);
+    
+    // Payment failed - handle accordingly
+    
+    return { paymentIntentId: paymentIntent.id, handled: true };
+  }
+
+  // Payment method event handlers
+
+  private async handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod): Promise<any> {
+    console.log(`Payment method attached: ${paymentMethod.id}`);
+    
+    // Update user's default payment method if needed
+    if (paymentMethod.customer) {
+      await prisma.subscription.updateMany({
+        where: { stripeCustomerId: paymentMethod.customer as string },
+        data: { stripePaymentMethodId: paymentMethod.id }
+      });
+    }
+    
+    return { paymentMethodId: paymentMethod.id, handled: true };
+  }
+
+  private async handlePaymentMethodDetached(paymentMethod: Stripe.PaymentMethod): Promise<any> {
+    console.log(`Payment method detached: ${paymentMethod.id}`);
+    
+    // Remove payment method reference
+    await prisma.subscription.updateMany({
+      where: { stripePaymentMethodId: paymentMethod.id },
+      data: { stripePaymentMethodId: null }
+    });
+    
+    return { paymentMethodId: paymentMethod.id, handled: true };
+  }
+
+  // Helper methods
+
+  private async upsertInvoiceFromStripe(stripeInvoice: Stripe.Invoice): Promise<any> {
+    const invoiceData = {
+      stripeInvoiceId: stripeInvoice.id,
+      stripeCustomerId: stripeInvoice.customer as string,
+      subscriptionId: stripeInvoice.subscription ? 
+        (await prisma.subscription.findFirst({
+          where: { stripeSubscriptionId: stripeInvoice.subscription as string },
+          select: { id: true }
+        }))?.id : null,
+      amount: stripeInvoice.amount_due,
+      currency: stripeInvoice.currency,
+      status: this.mapStripeInvoiceStatus(stripeInvoice.status),
+      description: stripeInvoice.description,
+      dueDate: stripeInvoice.due_date ? new Date(stripeInvoice.due_date * 1000) : null,
+      paidAt: stripeInvoice.status_transitions.paid_at ? 
+        new Date(stripeInvoice.status_transitions.paid_at * 1000) : null,
+      metadata: stripeInvoice.metadata ? JSON.stringify(stripeInvoice.metadata) : null
+    };
+
+    return await prisma.invoice.upsert({
+      where: { stripeInvoiceId: stripeInvoice.id },
+      create: invoiceData,
+      update: invoiceData
+    });
+  }
+
+  private async logWebhookEvent(event: Stripe.Event, result: any): Promise<void> {
+    try {
+      await prisma.webhookEvent.create({
+        data: {
+          stripeEventId: event.id,
+          type: event.type,
+          processed: result.handled || false,
+          processingResult: JSON.stringify(result),
+          eventData: JSON.stringify(event.data),
+          createdAt: new Date(event.created * 1000)
+        }
+      });
+    } catch (error) {
+      console.error('Failed to log webhook event:', error);
+    }
+  }
+
+  private mapStripeSubscriptionStatus(stripeStatus: string): SubscriptionStatus {
+    switch (stripeStatus) {
+      case 'active':
+        return SubscriptionStatus.ACTIVE;
+      case 'past_due':
+        return SubscriptionStatus.PAST_DUE;
+      case 'canceled':
+      case 'cancelled':
+        return SubscriptionStatus.CANCELED;
+      case 'unpaid':
+        return SubscriptionStatus.PAST_DUE;
+      case 'trialing':
+        return SubscriptionStatus.ACTIVE; // Treat trial as active
+      default:
+        return SubscriptionStatus.ACTIVE;
+    }
+  }
+
+  private mapStripeInvoiceStatus(stripeStatus: string): InvoiceStatus {
+    switch (stripeStatus) {
+      case 'draft':
+        return InvoiceStatus.DRAFT;
+      case 'open':
+        return InvoiceStatus.OPEN;
+      case 'paid':
+        return InvoiceStatus.PAID;
+      case 'void':
+        return InvoiceStatus.VOID;
+      case 'uncollectible':
+        return InvoiceStatus.UNCOLLECTIBLE;
+      default:
+        return InvoiceStatus.DRAFT;
+    }
+  }
+}
+
+// Export the webhook handler instance
+export const webhookHandler = new HeliolusWebhookHandler();

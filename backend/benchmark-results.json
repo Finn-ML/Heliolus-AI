@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2025-10-13T13:50:33.181Z",
+  "systemInfo": {
+    "nodeVersion": "v20.19.3",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "benchmarks": [
+    {
+      "testName": "Small Assessment",
+      "documentCount": 3,
+      "questionCount": 10,
+      "totalTimeMs": 4015,
+      "avgTimePerQuestion": 401,
+      "avgTimePerDocument": 1338,
+      "apiCallsEstimated": 30,
+      "throughput": 7.47,
+      "timestamp": "2025-10-13T13:48:39.442Z"
+    },
+    {
+      "testName": "Medium Assessment",
+      "documentCount": 7,
+      "questionCount": 25,
+      "totalTimeMs": 22217,
+      "avgTimePerQuestion": 889,
+      "avgTimePerDocument": 3174,
+      "apiCallsEstimated": 175,
+      "throughput": 7.88,
+      "timestamp": "2025-10-13T13:49:01.659Z"
+    },
+    {
+      "testName": "Large Assessment",
+      "documentCount": 7,
+      "questionCount": 50,
+      "totalTimeMs": 45461,
+      "avgTimePerQuestion": 909,
+      "avgTimePerDocument": 6494,
+      "apiCallsEstimated": 350,
+      "throughput": 7.7,
+      "timestamp": "2025-10-13T13:49:47.120Z"
+    },
+    {
+      "testName": "Current User Scenario (7x50)",
+      "documentCount": 7,
+      "questionCount": 50,
+      "totalTimeMs": 46055,
+      "avgTimePerQuestion": 921,
+      "avgTimePerDocument": 6579,
+      "apiCallsEstimated": 350,
+      "throughput": 7.6,
+      "timestamp": "2025-10-13T13:50:33.176Z"
+    }
+  ],
+  "detailedTimings": {
+    "documentParsingStats": {
+      "avg": 599,
+      "median": 594,
+      "min": 401,
+      "max": 805,
+      "p95": 785,
+      "count": 905
+    },
+    "sampleCount": 905
+  },
+  "recommendations": [
+    {
+      "strategy": "Document Preprocessing",
+      "description": "Preprocess all documents once before question analysis",
+      "estimatedImprovement": "7x faster, 84% cost reduction",
+      "priority": "HIGH"
+    },
+    {
+      "strategy": "Parallel Processing",
+      "description": "Process all documents in parallel per question",
+      "estimatedImprovement": "7x faster (if API rate limits allow)",
+      "priority": "MEDIUM"
+    },
+    {
+      "strategy": "Smart Document Relevance",
+      "description": "Only analyze top 3 most relevant documents per question",
+      "estimatedImprovement": "2.3x faster, 57% cost reduction",
+      "priority": "HIGH"
+    }
+  ]
+}

@@ -1,0 +1,388 @@
+/**
+ * AI library types and interfaces
+ */
+
+// Document parsing types
+export interface DocumentContent {
+  text: string;
+  metadata: DocumentMetadata;
+  sections?: DocumentSection[];
+  tables?: TableData[];
+  images?: ImageData[];
+  links?: LinkData[];
+}
+
+export interface DocumentSection {
+  title?: string;
+  content: string;
+  level: number;
+  type: 'heading' | 'paragraph' | 'list' | 'table' | 'code' | 'quote';
+  metadata?: Record<string, any>;
+}
+
+export interface TableData {
+  headers: string[];
+  rows: string[][];
+  caption?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ImageData {
+  url?: string;
+  base64?: string;
+  alt?: string;
+  caption?: string;
+  width?: number;
+  height?: number;
+  format?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface LinkData {
+  url: string;
+  text: string;
+  title?: string;
+  type: 'internal' | 'external' | 'anchor';
+}
+
+export interface DocumentMetadata {
+  filename: string;
+  format: DocumentFormat;
+  size: number;
+  pages?: number;
+  author?: string;
+  title?: string;
+  subject?: string;
+  creator?: string;
+  producer?: string;
+  creationDate?: Date;
+  modificationDate?: Date;
+  language?: string;
+  keywords?: string[];
+  pageCount?: number;
+  wordCount?: number;
+  characterCount?: number;
+  processingTime?: number;
+  confidence?: number;
+  customProperties?: Record<string, any>;
+}
+
+export type DocumentFormat = 'pdf' | 'docx' | 'txt' | 'md' | 'html' | 'rtf' | 'odt' | 'unknown';
+
+export interface ParseOptions {
+  extractImages?: boolean;
+  extractTables?: boolean;
+  preserveFormatting?: boolean;
+  includeMetadata?: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  language?: string;
+  ocrEnabled?: boolean;
+  pageRange?: {
+    start: number;
+    end: number;
+  };
+}
+
+export interface ParsedDocument {
+  id: string;
+  content: DocumentContent;
+  chunks?: DocumentChunk[];
+  processingStats: {
+    totalTime: number;
+    steps: ProcessingStep[];
+  };
+  errors?: string[];
+  warnings?: string[];
+}
+
+export interface DocumentChunk {
+  id: string;
+  content: string;
+  metadata: {
+    chunkIndex: number;
+    startChar: number;
+    endChar: number;
+    tokens: number;
+    section?: string;
+    page?: number;
+  };
+  embedding?: number[];
+}
+
+export interface ProcessingStep {
+  name: string;
+  duration: number;
+  success: boolean;
+  error?: string;
+}
+
+// Document analysis types
+export interface AnalysisRequest {
+  documentId?: string;
+  content?: string;
+  analysisType: AnalysisType;
+  options?: AnalysisOptions;
+  customPrompt?: string;
+  context?: Record<string, any>;
+}
+
+export type AnalysisType = 
+  | 'summarize'
+  | 'extract_entities' 
+  | 'classify'
+  | 'sentiment'
+  | 'risk_assessment'
+  | 'compliance_check'
+  | 'key_points'
+  | 'qa'
+  | 'custom';
+
+export interface AnalysisOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  includeConfidence?: boolean;
+  responseFormat?: 'text' | 'json' | 'structured';
+  language?: string;
+}
+
+export interface AnalysisResult {
+  id: string;
+  documentId?: string;
+  analysisType: AnalysisType;
+  result: any;
+  confidence?: number;
+  metadata: {
+    model: string;
+    tokensUsed: number;
+    processingTime: number;
+    timestamp: Date;
+  };
+  errors?: string[];
+}
+
+// Entity extraction specific types
+export interface ExtractedEntity {
+  text: string;
+  type: EntityType;
+  confidence: number;
+  startChar: number;
+  endChar: number;
+  metadata?: Record<string, any>;
+}
+
+export type EntityType = 
+  | 'PERSON'
+  | 'ORGANIZATION' 
+  | 'LOCATION'
+  | 'DATE'
+  | 'TIME'
+  | 'MONEY'
+  | 'PERCENT'
+  | 'EMAIL'
+  | 'PHONE'
+  | 'URL'
+  | 'CUSTOM';
+
+export interface EntityExtractionResult extends AnalysisResult {
+  result: {
+    entities: ExtractedEntity[];
+    summary: string;
+    totalEntities: number;
+    entityTypes: Record<EntityType, number>;
+  };
+}
+
+// Classification specific types
+export interface ClassificationResult extends AnalysisResult {
+  result: {
+    categories: ClassificationCategory[];
+    primaryCategory: string;
+    confidence: number;
+    reasoning?: string;
+  };
+}
+
+export interface ClassificationCategory {
+  name: string;
+  confidence: number;
+  description?: string;
+}
+
+// Sentiment analysis specific types
+export interface SentimentResult extends AnalysisResult {
+  result: {
+    sentiment: 'positive' | 'negative' | 'neutral';
+    score: number; // -1 to 1
+    confidence: number;
+    emotions?: EmotionScore[];
+    keyPhrases?: string[];
+  };
+}
+
+export interface EmotionScore {
+  emotion: string;
+  score: number;
+  confidence: number;
+}
+
+// Embedding types
+export interface EmbeddingRequest {
+  text?: string;
+  texts?: string[];
+  documentId?: string;
+  model?: string;
+  dimensions?: number;
+}
+
+export interface EmbeddingResult {
+  embeddings: number[][];
+  model: string;
+  dimensions: number;
+  tokensUsed: number;
+  processingTime: number;
+}
+
+export interface SimilarityRequest {
+  query: string | number[];
+  documents?: string[];
+  documentIds?: string[];
+  limit?: number;
+  threshold?: number;
+}
+
+export interface SimilarityResult {
+  matches: SimilarityMatch[];
+  query: string | number[];
+  processingTime: number;
+}
+
+export interface SimilarityMatch {
+  documentId?: string;
+  content: string;
+  similarity: number;
+  metadata?: Record<string, any>;
+}
+
+// AI provider interfaces
+export interface AIProvider {
+  generateCompletion(prompt: string, options?: CompletionOptions): Promise<CompletionResult>;
+  generateEmbedding(text: string, options?: EmbeddingOptions): Promise<number[]>;
+  generateEmbeddings(texts: string[], options?: EmbeddingOptions): Promise<number[][]>;
+  analyzeDocument(request: AnalysisRequest): Promise<AnalysisResult>;
+}
+
+export interface CompletionOptions {
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  stop?: string[];
+  responseFormat?: 'text' | 'json';
+}
+
+export interface CompletionResult {
+  text: string;
+  finishReason: string;
+  tokensUsed: number;
+  model: string;
+}
+
+export interface EmbeddingOptions {
+  model?: string;
+  dimensions?: number;
+  user?: string;
+}
+
+// Document parser interface
+export interface DocumentParser {
+  parseDocument(file: Buffer, filename: string, options?: ParseOptions): Promise<ParsedDocument>;
+  parseFromPath(filePath: string, options?: ParseOptions): Promise<ParsedDocument>;
+  parseFromUrl(url: string, options?: ParseOptions): Promise<ParsedDocument>;
+  getSupportedFormats(): DocumentFormat[];
+  validateDocument(file: Buffer, filename: string): Promise<ValidationResult>;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  format: DocumentFormat;
+  size: number;
+  errors?: string[];
+  warnings?: string[];
+}
+
+// Document analyzer interface
+export interface DocumentAnalyzer {
+  analyze(request: AnalysisRequest): Promise<AnalysisResult>;
+  batchAnalyze(requests: AnalysisRequest[]): Promise<AnalysisResult[]>;
+  extractEntities(content: string, options?: AnalysisOptions): Promise<EntityExtractionResult>;
+  classifyDocument(content: string, categories?: string[], options?: AnalysisOptions): Promise<ClassificationResult>;
+  analyzeSentiment(content: string, options?: AnalysisOptions): Promise<SentimentResult>;
+  summarizeDocument(content: string, options?: AnalysisOptions): Promise<AnalysisResult>;
+  generateEmbedding(content: string, options?: EmbeddingOptions): Promise<EmbeddingResult>;
+  findSimilarDocuments(request: SimilarityRequest): Promise<SimilarityResult>;
+}
+
+// Error types
+export class AIError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 500
+  ) {
+    super(message);
+    this.name = 'AIError';
+  }
+}
+
+export class ParseError extends AIError {
+  constructor(message: string, public filename?: string) {
+    super(message, 'PARSE_ERROR', 400);
+    this.name = 'ParseError';
+  }
+}
+
+export class AnalysisError extends AIError {
+  constructor(message: string, public analysisType?: string) {
+    super(message, 'ANALYSIS_ERROR', 500);
+    this.name = 'AnalysisError';
+  }
+}
+
+export class EmbeddingError extends AIError {
+  constructor(message: string) {
+    super(message, 'EMBEDDING_ERROR', 500);
+    this.name = 'EmbeddingError';
+  }
+}
+
+export class UnsupportedFormatError extends ParseError {
+  constructor(format: string) {
+    super(`Unsupported document format: ${format}`, format);
+    this.name = 'UnsupportedFormatError';
+  }
+}
+
+export class FileSizeError extends ParseError {
+  constructor(size: number, maxSize: number) {
+    super(`File size ${size} bytes exceeds maximum ${maxSize} bytes`);
+    this.name = 'FileSizeError';
+  }
+}
+
+export class ModelError extends AIError {
+  constructor(message: string, public model?: string) {
+    super(message, 'MODEL_ERROR', 503);
+    this.name = 'ModelError';
+  }
+}
+
+export class TokenLimitError extends AIError {
+  constructor(message: string, public tokensUsed?: number, public tokenLimit?: number) {
+    super(message, 'TOKEN_LIMIT_ERROR', 413);
+    this.name = 'TokenLimitError';
+  }
+}

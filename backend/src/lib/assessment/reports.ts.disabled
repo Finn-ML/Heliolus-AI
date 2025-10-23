@@ -1,0 +1,906 @@
+/**
+ * Assessment report generation and management
+ */
+
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  AssessmentResult,
+  ComplianceGap,
+  RiskItem,
+  Recommendation
+} from './types.js';
+import { ReportType, ReportFormat } from '../../types/database.js';
+
+const prisma = new PrismaClient();
+
+// Report generation interfaces
+export interface ReportGenerator {
+  generateReport(
+    assessment: AssessmentResult,
+    type: ReportType,
+    format: ReportFormat,
+    options?: ReportOptions
+  ): Promise<GeneratedReport>;
+}
+
+export interface ReportOptions {
+  includeDetails?: boolean;
+  includeCharts?: boolean;
+  executiveSummaryOnly?: boolean;
+  customSections?: string[];
+  branding?: {
+    logo?: string;
+    colors?: {
+      primary: string;
+      secondary: string;
+    };
+    footer?: string;
+  };
+}
+
+export interface GeneratedReport {
+  id: string;
+  type: ReportType;
+  format: ReportFormat;
+  content: ReportContent;
+  metadata: ReportMetadata;
+  files?: {
+    pdf?: string;
+    html?: string;
+    json?: string;
+    excel?: string;
+  };
+  createdAt: Date;
+}
+
+export interface ReportContent {
+  title: string;
+  executiveSummary: ExecutiveSummary;
+  sections: ReportSection[];
+  appendices?: ReportAppendix[];
+}
+
+export interface ExecutiveSummary {
+  overallRiskScore: number;
+  riskLevel: string;
+  keyFindings: string[];
+  criticalIssues: string[];
+  topRecommendations: string[];
+  complianceStatus: string;
+}
+
+export interface ReportSection {
+  id: string;
+  title: string;
+  summary: string;
+  content: any;
+  charts?: ChartData[];
+  tables?: TableData[];
+}
+
+export interface ReportAppendix {
+  id: string;
+  title: string;
+  content: any;
+}
+
+export interface ReportMetadata {
+  assessmentId: string;
+  organizationName: string;
+  generatedBy: string;
+  generatedAt: Date;
+  version: string;
+  pageCount?: number;
+  wordCount?: number;
+}
+
+export interface ChartData {
+  type: 'bar' | 'pie' | 'line' | 'donut' | 'heatmap';
+  title: string;
+  data: any;
+  options?: any;
+}
+
+export interface TableData {
+  title: string;
+  headers: string[];
+  rows: any[][];
+  options?: {
+    sortable?: boolean;
+    filterable?: boolean;
+    pagination?: boolean;
+  };
+}
+
+/**
+ * Comprehensive report generator
+ */
+export class AssessmentReportGenerator implements ReportGenerator {
+  /**
+   * Generate assessment report
+   */
+  async generateReport(
+    assessment: AssessmentResult,
+    type: ReportType,
+    format: ReportFormat,
+    options: ReportOptions = {}
+  ): Promise<GeneratedReport> {
+    try {
+      console.log(`Generating ${type} report in ${format} format`);
+
+      // Get organization details
+      const organization = await this.getOrganizationDetails(assessment.organizationId);
+
+      // Generate report content based on type
+      const content = await this.generateReportContent(assessment, type, options, organization);
+
+      // Create report record
+      const report: GeneratedReport = {
+        id: `report-${Date.now()}`,
+        type,
+        format,
+        content,
+        metadata: {
+          assessmentId: assessment.id,
+          organizationName: organization?.name || 'Unknown Organization',
+          generatedBy: 'system',
+          generatedAt: new Date(),
+          version: '1.0'
+        },
+        createdAt: new Date()
+      };
+
+      // Generate files based on format
+      report.files = await this.generateReportFiles(report, format);
+
+      // Store report in database
+      await this.storeReport(report);
+
+      console.log(`Report generated successfully: ${report.id}`);
+      return report;
+
+    } catch (error) {
+      console.error('Report generation error:', error);
+      throw new Error('Failed to generate assessment report');
+    }
+  }
+
+  /**
+   * Generate report content based on type
+   */
+  private async generateReportContent(
+    assessment: AssessmentResult,
+    type: ReportType,
+    options: ReportOptions,
+    organization: any
+  ): Promise<ReportContent> {
+    const baseContent: ReportContent = {
+      title: this.getReportTitle(type, organization?.name),
+      executiveSummary: this.generateExecutiveSummary(assessment),
+      sections: []
+    };
+
+    switch (type) {
+      case ReportType.EXECUTIVE_SUMMARY:
+        baseContent.sections = [
+          this.generateRiskOverviewSection(assessment),
+          this.generateKeyFindingsSection(assessment),
+          this.generateRecommendationsSection(assessment)
+        ];
+        break;
+
+      case ReportType.DETAILED:
+        baseContent.sections = [
+          this.generateRiskOverviewSection(assessment),
+          this.generateGapAnalysisSection(assessment),
+          this.generateRiskAssessmentSection(assessment),
+          this.generateRecommendationsSection(assessment),
+          this.generateMetricsSection(assessment)
+        ];
+        if (!options.executiveSummaryOnly) {
+          baseContent.appendices = [
+            this.generateGapDetailsAppendix(assessment.gaps),
+            this.generateRiskDetailsAppendix(assessment.risks)
+          ];
+        }
+        break;
+
+      case ReportType.COMPLIANCE_MATRIX:
+        baseContent.sections = [
+          this.generateComplianceMatrixSection(assessment),
+          this.generateGapSummarySection(assessment)
+        ];
+        break;
+
+      case ReportType.GAP_ANALYSIS:
+        baseContent.sections = [
+          this.generateGapAnalysisSection(assessment),
+          this.generateGapPrioritizationSection(assessment),
+          this.generateRemediationPlanSection(assessment)
+        ];
+        break;
+
+      case ReportType.VENDOR_RECOMMENDATIONS:
+        baseContent.sections = [
+          this.generateVendorRecommendationsSection(assessment),
+          this.generateVendorEvaluationSection(assessment)
+        ];
+        break;
+    }
+
+    return baseContent;
+  }
+
+  /**
+   * Generate executive summary
+   */
+  private generateExecutiveSummary(assessment: AssessmentResult): ExecutiveSummary {
+    const criticalGaps = assessment.gaps.filter(gap => gap.severity === 'CRITICAL');
+    const highRisks = assessment.risks.filter(risk => risk.riskLevel === 'CRITICAL' || risk.riskLevel === 'HIGH');
+    
+    return {
+      overallRiskScore: assessment.riskScore,
+      riskLevel: this.getRiskLevelFromScore(assessment.riskScore),
+      keyFindings: [
+        `${assessment.gaps.length} compliance gaps identified`,
+        `${assessment.risks.length} risks assessed`,
+        `${criticalGaps.length} critical issues requiring immediate attention`,
+        `Compliance maturity level: ${assessment.analysis.maturityLevel}%`
+      ],
+      criticalIssues: [
+        ...criticalGaps.slice(0, 3).map(gap => gap.title),
+        ...highRisks.slice(0, 2).map(risk => risk.title)
+      ],
+      topRecommendations: assessment.recommendations
+        .filter(rec => rec.priority === 'IMMEDIATE' || rec.priority === 'SHORT_TERM')
+        .slice(0, 5)
+        .map(rec => rec.title),
+      complianceStatus: this.getComplianceStatus(assessment.analysis.complianceScore)
+    };
+  }
+
+  /**
+   * Generate risk overview section
+   */
+  private generateRiskOverviewSection(assessment: AssessmentResult): ReportSection {
+    const categoryData = Object.entries(assessment.analysis.categoryScores).map(([category, score]) => ({
+      category: this.formatCategory(category),
+      score,
+      level: this.getRiskLevelFromScore(score)
+    }));
+
+    return {
+      id: 'risk-overview',
+      title: 'Risk Overview',
+      summary: `Overall risk score of ${assessment.riskScore}% with ${assessment.risks.length} risks identified across ${Object.keys(assessment.analysis.categoryScores).length} categories.`,
+      content: {
+        overallScore: assessment.riskScore,
+        riskLevel: assessment.analysis.overallRisk,
+        categoryBreakdown: categoryData,
+        maturityLevel: assessment.analysis.maturityLevel,
+        complianceScore: assessment.analysis.complianceScore
+      },
+      charts: [
+        {
+          type: 'donut',
+          title: 'Risk Score by Category',
+          data: {
+            labels: categoryData.map(d => d.category),
+            datasets: [{
+              data: categoryData.map(d => d.score),
+              backgroundColor: categoryData.map(d => this.getColorForScore(d.score))
+            }]
+          }
+        },
+        {
+          type: 'bar',
+          title: 'Risk Distribution',
+          data: {
+            labels: ['Critical', 'High', 'Medium', 'Low'],
+            datasets: [{
+              label: 'Number of Risks',
+              data: [
+                assessment.risks.filter(r => r.riskLevel === 'CRITICAL').length,
+                assessment.risks.filter(r => r.riskLevel === 'HIGH').length,
+                assessment.risks.filter(r => r.riskLevel === 'MEDIUM').length,
+                assessment.risks.filter(r => r.riskLevel === 'LOW').length
+              ],
+              backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745']
+            }]
+          }
+        }
+      ]
+    };
+  }
+
+  /**
+   * Generate gap analysis section
+   */
+  private generateGapAnalysisSection(assessment: AssessmentResult): ReportSection {
+    const gapsByCategory = this.groupBy(assessment.gaps, 'category');
+    const gapsBySeverity = this.groupBy(assessment.gaps, 'severity');
+
+    return {
+      id: 'gap-analysis',
+      title: 'Compliance Gap Analysis',
+      summary: `${assessment.gaps.length} compliance gaps identified across ${Object.keys(gapsByCategory).length} categories.`,
+      content: {
+        totalGaps: assessment.gaps.length,
+        gapsByCategory: Object.entries(gapsByCategory).map(([category, gaps]) => ({
+          category: this.formatCategory(category),
+          count: gaps.length,
+          criticalCount: gaps.filter(g => g.severity === 'CRITICAL').length,
+          highCount: gaps.filter(g => g.severity === 'HIGH').length
+        })),
+        gapsBySeverity: Object.entries(gapsBySeverity).map(([severity, gaps]) => ({
+          severity,
+          count: gaps.length,
+          percentage: Math.round((gaps.length / assessment.gaps.length) * 100)
+        }))
+      },
+      charts: [
+        {
+          type: 'pie',
+          title: 'Gaps by Severity',
+          data: {
+            labels: Object.keys(gapsBySeverity),
+            datasets: [{
+              data: Object.values(gapsBySeverity).map((gaps: any) => gaps.length),
+              backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745']
+            }]
+          }
+        }
+      ],
+      tables: [
+        {
+          title: 'Gap Summary by Category',
+          headers: ['Category', 'Total Gaps', 'Critical', 'High', 'Medium', 'Low'],
+          rows: Object.entries(gapsByCategory).map(([category, gaps]: [string, any[]]) => [
+            this.formatCategory(category),
+            gaps.length,
+            gaps.filter(g => g.severity === 'CRITICAL').length,
+            gaps.filter(g => g.severity === 'HIGH').length,
+            gaps.filter(g => g.severity === 'MEDIUM').length,
+            gaps.filter(g => g.severity === 'LOW').length
+          ])
+        }
+      ]
+    };
+  }
+
+  /**
+   * Generate risk assessment section
+   */
+  private generateRiskAssessmentSection(assessment: AssessmentResult): ReportSection {
+    const risksByCategory = this.groupBy(assessment.risks, 'category');
+    
+    return {
+      id: 'risk-assessment',
+      title: 'Risk Assessment',
+      summary: `${assessment.risks.length} risks identified and assessed across operational and regulatory categories.`,
+      content: {
+        totalRisks: assessment.risks.length,
+        risksByCategory: Object.entries(risksByCategory).map(([category, risks]) => ({
+          category: this.formatCategory(category),
+          count: risks.length,
+          avgEffectiveness: this.calculateAverage(risks.map((r: any) => r.controlEffectiveness))
+        })),
+        topRisks: assessment.risks
+          .filter(risk => risk.riskLevel === 'CRITICAL' || risk.riskLevel === 'HIGH')
+          .slice(0, 10)
+          .map(risk => ({
+            title: risk.title,
+            category: risk.category,
+            level: risk.riskLevel,
+            likelihood: risk.likelihood,
+            impact: risk.impact
+          }))
+      },
+      tables: [
+        {
+          title: 'Top Risks',
+          headers: ['Risk', 'Category', 'Level', 'Likelihood', 'Impact', 'Control Effectiveness'],
+          rows: assessment.risks
+            .filter(risk => risk.riskLevel === 'CRITICAL' || risk.riskLevel === 'HIGH')
+            .slice(0, 15)
+            .map(risk => [
+              risk.title,
+              this.formatCategory(risk.category),
+              risk.riskLevel,
+              risk.likelihood,
+              risk.impact,
+              `${risk.controlEffectiveness || 0}%`
+            ])
+        }
+      ]
+    };
+  }
+
+  /**
+   * Generate recommendations section
+   */
+  private generateRecommendationsSection(assessment: AssessmentResult): ReportSection {
+    const recsByPriority = this.groupBy(assessment.recommendations, 'priority');
+    const recsByType = this.groupBy(assessment.recommendations, 'type');
+
+    return {
+      id: 'recommendations',
+      title: 'Recommendations',
+      summary: `${assessment.recommendations.length} recommendations provided across different priority levels and implementation timeframes.`,
+      content: {
+        totalRecommendations: assessment.recommendations.length,
+        byPriority: Object.entries(recsByPriority).map(([priority, recs]) => ({
+          priority,
+          count: recs.length,
+          examples: recs.slice(0, 3).map((r: any) => r.title)
+        })),
+        byType: Object.entries(recsByType).map(([type, recs]) => ({
+          type,
+          count: recs.length
+        }))
+      },
+      tables: [
+        {
+          title: 'Priority Recommendations',
+          headers: ['Recommendation', 'Type', 'Priority', 'Expected Benefit', 'Timeline'],
+          rows: assessment.recommendations
+            .filter(rec => rec.priority === 'IMMEDIATE' || rec.priority === 'SHORT_TERM')
+            .slice(0, 15)
+            .map(rec => [
+              rec.title,
+              rec.type,
+              rec.priority,
+              rec.expectedBenefit,
+              rec.implementation.totalDuration || 'TBD'
+            ])
+        }
+      ]
+    };
+  }
+
+  /**
+   * Generate compliance matrix section
+   */
+  private generateComplianceMatrixSection(assessment: AssessmentResult): ReportSection {
+    const complianceAreas = [
+      'Data Privacy', 'Risk Management', 'Governance', 'Documentation',
+      'Training', 'Monitoring', 'Incident Response', 'Third Party Management'
+    ];
+
+    const matrixData = complianceAreas.map(area => {
+      const relatedGaps = assessment.gaps.filter(gap => 
+        gap.category.toLowerCase().includes(area.toLowerCase().replace(' ', '_'))
+      );
+      const score = relatedGaps.length > 0 
+        ? Math.max(0, 100 - (relatedGaps.reduce((sum, gap) => sum + gap.gapSize, 0) / relatedGaps.length))
+        : 75; // Default score if no gaps in area
+
+      return {
+        area,
+        score: Math.round(score),
+        status: this.getComplianceStatus(score),
+        gaps: relatedGaps.length,
+        criticalIssues: relatedGaps.filter(gap => gap.severity === 'CRITICAL').length
+      };
+    });
+
+    return {
+      id: 'compliance-matrix',
+      title: 'Compliance Matrix',
+      summary: 'Compliance status across key regulatory and operational areas.',
+      content: {
+        matrixData,
+        overallCompliance: Math.round(matrixData.reduce((sum, item) => sum + item.score, 0) / matrixData.length)
+      },
+      charts: [
+        {
+          type: 'heatmap',
+          title: 'Compliance Heatmap',
+          data: {
+            labels: matrixData.map(d => d.area),
+            datasets: [{
+              data: matrixData.map(d => d.score),
+              backgroundColor: matrixData.map(d => this.getColorForScore(d.score))
+            }]
+          }
+        }
+      ],
+      tables: [
+        {
+          title: 'Compliance Matrix',
+          headers: ['Area', 'Score', 'Status', 'Gaps', 'Critical Issues'],
+          rows: matrixData.map(item => [
+            item.area,
+            `${item.score}%`,
+            item.status,
+            item.gaps,
+            item.criticalIssues
+          ])
+        }
+      ]
+    };
+  }
+
+  private generateKeyFindingsSection(assessment: AssessmentResult): ReportSection {
+    return {
+      id: 'key-findings',
+      title: 'Key Findings',
+      summary: 'Summary of critical findings and areas requiring attention.',
+      content: {
+        findings: [
+          `Assessment identified ${assessment.gaps.length} compliance gaps`,
+          `${assessment.risks.length} risks assessed across multiple categories`,
+          `Overall risk score: ${assessment.riskScore}%`,
+          `Compliance maturity level: ${assessment.analysis.maturityLevel}%`
+        ],
+        metrics: assessment.metrics
+      }
+    };
+  }
+
+  private generateMetricsSection(assessment: AssessmentResult): ReportSection {
+    return {
+      id: 'metrics',
+      title: 'Assessment Metrics',
+      summary: 'Statistical analysis of the assessment process and results.',
+      content: {
+        processingMetrics: assessment.metrics,
+        qualityIndicators: {
+          responseCompleteness: assessment.metrics.completionRate,
+          responseQuality: assessment.metrics.responseQuality,
+          confidenceLevel: assessment.metrics.confidenceScore
+        }
+      }
+    };
+  }
+
+  private generateGapSummarySection(assessment: AssessmentResult): ReportSection {
+    return {
+      id: 'gap-summary',
+      title: 'Gap Summary',
+      summary: 'Prioritized summary of identified compliance gaps.',
+      content: {
+        priorityGaps: assessment.gaps
+          .filter(gap => gap.severity === 'CRITICAL' || gap.severity === 'HIGH')
+          .slice(0, 10)
+      }
+    };
+  }
+
+  private generateGapPrioritizationSection(assessment: AssessmentResult): ReportSection {
+    return {
+      id: 'gap-prioritization',
+      title: 'Gap Prioritization',
+      summary: 'Prioritized action plan for addressing identified gaps.',
+      content: {
+        immediateAction: assessment.gaps.filter(gap => gap.priority === 'IMMEDIATE'),
+        shortTerm: assessment.gaps.filter(gap => gap.priority === 'SHORT_TERM'),
+        mediumTerm: assessment.gaps.filter(gap => gap.priority === 'MEDIUM_TERM'),
+        longTerm: assessment.gaps.filter(gap => gap.priority === 'LONG_TERM')
+      }
+    };
+  }
+
+  private generateRemediationPlanSection(assessment: AssessmentResult): ReportSection {
+    return {
+      id: 'remediation-plan',
+      title: 'Remediation Plan',
+      summary: 'Structured plan for addressing identified gaps and risks.',
+      content: {
+        phases: this.createRemediationPhases(assessment.gaps, assessment.recommendations)
+      }
+    };
+  }
+
+  private generateVendorRecommendationsSection(assessment: AssessmentResult): ReportSection {
+    const vendorRecs = assessment.recommendations.filter(rec => rec.type === 'vendor');
+    
+    return {
+      id: 'vendor-recommendations',
+      title: 'Vendor Recommendations',
+      summary: `${vendorRecs.length} vendor solutions recommended to address identified gaps.`,
+      content: {
+        recommendations: vendorRecs,
+        categories: [...new Set(assessment.gaps.map(gap => gap.category))]
+      }
+    };
+  }
+
+  private generateVendorEvaluationSection(assessment: AssessmentResult): ReportSection {
+    return {
+      id: 'vendor-evaluation',
+      title: 'Vendor Evaluation Criteria',
+      summary: 'Criteria and considerations for evaluating recommended vendor solutions.',
+      content: {
+        evaluationCriteria: [
+          'Functional fit with identified gaps',
+          'Integration capabilities',
+          'Scalability and performance',
+          'Cost and ROI considerations',
+          'Vendor stability and support'
+        ],
+        selectionProcess: [
+          'Requirements definition',
+          'Vendor research and shortlisting',
+          'Demo and evaluation',
+          'Proof of concept',
+          'Final selection and negotiation'
+        ]
+      }
+    };
+  }
+
+  // Appendix generators
+  private generateGapDetailsAppendix(gaps: ComplianceGap[]): ReportAppendix {
+    return {
+      id: 'gap-details',
+      title: 'Detailed Gap Analysis',
+      content: {
+        gaps: gaps.map(gap => ({
+          ...gap,
+          formattedActions: gap.suggestedActions.map((action, index) => `${index + 1}. ${action}`)
+        }))
+      }
+    };
+  }
+
+  private generateRiskDetailsAppendix(risks: RiskItem[]): ReportAppendix {
+    return {
+      id: 'risk-details',
+      title: 'Detailed Risk Assessment',
+      content: {
+        risks: risks.map(risk => ({
+          ...risk,
+          riskMatrix: this.calculateRiskMatrix(risk.likelihood, risk.impact)
+        }))
+      }
+    };
+  }
+
+  // Helper methods
+  private async getOrganizationDetails(organizationId: string) {
+    return await prisma.organization.findUnique({
+      where: { id: organizationId }
+    });
+  }
+
+  private async generateReportFiles(
+    report: GeneratedReport, 
+    format: ReportFormat
+  ): Promise<any> {
+    const files: any = {};
+
+    switch (format) {
+      case ReportFormat.JSON:
+        files.json = JSON.stringify(report.content, null, 2);
+        break;
+      
+      case ReportFormat.HTML:
+        files.html = this.generateHTMLReport(report);
+        break;
+      
+      case ReportFormat.PDF:
+        files.pdf = await this.generatePDFReport(report);
+        break;
+      
+      case ReportFormat.EXCEL:
+        files.excel = await this.generateExcelReport(report);
+        break;
+    }
+
+    return files;
+  }
+
+  private async storeReport(report: GeneratedReport) {
+    await prisma.report.create({
+      data: {
+        assessmentId: report.metadata.assessmentId,
+        type: report.type,
+        format: report.format,
+        content: report.content as any,
+        summary: report.content.executiveSummary.keyFindings.join('; ')
+      }
+    });
+  }
+
+  private getReportTitle(type: ReportType, orgName?: string): string {
+    const orgPrefix = orgName ? `${orgName} - ` : '';
+    
+    switch (type) {
+      case ReportType.EXECUTIVE_SUMMARY:
+        return `${orgPrefix}Executive Risk Assessment Summary`;
+      case ReportType.DETAILED:
+        return `${orgPrefix}Comprehensive Risk Assessment Report`;
+      case ReportType.COMPLIANCE_MATRIX:
+        return `${orgPrefix}Compliance Status Matrix`;
+      case ReportType.GAP_ANALYSIS:
+        return `${orgPrefix}Compliance Gap Analysis`;
+      case ReportType.VENDOR_RECOMMENDATIONS:
+        return `${orgPrefix}Vendor Solution Recommendations`;
+      default:
+        return `${orgPrefix}Risk Assessment Report`;
+    }
+  }
+
+  private getRiskLevelFromScore(score: number): string {
+    if (score >= 80) return 'Low';
+    if (score >= 60) return 'Medium';
+    if (score >= 40) return 'High';
+    return 'Critical';
+  }
+
+  private getComplianceStatus(score: number): string {
+    if (score >= 85) return 'Compliant';
+    if (score >= 70) return 'Largely Compliant';
+    if (score >= 50) return 'Partially Compliant';
+    return 'Non-Compliant';
+  }
+
+  private formatCategory(category: string): string {
+    return category.replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  private getColorForScore(score: number): string {
+    if (score >= 80) return '#28a745'; // Green
+    if (score >= 60) return '#ffc107'; // Yellow
+    if (score >= 40) return '#fd7e14'; // Orange
+    return '#dc3545'; // Red
+  }
+
+  private groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
+    return array.reduce((groups, item) => {
+      const group = String(item[key]);
+      groups[group] = groups[group] || [];
+      groups[group].push(item);
+      return groups;
+    }, {} as Record<string, T[]>);
+  }
+
+  private calculateAverage(numbers: number[]): number {
+    if (numbers.length === 0) return 0;
+    return Math.round(numbers.reduce((sum, num) => sum + (num || 0), 0) / numbers.length);
+  }
+
+  private createRemediationPhases(gaps: ComplianceGap[], recommendations: Recommendation[]) {
+    const phases = [
+      {
+        name: 'Immediate Actions (0-30 days)',
+        items: [
+          ...gaps.filter(gap => gap.priority === 'IMMEDIATE').slice(0, 5),
+          ...recommendations.filter(rec => rec.priority === 'IMMEDIATE').slice(0, 3)
+        ]
+      },
+      {
+        name: 'Short-term Improvements (1-3 months)',
+        items: [
+          ...gaps.filter(gap => gap.priority === 'SHORT_TERM').slice(0, 8),
+          ...recommendations.filter(rec => rec.priority === 'SHORT_TERM').slice(0, 5)
+        ]
+      },
+      {
+        name: 'Medium-term Initiatives (3-6 months)',
+        items: [
+          ...gaps.filter(gap => gap.priority === 'MEDIUM_TERM').slice(0, 10),
+          ...recommendations.filter(rec => rec.priority === 'MEDIUM_TERM').slice(0, 5)
+        ]
+      },
+      {
+        name: 'Long-term Strategic Projects (6+ months)',
+        items: [
+          ...gaps.filter(gap => gap.priority === 'LONG_TERM').slice(0, 10),
+          ...recommendations.filter(rec => rec.priority === 'LONG_TERM').slice(0, 5)
+        ]
+      }
+    ];
+
+    return phases.filter(phase => phase.items.length > 0);
+  }
+
+  private calculateRiskMatrix(likelihood: string, impact: string): { x: number; y: number; level: string } {
+    const likelihoodMap: Record<string, number> = {
+      'RARE': 1, 'UNLIKELY': 2, 'POSSIBLE': 3, 'LIKELY': 4, 'CERTAIN': 5
+    };
+    const impactMap: Record<string, number> = {
+      'NEGLIGIBLE': 1, 'MINOR': 2, 'MODERATE': 3, 'MAJOR': 4, 'CATASTROPHIC': 5
+    };
+
+    const x = likelihoodMap[likelihood] || 3;
+    const y = impactMap[impact] || 3;
+    const score = x * y;
+
+    let level = 'Medium';
+    if (score >= 15) level = 'Critical';
+    else if (score >= 10) level = 'High';
+    else if (score <= 4) level = 'Low';
+
+    return { x, y, level };
+  }
+
+  // Format generators (simplified implementations)
+  private generateHTMLReport(report: GeneratedReport): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>${report.content.title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .header { border-bottom: 2px solid #333; margin-bottom: 30px; }
+    .section { margin-bottom: 30px; }
+    .executive-summary { background: #f8f9fa; padding: 20px; border-left: 4px solid #007bff; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .risk-high { color: #dc3545; font-weight: bold; }
+    .risk-medium { color: #fd7e14; }
+    .risk-low { color: #28a745; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${report.content.title}</h1>
+    <p>Generated: ${report.metadata.generatedAt.toLocaleDateString()}</p>
+    <p>Organization: ${report.metadata.organizationName}</p>
+  </div>
+
+  <div class="executive-summary">
+    <h2>Executive Summary</h2>
+    <p><strong>Overall Risk Score:</strong> ${report.content.executiveSummary.overallRiskScore}%</p>
+    <p><strong>Risk Level:</strong> ${report.content.executiveSummary.riskLevel}</p>
+    
+    <h3>Key Findings</h3>
+    <ul>
+      ${report.content.executiveSummary.keyFindings.map(finding => `<li>${finding}</li>`).join('')}
+    </ul>
+
+    <h3>Critical Issues</h3>
+    <ul>
+      ${report.content.executiveSummary.criticalIssues.map(issue => `<li class="risk-high">${issue}</li>`).join('')}
+    </ul>
+
+    <h3>Top Recommendations</h3>
+    <ul>
+      ${report.content.executiveSummary.topRecommendations.map(rec => `<li>${rec}</li>`).join('')}
+    </ul>
+  </div>
+
+  ${report.content.sections.map(section => `
+    <div class="section">
+      <h2>${section.title}</h2>
+      <p>${section.summary}</p>
+      
+      ${section.tables ? section.tables.map(table => `
+        <h3>${table.title}</h3>
+        <table>
+          <thead>
+            <tr>${table.headers.map(header => `<th>${header}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${table.rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      `).join('') : ''}
+    </div>
+  `).join('')}
+</body>
+</html>`;
+  }
+
+  private async generatePDFReport(report: GeneratedReport): string {
+    // In a real implementation, this would use a PDF generation library like Puppeteer or PDFKit
+    // For now, return a placeholder
+    return `PDF content would be generated here for report ${report.id}`;
+  }
+
+  private async generateExcelReport(report: GeneratedReport): string {
+    // In a real implementation, this would use a library like ExcelJS
+    // For now, return a placeholder
+    return `Excel content would be generated here for report ${report.id}`;
+  }
+}
+
+// Export the report generator instance
+export const reportGenerator = new AssessmentReportGenerator();

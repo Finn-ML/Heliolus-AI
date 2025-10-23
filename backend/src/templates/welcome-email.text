@@ -1,0 +1,30 @@
+🎉 Welcome to {{companyName}}!
+
+Hello {{name}},
+
+Congratulations! Your {{companyName}} account has been successfully created and verified. You're now part of a community of compliance professionals who trust our platform to streamline their risk assessment and vendor management processes.
+
+What you can do with {{companyName}}:
+✓ Run comprehensive compliance assessments
+✓ Generate detailed risk reports
+✓ Connect with verified compliance vendors
+✓ Track your compliance journey
+✓ Access AI-powered compliance insights
+✓ Manage your organization's risk profile
+
+🚀 Ready to get started?
+
+Access your dashboard and begin your first assessment:
+{{dashboardUrl}}
+
+Need help getting started? Our support team is here to help you make the most of your {{companyName}} experience. Feel free to reach out to us at {{supportEmail}}.
+
+Thank you for choosing {{companyName}}. We're excited to help you streamline your compliance processes!
+
+Best regards,
+The {{companyName}} Team
+
+---
+You're receiving this email because you signed up for {{companyName}} with the email address {{email}}.
+
+© 2024 {{companyName}}. All rights reserved.

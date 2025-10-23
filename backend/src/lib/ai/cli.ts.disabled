@@ -1,0 +1,605 @@
+#!/usr/bin/env node
+/**
+ * AI Library CLI - Command line interface for document parsing and analysis
+ */
+
+import { Command } from 'commander';
+import chalk from 'chalk';
+import { z } from 'zod';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { documentParser } from './parser.js';
+import { documentAnalyzer } from './analyzer.js';
+import { embeddingEngine } from './embeddings.js';
+import { AnalysisType, DocumentFormat } from './types.js';
+
+const program = new Command();
+
+// Validation schemas
+const ParseOptionsSchema = z.object({
+  extractImages: z.boolean().optional(),
+  extractTables: z.boolean().optional(),
+  preserveFormatting: z.boolean().optional(),
+  includeMetadata: z.boolean().optional(),
+  chunkSize: z.number().min(100).optional(),
+  chunkOverlap: z.number().min(0).optional(),
+  language: z.string().optional(),
+  ocrEnabled: z.boolean().optional(),
+  pageRange: z.object({
+    start: z.number().min(1),
+    end: z.number().min(1)
+  }).optional()
+});
+
+const AnalysisOptionsSchema = z.object({
+  model: z.string().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().min(1).optional(),
+  includeConfidence: z.boolean().optional(),
+  responseFormat: z.enum(['text', 'json', 'structured']).optional(),
+  language: z.string().optional()
+});
+
+// CLI Commands
+
+program
+  .name('heliolus-ai')
+  .description('Heliolus Platform AI Document Processing CLI')
+  .version('1.0.0');
+
+// Document parsing commands
+const parseCmd = program.command('parse').description('Document parsing operations');
+
+parseCmd
+  .command('file')
+  .description('Parse a document file')
+  .requiredOption('--input <path>', 'Input file path')
+  .option('--output <path>', 'Output JSON file path')
+  .option('--extract-images', 'Extract images from document')
+  .option('--extract-tables', 'Extract tables from document')
+  .option('--preserve-formatting', 'Preserve document formatting')
+  .option('--include-metadata', 'Include document metadata')
+  .option('--chunk-size <size>', 'Text chunk size for splitting', parseInt)
+  .option('--chunk-overlap <overlap>', 'Overlap between chunks', parseInt)
+  .option('--language <lang>', 'Document language')
+  .option('--ocr', 'Enable OCR for image-based text')
+  .option('--page-start <start>', 'Start page (PDF only)', parseInt)
+  .option('--page-end <end>', 'End page (PDF only)', parseInt)
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Parsing document: ${options.input}`));
+
+      // Validate input file
+      const inputPath = path.resolve(options.input);
+      await fs.access(inputPath);
+
+      // Build parse options
+      const parseOptions: any = {
+        extractImages: options.extractImages,
+        extractTables: options.extractTables,
+        preserveFormatting: options.preserveFormatting,
+        includeMetadata: options.includeMetadata,
+        chunkSize: options.chunkSize,
+        chunkOverlap: options.chunkOverlap,
+        language: options.language,
+        ocrEnabled: options.ocr
+      };
+
+      if (options.pageStart && options.pageEnd) {
+        parseOptions.pageRange = {
+          start: options.pageStart,
+          end: options.pageEnd
+        };
+      }
+
+      const validOptions = ParseOptionsSchema.parse(parseOptions);
+
+      // Parse document
+      const startTime = Date.now();
+      const result = await documentParser.parseFromPath(inputPath, validOptions);
+      const processingTime = Date.now() - startTime;
+
+      console.log(chalk.green('✓ Document parsed successfully'));
+      
+      // Display summary
+      console.table({
+        'Document ID': result.id,
+        'Format': result.content.metadata.format,
+        'Size': `${result.content.metadata.size} bytes`,
+        'Words': result.content.metadata.wordCount || 'N/A',
+        'Characters': result.content.metadata.characterCount || 'N/A',
+        'Pages': result.content.metadata.pages || 'N/A',
+        'Chunks': result.chunks?.length || 'N/A',
+        'Processing Time': `${processingTime}ms`,
+        'Steps': result.processingStats.steps.length
+      });
+
+      // Show processing steps
+      console.log(chalk.cyan('\nProcessing steps:'));
+      result.processingStats.steps.forEach(step => {
+        const status = step.success ? chalk.green('✓') : chalk.red('✗');
+        console.log(`  ${status} ${step.name}: ${step.duration}ms`);
+        if (step.error) {
+          console.log(`    ${chalk.red('Error:')} ${step.error}`);
+        }
+      });
+
+      // Show errors and warnings
+      if (result.errors && result.errors.length > 0) {
+        console.log(chalk.red('\nErrors:'));
+        result.errors.forEach(error => console.log(`  • ${error}`));
+      }
+
+      if (result.warnings && result.warnings.length > 0) {
+        console.log(chalk.yellow('\nWarnings:'));
+        result.warnings.forEach(warning => console.log(`  • ${warning}`));
+      }
+
+      // Save output if specified
+      if (options.output) {
+        const outputPath = path.resolve(options.output);
+        await fs.writeFile(outputPath, JSON.stringify(result, null, 2));
+        console.log(chalk.green(`\n✓ Results saved to: ${outputPath}`));
+      }
+
+      // Show content preview
+      if (result.content.text.length > 0) {
+        console.log(chalk.cyan('\nContent preview (first 200 characters):'));
+        console.log(result.content.text.substring(0, 200) + '...');
+      }
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to parse document:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+parseCmd
+  .command('url')
+  .description('Parse a document from URL')
+  .requiredOption('--url <url>', 'Document URL')
+  .option('--output <path>', 'Output JSON file path')
+  .option('--extract-images', 'Extract images from document')
+  .option('--extract-tables', 'Extract tables from document')
+  .option('--preserve-formatting', 'Preserve document formatting')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Parsing document from URL: ${options.url}`));
+
+      const parseOptions = {
+        extractImages: options.extractImages,
+        extractTables: options.extractTables,
+        preserveFormatting: options.preserveFormatting
+      };
+
+      const result = await documentParser.parseFromUrl(options.url, parseOptions);
+
+      console.log(chalk.green('✓ Document parsed successfully'));
+      console.table({
+        'Document ID': result.id,
+        'Format': result.content.metadata.format,
+        'Size': `${result.content.metadata.size} bytes`,
+        'Processing Time': `${result.processingStats.totalTime}ms`
+      });
+
+      if (options.output) {
+        const outputPath = path.resolve(options.output);
+        await fs.writeFile(outputPath, JSON.stringify(result, null, 2));
+        console.log(chalk.green(`✓ Results saved to: ${outputPath}`));
+      }
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to parse document from URL:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+parseCmd
+  .command('validate')
+  .description('Validate a document without parsing')
+  .requiredOption('--input <path>', 'Input file path')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Validating document: ${options.input}`));
+
+      const inputPath = path.resolve(options.input);
+      const file = await fs.readFile(inputPath);
+      const filename = path.basename(inputPath);
+
+      const validation = await documentParser.validateDocument(file, filename);
+
+      if (validation.valid) {
+        console.log(chalk.green('✓ Document is valid'));
+        console.table({
+          'Format': validation.format,
+          'Size': `${validation.size} bytes`,
+          'Status': 'Valid'
+        });
+      } else {
+        console.log(chalk.red('✗ Document validation failed'));
+        console.table({
+          'Format': validation.format,
+          'Size': `${validation.size} bytes`,
+          'Status': 'Invalid'
+        });
+      }
+
+      if (validation.errors && validation.errors.length > 0) {
+        console.log(chalk.red('\nErrors:'));
+        validation.errors.forEach(error => console.log(`  • ${error}`));
+      }
+
+      if (validation.warnings && validation.warnings.length > 0) {
+        console.log(chalk.yellow('\nWarnings:'));
+        validation.warnings.forEach(warning => console.log(`  • ${warning}`));
+      }
+
+      if (!validation.valid) {
+        process.exit(1);
+      }
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to validate document:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+// Document analysis commands
+const analyzeCmd = program.command('analyze').description('Document analysis operations');
+
+analyzeCmd
+  .command('text')
+  .description('Analyze text content')
+  .requiredOption('--input <path>', 'Input text file or parsed document JSON')
+  .requiredOption('--type <type>', `Analysis type (${Object.values(AnalysisType).join(', ')})`)
+  .option('--output <path>', 'Output JSON file path')
+  .option('--model <model>', 'AI model to use')
+  .option('--temperature <temp>', 'Model temperature (0-2)', parseFloat)
+  .option('--max-tokens <tokens>', 'Maximum tokens', parseInt)
+  .option('--custom-prompt <prompt>', 'Custom analysis prompt')
+  .option('--response-format <format>', 'Response format (text, json, structured)')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Analyzing content with type: ${options.type}`));
+
+      // Read input content
+      const inputPath = path.resolve(options.input);
+      let content: string;
+
+      const inputData = await fs.readFile(inputPath, 'utf-8');
+      
+      try {
+        // Try to parse as JSON (parsed document)
+        const parsedDoc = JSON.parse(inputData);
+        if (parsedDoc.content && parsedDoc.content.text) {
+          content = parsedDoc.content.text;
+          console.log(chalk.cyan('Using text from parsed document'));
+        } else {
+          content = inputData;
+        }
+      } catch {
+        // Treat as plain text
+        content = inputData;
+      }
+
+      // Build analysis options
+      const analysisOptions = AnalysisOptionsSchema.parse({
+        model: options.model,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        responseFormat: options.responseFormat
+      });
+
+      // Perform analysis
+      const analysisRequest = {
+        content,
+        analysisType: options.type as AnalysisType,
+        options: analysisOptions,
+        customPrompt: options.customPrompt
+      };
+
+      const result = await documentAnalyzer.analyze(analysisRequest);
+
+      console.log(chalk.green('✓ Analysis completed'));
+      console.table({
+        'Analysis ID': result.id,
+        'Type': result.analysisType,
+        'Model': result.metadata.model,
+        'Tokens Used': result.metadata.tokensUsed,
+        'Processing Time': `${result.metadata.processingTime}ms`,
+        'Timestamp': result.metadata.timestamp.toISOString()
+      });
+
+      // Show result preview
+      console.log(chalk.cyan('\nAnalysis Result:'));
+      if (typeof result.result === 'string') {
+        console.log(result.result.substring(0, 500) + (result.result.length > 500 ? '...' : ''));
+      } else {
+        console.log(JSON.stringify(result.result, null, 2));
+      }
+
+      // Show errors if any
+      if (result.errors && result.errors.length > 0) {
+        console.log(chalk.red('\nErrors:'));
+        result.errors.forEach(error => console.log(`  • ${error}`));
+      }
+
+      // Save output if specified
+      if (options.output) {
+        const outputPath = path.resolve(options.output);
+        await fs.writeFile(outputPath, JSON.stringify(result, null, 2));
+        console.log(chalk.green(`\n✓ Results saved to: ${outputPath}`));
+      }
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to analyze content:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+analyzeCmd
+  .command('batch')
+  .description('Batch analyze multiple documents')
+  .requiredOption('--input <path>', 'Input directory or file list')
+  .requiredOption('--type <type>', `Analysis type (${Object.values(AnalysisType).join(', ')})`)
+  .option('--output <path>', 'Output directory')
+  .option('--model <model>', 'AI model to use')
+  .option('--parallel <count>', 'Number of parallel analyses', '3')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Starting batch analysis with type: ${options.type}`));
+
+      // Get list of files to analyze
+      const inputPath = path.resolve(options.input);
+      const stats = await fs.stat(inputPath);
+      
+      let filePaths: string[] = [];
+      
+      if (stats.isDirectory()) {
+        // Read all files from directory
+        const files = await fs.readdir(inputPath);
+        filePaths = files
+          .filter(file => file.endsWith('.txt') || file.endsWith('.json'))
+          .map(file => path.join(inputPath, file));
+      } else {
+        // Single file
+        filePaths = [inputPath];
+      }
+
+      console.log(chalk.cyan(`Found ${filePaths.length} files to analyze`));
+
+      // Process files in parallel batches
+      const parallelCount = parseInt(options.parallel);
+      const results: any[] = [];
+
+      for (let i = 0; i < filePaths.length; i += parallelCount) {
+        const batch = filePaths.slice(i, i + parallelCount);
+        console.log(chalk.blue(`Processing batch ${Math.floor(i / parallelCount) + 1}/${Math.ceil(filePaths.length / parallelCount)}`));
+
+        const batchPromises = batch.map(async (filePath) => {
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const analysisRequest = {
+              content,
+              analysisType: options.type as AnalysisType,
+              options: { model: options.model }
+            };
+
+            const result = await documentAnalyzer.analyze(analysisRequest);
+            return { filePath, result, error: null };
+          } catch (error) {
+            return { filePath, result: null, error: getErrorMessage(error) };
+          }
+        });
+
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        batchResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+            
+            if (result.value.error) {
+              console.log(chalk.red(`✗ ${path.basename(result.value.filePath)}: ${result.value.error}`));
+            } else {
+              console.log(chalk.green(`✓ ${path.basename(result.value.filePath)}`));
+            }
+          } else {
+            console.log(chalk.red(`✗ Batch item failed: ${result.reason}`));
+          }
+        });
+      }
+
+      // Summary
+      const successful = results.filter(r => r.result && !r.error).length;
+      const failed = results.filter(r => r.error).length;
+
+      console.log(chalk.cyan('\nBatch Analysis Summary:'));
+      console.table({
+        'Total Files': filePaths.length,
+        'Successful': successful,
+        'Failed': failed,
+        'Success Rate': `${Math.round(successful / filePaths.length * 100)}%`
+      });
+
+      // Save results if output directory specified
+      if (options.output) {
+        const outputDir = path.resolve(options.output);
+        await fs.mkdir(outputDir, { recursive: true });
+
+        for (const result of results) {
+          if (result.result) {
+            const outputFile = path.join(outputDir, 
+              path.basename(result.filePath, path.extname(result.filePath)) + '_analysis.json'
+            );
+            await fs.writeFile(outputFile, JSON.stringify(result.result, null, 2));
+          }
+        }
+
+        console.log(chalk.green(`\n✓ Results saved to: ${outputDir}`));
+      }
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to perform batch analysis:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+// Embedding commands
+const embeddingCmd = program.command('embedding').description('Document embedding operations');
+
+embeddingCmd
+  .command('generate')
+  .description('Generate embeddings for text')
+  .requiredOption('--input <path>', 'Input text file')
+  .option('--output <path>', 'Output JSON file path')
+  .option('--model <model>', 'Embedding model to use')
+  .option('--dimensions <dims>', 'Embedding dimensions', parseInt)
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Generating embeddings for: ${options.input}`));
+
+      const inputPath = path.resolve(options.input);
+      const content = await fs.readFile(inputPath, 'utf-8');
+
+      const result = await embeddingEngine.generateEmbedding({
+        text: content,
+        model: options.model,
+        dimensions: options.dimensions
+      });
+
+      console.log(chalk.green('✓ Embeddings generated'));
+      console.table({
+        'Model': result.model,
+        'Dimensions': result.dimensions,
+        'Tokens Used': result.tokensUsed,
+        'Processing Time': `${result.processingTime}ms`,
+        'Vector Length': result.embeddings[0].length
+      });
+
+      if (options.output) {
+        const outputPath = path.resolve(options.output);
+        await fs.writeFile(outputPath, JSON.stringify(result, null, 2));
+        console.log(chalk.green(`✓ Results saved to: ${outputPath}`));
+      }
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to generate embeddings:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+embeddingCmd
+  .command('search')
+  .description('Search similar documents')
+  .requiredOption('--query <text>', 'Search query')
+  .option('--limit <count>', 'Maximum results', '10')
+  .option('--threshold <score>', 'Minimum similarity threshold', '0.7')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue(`Searching for: "${options.query}"`));
+
+      const result = await embeddingEngine.findSimilar({
+        query: options.query,
+        limit: parseInt(options.limit),
+        threshold: parseFloat(options.threshold)
+      });
+
+      console.log(chalk.green(`✓ Found ${result.matches.length} similar documents`));
+
+      if (result.matches.length > 0) {
+        console.log(chalk.cyan('\nSearch Results:'));
+        result.matches.forEach((match, index) => {
+          console.log(`\n${index + 1}. Similarity: ${(match.similarity * 100).toFixed(1)}%`);
+          console.log(`   Content: ${match.content.substring(0, 100)}...`);
+          if (match.metadata) {
+            console.log(`   Metadata: ${JSON.stringify(match.metadata)}`);
+          }
+        });
+      }
+
+      console.log(chalk.cyan(`\nProcessing time: ${result.processingTime}ms`));
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to search documents:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+embeddingCmd
+  .command('stats')
+  .description('Show embedding statistics')
+  .action(async () => {
+    try {
+      console.log(chalk.blue('Getting embedding statistics...'));
+
+      const stats = await embeddingEngine.getEmbeddingStats();
+
+      console.log(chalk.green('✓ Statistics retrieved'));
+      console.table({
+        'Total Documents': stats.totalDocuments,
+        'Average Dimensions': stats.totalDimensions,
+        'Models Used': stats.models.join(', ') || 'None'
+      });
+
+    } catch (error) {
+      console.error(chalk.red('✗ Failed to get statistics:'), getErrorMessage(error));
+      process.exit(1);
+    }
+  });
+
+// Utility commands
+const utilCmd = program.command('util').description('Utility operations');
+
+utilCmd
+  .command('formats')
+  .description('Show supported document formats')
+  .action(() => {
+    const formats = documentParser.getSupportedFormats();
+    
+    console.log(chalk.cyan('Supported Document Formats:'));
+    formats.forEach(format => {
+      console.log(`  • ${format.toUpperCase()}`);
+    });
+  });
+
+utilCmd
+  .command('models')
+  .description('Show available AI models')
+  .action(() => {
+    console.log(chalk.cyan('Available AI Models:'));
+    console.log(`  • OpenAI GPT-4 (default)`);
+    console.log(`  • OpenAI GPT-3.5-turbo`);
+    console.log(`  • text-embedding-3-small (embeddings)`);
+    console.log(`  • text-embedding-3-large (embeddings)`);
+    
+    console.log(chalk.yellow('\nNote: Model availability depends on your OpenAI API access'));
+  });
+
+// Utility functions
+function parseJSON(value: string): any {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`Invalid JSON: ${value}`);
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Error handling
+program.configureOutput({
+  writeErr: (str) => process.stderr.write(chalk.red(str))
+});
+
+// Parse command line arguments
+if (import.meta.url === `file://${process.argv[1]}`) {
+  program.parse();
+}
+
+export { program as aiCli };

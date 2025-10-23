@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        input[type="file"] {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            width: 100%;
+            background: #fafafa;
+        }
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e7f5e7;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .error {
+            background: #f5e7e7;
+            color: #d00;
+        }
+        .success {
+            color: #0a0;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Document Upload Feature Test</h1>
+
+    <div class="test-section">
+        <h2>Test 1: CSV File Selection</h2>
+        <p>This input should allow CSV files to be selected:</p>
+        <input type="file" id="csvTest" accept=".csv" />
+        <div id="csvResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Multiple Document Types</h2>
+        <p>This input should allow PDF, DOCX, XLSX, CSV files:</p>
+        <input type="file" id="multiType" accept=".pdf,.docx,.xlsx,.csv" />
+        <div id="multiTypeResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Multiple File Upload</h2>
+        <p>This input should allow selecting multiple files at once:</p>
+        <input type="file" id="multiFile" accept=".pdf,.docx,.xlsx,.csv" multiple />
+        <div id="multiFileResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: All Supported MIME Types</h2>
+        <p>This input uses MIME types and extensions (comprehensive):</p>
+        <input type="file" id="mimeTest"
+               accept=".pdf,.docx,.xlsx,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/csv"
+               multiple />
+        <div id="mimeResult"></div>
+    </div>
+
+    <script>
+        function handleFileSelect(inputId, resultId) {
+            const input = document.getElementById(inputId);
+            const result = document.getElementById(resultId);
+
+            input.addEventListener('change', function(e) {
+                const files = Array.from(e.target.files);
+
+                if (files.length === 0) {
+                    result.innerHTML = '<div class="file-info error">No files selected</div>';
+                    return;
+                }
+
+                let html = '<div class="file-info">';
+                html += `<strong class="success">✓ Successfully selected ${files.length} file(s)</strong>`;
+                html += '<ul>';
+
+                files.forEach((file, index) => {
+                    // Check MIME type
+                    let mimeType = file.type || 'not detected';
+                    let fileExt = file.name.split('.').pop().toLowerCase();
+
+                    // Fix CSV MIME type if needed
+                    if (fileExt === 'csv' && (!file.type || file.type === 'application/octet-stream')) {
+                        mimeType = 'text/csv (corrected)';
+                    }
+
+                    html += `<li>
+                        <strong>File ${index + 1}:</strong> ${file.name}<br>
+                        Size: ${(file.size / 1024).toFixed(2)} KB<br>
+                        Type: ${mimeType}<br>
+                        Extension: .${fileExt}
+                    </li>`;
+                });
+
+                html += '</ul></div>';
+                result.innerHTML = html;
+            });
+        }
+
+        // Setup handlers for all test inputs
+        handleFileSelect('csvTest', 'csvResult');
+        handleFileSelect('multiType', 'multiTypeResult');
+        handleFileSelect('multiFile', 'multiFileResult');
+        handleFileSelect('mimeTest', 'mimeResult');
+    </script>
+</body>
+</html>

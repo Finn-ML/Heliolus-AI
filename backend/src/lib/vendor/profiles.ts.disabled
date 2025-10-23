@@ -1,0 +1,186 @@
+/**
+ * Vendor profile management
+ */
+
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import { VendorProfile, SolutionProfile, VendorNotFoundError } from './types.js';
+
+const prisma = new PrismaClient();
+
+/**
+ * Vendor profile management and operations
+ */
+export class VendorProfileManager {
+  /**
+   * Get vendor profile by ID
+   */
+  async getVendorProfile(vendorId: string): Promise<VendorProfile | null> {
+    try {
+      const vendor = await prisma.vendor.findUnique({
+        where: { id: vendorId },
+        include: {
+          solutions: {
+            where: { isActive: true }
+          }
+        }
+      });
+
+      if (!vendor) {
+        return null;
+      }
+
+      return this.mapPrismaVendorToProfile(vendor);
+    } catch (error) {
+      console.error('Error fetching vendor profile:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update vendor profile
+   */
+  async updateVendorProfile(
+    vendorId: string,
+    updates: Partial<VendorProfile>
+  ): Promise<VendorProfile> {
+    const vendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: {
+        companyName: updates.companyName,
+        website: updates.website,
+        description: updates.description,
+        shortDescription: updates.shortDescription,
+        contactEmail: updates.contactEmail,
+        contactPhone: updates.contactPhone,
+        contactName: updates.contactName,
+        categories: updates.categories
+      },
+      include: {
+        solutions: {
+          where: { isActive: true }
+        }
+      }
+    });
+
+    return this.mapPrismaVendorToProfile(vendor);
+  }
+
+  /**
+   * Get vendor solutions
+   */
+  async getVendorSolutions(vendorId: string): Promise<SolutionProfile[]> {
+    const solutions = await prisma.solution.findMany({
+      where: {
+        vendorId,
+        isActive: true
+      }
+    });
+
+    return solutions.map(solution => ({
+      id: solution.id,
+      vendorId: solution.vendorId,
+      name: solution.name,
+      description: solution.description,
+      category: solution.category,
+      features: solution.features,
+      benefits: solution.benefits,
+      useCases: solution.useCases,
+      gapCategories: solution.gapCategories,
+      industries: solution.industries,
+      companySizes: solution.companySizes,
+      pricingModel: solution.pricingModel,
+      startingPrice: solution.startingPrice,
+      currency: solution.currency,
+      pricingDetails: solution.pricingDetails,
+      demoUrl: solution.demoUrl,
+      brochureUrl: solution.brochureUrl,
+      caseStudyUrls: solution.caseStudyUrls,
+      metrics: {
+        views: 0,
+        interests: 0,
+        demonstrations: 0,
+        implementations: 0,
+        successRate: 85,
+        averageImplementationTime: 30,
+        customerSatisfaction: 80,
+        renewalRate: 90
+      },
+      isActive: solution.isActive,
+      createdAt: solution.createdAt,
+      updatedAt: solution.updatedAt
+    }));
+  }
+
+  private mapPrismaVendorToProfile(vendor: any): VendorProfile {
+    return {
+      id: vendor.id,
+      userId: vendor.userId,
+      companyName: vendor.companyName,
+      website: vendor.website,
+      logo: vendor.logo,
+      description: vendor.description,
+      shortDescription: vendor.shortDescription,
+      categories: vendor.categories,
+      contactEmail: vendor.contactEmail,
+      contactPhone: vendor.contactPhone,
+      contactName: vendor.contactName,
+      salesEmail: vendor.salesEmail,
+      featured: vendor.featured,
+      verified: vendor.verified,
+      rating: vendor.rating,
+      reviewCount: vendor.reviewCount,
+      status: vendor.status,
+      solutions: (vendor.solutions || []).map((solution: any) => ({
+        id: solution.id,
+        vendorId: solution.vendorId,
+        name: solution.name,
+        description: solution.description,
+        category: solution.category,
+        features: solution.features || [],
+        benefits: solution.benefits || [],
+        useCases: solution.useCases || [],
+        gapCategories: solution.gapCategories || [],
+        industries: solution.industries || [],
+        companySizes: solution.companySizes || [],
+        pricingModel: solution.pricingModel,
+        startingPrice: solution.startingPrice,
+        currency: solution.currency || 'EUR',
+        pricingDetails: solution.pricingDetails,
+        demoUrl: solution.demoUrl,
+        brochureUrl: solution.brochureUrl,
+        caseStudyUrls: solution.caseStudyUrls || [],
+        metrics: {
+          views: 0,
+          interests: 0,
+          demonstrations: 0,
+          implementations: 0,
+          successRate: 85,
+          averageImplementationTime: 30,
+          customerSatisfaction: 80,
+          renewalRate: 90
+        },
+        isActive: solution.isActive,
+        createdAt: solution.createdAt,
+        updatedAt: solution.updatedAt
+      })),
+      metrics: {
+        profileViews: 0,
+        contactRequests: 0,
+        demoRequests: 0,
+        leads: 0,
+        conversions: 0,
+        averageRating: vendor.rating || 0,
+        ratingCount: vendor.reviewCount,
+        responseTime: 24,
+        responseRate: 85,
+        lastActivityAt: new Date()
+      },
+      approvedAt: vendor.approvedAt,
+      createdAt: vendor.createdAt,
+      updatedAt: vendor.updatedAt
+    };
+  }
+}
+
+export const vendorProfileManager = new VendorProfileManager();

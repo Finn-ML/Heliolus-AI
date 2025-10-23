@@ -1,0 +1,68 @@
+# Testing Docker Compose configuration
+# Use this file for running integration tests
+
+version: '3.8'
+
+services:
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: heliolus-postgres-test
+    environment:
+      POSTGRES_DB: heliumdb_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword
+    ports:
+      - '5433:5432'
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - heliolus-test-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    # Use tmpfs for faster test execution
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  redis-test:
+    image: redis:7-alpine
+    container_name: heliolus-redis-test
+    ports:
+      - '6380:6379'
+    networks:
+      - heliolus-test-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    # Use tmpfs for faster test execution
+    tmpfs:
+      - /data
+
+  localstack-test:
+    image: localstack/localstack:latest
+    container_name: heliolus-localstack-test
+    environment:
+      SERVICES: s3
+      DEBUG: 0
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - '4567:4566'
+    networks:
+      - heliolus-test-network
+    volumes:
+      - ./docker/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh
+
+networks:
+  heliolus-test-network:
+    driver: bridge
+# Testing considerations:
+# 1. Use separate database for tests
+# 2. Use tmpfs for faster I/O operations
+# 3. Minimal resource allocation
+# 4. Quick startup and teardown

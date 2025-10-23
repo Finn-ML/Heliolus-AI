@@ -1,0 +1,538 @@
+/**
+ * Vendor library types and interfaces
+ */
+
+import {
+  VendorCategory,
+  VendorStatus,
+  PricingModel,
+  CompanySize,
+  CostRange,
+  Priority,
+  Severity
+} from '../../types/database.js';
+
+// Core vendor interfaces
+export interface VendorMatchEngine {
+  findMatches(request: MatchingRequest): Promise<MatchingResult>;
+  scoreCompatibility(vendor: VendorProfile, criteria: MatchingCriteria): Promise<CompatibilityScore>;
+  generateRecommendations(gaps: GapProfile[], context: MatchingContext): Promise<VendorRecommendation[]>;
+}
+
+export interface VendorSearchEngine {
+  search(criteria: SearchCriteria): Promise<SearchResult>;
+  findSimilar(vendorId: string, limit?: number): Promise<VendorProfile[]>;
+  getPopular(category?: VendorCategory, limit?: number): Promise<VendorProfile[]>;
+  getFeatured(limit?: number): Promise<VendorProfile[]>;
+}
+
+// Vendor and solution profiles
+export interface VendorProfile {
+  id: string;
+  userId: string;
+  companyName: string;
+  website: string;
+  logo?: string;
+  description: string;
+  shortDescription: string;
+  categories: VendorCategory[];
+  contactEmail: string;
+  contactPhone?: string;
+  contactName?: string;
+  salesEmail?: string;
+  
+  // Marketplace data
+  featured: boolean;
+  verified: boolean;
+  rating?: number;
+  reviewCount: number;
+  status: VendorStatus;
+  
+  // Business info
+  foundedYear?: number;
+  employeeCount?: string;
+  headquarters?: string;
+  regions?: string[];
+  
+  // Solutions
+  solutions: SolutionProfile[];
+  
+  // Performance metrics
+  metrics: VendorMetrics;
+  
+  // Timestamps
+  approvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SolutionProfile {
+  id: string;
+  vendorId: string;
+  name: string;
+  description: string;
+  category: VendorCategory;
+  
+  // Details
+  features: string[];
+  benefits: string[];
+  useCases: string[];
+  
+  // Compatibility
+  gapCategories: string[];
+  industries: string[];
+  companySizes: CompanySize[];
+  regulatoryFrameworks?: string[];
+  
+  // Pricing
+  pricingModel: PricingModel;
+  startingPrice?: number;
+  currency: string;
+  pricingDetails?: string;
+  contractTerms?: string[];
+  
+  // Implementation
+  implementationTime?: string;
+  setupComplexity?: 'Simple' | 'Moderate' | 'Complex';
+  technicalRequirements?: string[];
+  integrationOptions?: string[];
+  
+  // Resources
+  demoUrl?: string;
+  brochureUrl?: string;
+  caseStudyUrls: string[];
+  documentationUrl?: string;
+  supportUrl?: string;
+  
+  // Performance
+  metrics: SolutionMetrics;
+  
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Matching system types
+export interface MatchingRequest {
+  gaps: GapProfile[];
+  context: MatchingContext;
+  filters?: MatchingFilters;
+  options?: MatchingOptions;
+}
+
+export interface GapProfile {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  severity: Severity;
+  priority: Priority;
+  businessImpact: string;
+  requiredCapabilities: string[];
+  preferredSolution?: string;
+  budget?: CostRange;
+  timeline?: string;
+}
+
+export interface MatchingContext {
+  organizationId: string;
+  industry?: string;
+  companySize?: CompanySize;
+  region?: string;
+  budget?: CostRange;
+  timeline?: Priority;
+  existingVendors?: string[];
+  preferredCategories?: VendorCategory[];
+  requiredFeatures?: string[];
+  excludedVendors?: string[];
+}
+
+export interface MatchingFilters {
+  categories?: VendorCategory[];
+  pricingModels?: PricingModel[];
+  companySizes?: CompanySize[];
+  regions?: string[];
+  industries?: string[];
+  minRating?: number;
+  verifiedOnly?: boolean;
+  featuredOnly?: boolean;
+  maxStartingPrice?: number;
+}
+
+export interface MatchingOptions {
+  maxResults?: number;
+  includePartialMatches?: boolean;
+  boostFeatured?: boolean;
+  includeNewVendors?: boolean;
+  prioritizeQuickWins?: boolean;
+}
+
+export interface MatchingResult {
+  request: MatchingRequest;
+  matches: VendorMatch[];
+  summary: MatchingSummary;
+  alternatives: VendorMatch[];
+  metadata: MatchingMetadata;
+}
+
+export interface VendorMatch {
+  vendor: VendorProfile;
+  solution?: SolutionProfile;
+  compatibilityScore: CompatibilityScore;
+  matchReasons: string[];
+  addressedGaps: string[];
+  implementationPlan?: ImplementationPlan;
+  businessCase?: BusinessCase;
+  nextSteps: string[];
+}
+
+export interface CompatibilityScore {
+  overall: number; // 0-100
+  breakdown: {
+    functionalFit: number;
+    industryExperience: number;
+    companySize: number;
+    pricing: number;
+    reputation: number;
+  };
+  confidence: number; // 0-100
+  reasoning: string[];
+}
+
+// Search and discovery types
+export interface SearchCriteria {
+  query?: string;
+  categories?: VendorCategory[];
+  industries?: string[];
+  companySizes?: CompanySize[];
+  pricingModels?: PricingModel[];
+  features?: string[];
+  regions?: string[];
+  budget?: {
+    min?: number;
+    max?: number;
+    currency?: string;
+  };
+  filters?: MarketplaceFilters;
+  sorting?: SearchSorting;
+  pagination?: {
+    page: number;
+    limit: number;
+  };
+}
+
+export interface MarketplaceFilters {
+  verifiedOnly?: boolean;
+  featuredOnly?: boolean;
+  minRating?: number;
+  minReviews?: number;
+  hasDemo?: boolean;
+  hasCaseStudies?: boolean;
+  freeTrialAvailable?: boolean;
+  quickSetup?: boolean;
+}
+
+export interface SearchSorting {
+  field: 'relevance' | 'rating' | 'reviews' | 'price' | 'name' | 'newest';
+  direction: 'asc' | 'desc';
+}
+
+export interface SearchResult {
+  vendors: VendorProfile[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  facets: SearchFacets;
+  suggestions?: string[];
+}
+
+export interface SearchFacets {
+  categories: FacetCount[];
+  industries: FacetCount[];
+  pricingModels: FacetCount[];
+  regions: FacetCount[];
+  ratings: RatingFacet[];
+}
+
+export interface FacetCount {
+  value: string;
+  count: number;
+}
+
+export interface RatingFacet {
+  rating: number;
+  count: number;
+}
+
+// Recommendation system types
+export interface VendorRecommendation {
+  id: string;
+  type: 'primary' | 'alternative' | 'complementary';
+  vendor: VendorProfile;
+  solution?: SolutionProfile;
+  reason: string;
+  benefits: string[];
+  addressedGaps: GapProfile[];
+  score: number;
+  confidence: number;
+  implementation: {
+    effort: 'Low' | 'Medium' | 'High';
+    timeline: string;
+    complexity: string;
+  };
+  businessCase: {
+    roi: string;
+    paybackPeriod: string;
+    totalCost: CostRange;
+    benefits: string[];
+  };
+  nextSteps: string[];
+  metadata: {
+    matchedAt: Date;
+    algorithm: string;
+    version: string;
+  };
+}
+
+// Metrics and analytics
+export interface VendorMetrics {
+  profileViews: number;
+  contactRequests: number;
+  demoRequests: number;
+  leads: number;
+  conversions: number;
+  averageRating: number;
+  ratingCount: number;
+  responseTime: number; // hours
+  responseRate: number; // percentage
+  marketplaceRank?: number;
+  lastActivityAt: Date;
+}
+
+export interface SolutionMetrics {
+  views: number;
+  interests: number;
+  demonstrations: number;
+  implementations: number;
+  successRate: number; // percentage
+  averageImplementationTime: number; // days
+  customerSatisfaction: number; // 0-100
+  renewalRate: number; // percentage
+}
+
+// Business and implementation types
+export interface ImplementationPlan {
+  phases: ImplementationPhase[];
+  totalDuration: string;
+  totalEffort: string;
+  resources: ResourceRequirement[];
+  dependencies: string[];
+  risks: string[];
+  milestones: Milestone[];
+}
+
+export interface ImplementationPhase {
+  name: string;
+  description: string;
+  duration: string;
+  activities: string[];
+  deliverables: string[];
+  resources: string[];
+  dependencies?: string[];
+}
+
+export interface ResourceRequirement {
+  type: 'internal' | 'vendor' | 'external' | 'technology';
+  role: string;
+  effort: string;
+  duration: string;
+  cost?: CostRange;
+}
+
+export interface Milestone {
+  name: string;
+  description: string;
+  timeline: string;
+  criteria: string[];
+}
+
+export interface BusinessCase {
+  investment: {
+    initial: CostRange;
+    ongoing: CostRange;
+    total: CostRange;
+  };
+  benefits: {
+    quantified: QuantifiedBenefit[];
+    qualitative: string[];
+  };
+  roi: {
+    percentage: number;
+    paybackPeriod: string;
+    netPresentValue?: number;
+  };
+  risks: BusinessRisk[];
+  assumptions: string[];
+}
+
+export interface QuantifiedBenefit {
+  category: string;
+  description: string;
+  annualValue: number;
+  currency: string;
+  confidence: 'Low' | 'Medium' | 'High';
+}
+
+export interface BusinessRisk {
+  category: string;
+  description: string;
+  likelihood: 'Low' | 'Medium' | 'High';
+  impact: 'Low' | 'Medium' | 'High';
+  mitigation: string;
+}
+
+// Comparison and evaluation types
+export interface VendorComparison {
+  vendors: VendorProfile[];
+  criteria: ComparisonCriteria[];
+  matrix: ComparisonMatrix;
+  summary: ComparisonSummary;
+  recommendation: string;
+}
+
+export interface ComparisonCriteria {
+  id: string;
+  name: string;
+  weight: number;
+  type: 'score' | 'rating' | 'boolean' | 'text' | 'cost';
+  description: string;
+}
+
+export interface ComparisonMatrix {
+  vendors: string[]; // vendor IDs
+  criteria: string[]; // criteria IDs
+  scores: number[][]; // [vendorIndex][criteriaIndex]
+  totals: number[]; // weighted totals per vendor
+}
+
+export interface ComparisonSummary {
+  winner: string; // vendor ID
+  strengths: Record<string, string[]>; // vendorId -> strengths
+  weaknesses: Record<string, string[]>; // vendorId -> weaknesses
+  bestFor: Record<string, string>; // vendorId -> best use case
+}
+
+// Matching and scoring metadata
+export interface MatchingMetadata {
+  requestId: string;
+  processedAt: Date;
+  processingTime: number; // ms
+  algorithm: string;
+  version: string;
+  totalVendorsEvaluated: number;
+  filtersApplied: string[];
+  confidenceLevel: number;
+}
+
+export interface MatchingSummary {
+  totalMatches: number;
+  perfectMatches: number;
+  goodMatches: number;
+  partialMatches: number;
+  coverageByGap: Record<string, number>; // gapId -> number of solutions
+  averageScore: number;
+  topCategories: string[];
+}
+
+// Configuration types
+export interface MatchingConfig {
+  minCompatibilityScore: number;
+  maxRecommendations: number;
+  weightsProfile: {
+    functionalFit: number;
+    industryExperience: number;
+    companySize: number;
+    pricing: number;
+    reputation: number;
+  };
+  boostFactors: {
+    verified: number;
+    featured: number;
+    highRating: number;
+  };
+}
+
+export interface SearchConfig {
+  resultsPerPage: number;
+  maxSearchResults: number;
+  fuzzySearchThreshold: number;
+  cacheTimeMinutes: number;
+}
+
+export interface ScoringConfig {
+  weights: {
+    gapAlignment: number;
+    solutionMaturity: number;
+    vendorReputation: number;
+    costBenefit: number;
+    implementation: number;
+  };
+  penalties: {
+    noIndustryExperience: number;
+    wrongCompanySize: number;
+    noReferences: number;
+  };
+  bonuses: {
+    perfectMatch: number;
+    multiGapSolution: number;
+    quickImplementation: number;
+  };
+}
+
+// Error types
+export class VendorError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 400
+  ) {
+    super(message);
+    this.name = 'VendorError';
+  }
+}
+
+export class MatchingError extends VendorError {
+  constructor(message: string) {
+    super(message, 'MATCHING_ERROR', 500);
+    this.name = 'MatchingError';
+  }
+}
+
+export class SearchError extends VendorError {
+  constructor(message: string) {
+    super(message, 'SEARCH_ERROR', 500);
+    this.name = 'SearchError';
+  }
+}
+
+export class VendorNotFoundError extends VendorError {
+  constructor(vendorId: string) {
+    super(`Vendor not found: ${vendorId}`, 'VENDOR_NOT_FOUND', 404);
+    this.name = 'VendorNotFoundError';
+  }
+}
+
+export class InsufficientDataError extends VendorError {
+  constructor(message: string) {
+    super(message, 'INSUFFICIENT_DATA', 400);
+    this.name = 'InsufficientDataError';
+  }
+}
+
+export class InvalidCriteriaError extends VendorError {
+  constructor(message: string) {
+    super(message, 'INVALID_CRITERIA', 400);
+    this.name = 'InvalidCriteriaError';
+  }
+}

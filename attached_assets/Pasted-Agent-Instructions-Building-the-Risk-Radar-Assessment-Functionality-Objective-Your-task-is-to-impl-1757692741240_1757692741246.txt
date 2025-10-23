@@ -1,0 +1,207 @@
+Agent Instructions: Building the Risk Radar Assessment Functionality
+Objective: Your task is to implement the core assessment functionality for the Risk Radar platform. This involves setting up the data architecture for assessment templates, implementing the AI-driven analysis flow, and generating the final risk output.
+
+Follow these steps precisely.
+
+Step 1: Implement the Data Architecture for Assessments
+First, you must define the database models (or schemas) that form the foundation of the modular template architecture. The platform's ability to support multiple, expandable templates depends on this structure.
+
+
+
+
+Create the following related entities with their specified fields:
+
+
+Template: This is the top-level container for an assessment type.
+
+
+id 
+
+
+
+name (e.g., "Financial Crime Compliance") 
+
+
+
+version 
+
+
+
+category (e.g., "Financial Crime") 
+
+
+
+description 
+
+
+
+Section: Each template is composed of one or more sections.
+
+
+id 
+
+
+
+template_id (links to the Template entity) 
+
+
+
+title (e.g., "Sanctions Compliance") 
+
+
+
+
+order 
+
+
+
+description 
+
+
+
+Question: Each section contains multiple questions that guide the AI analysis.
+
+
+id 
+
+
+
+section_id (links to the Section entity) 
+
+
+
+text (e.g., "Does the company screen customers against OFAC lists?") 
+
+
+
+
+category_tag 
+
+
+
+weight 
+
+
+
+ai_prompt_hint (metadata to help generate the AI prompt) 
+
+
+
+scoring_rules (the logic for how to score the AI's findings) 
+
+
+
+Assessment: An instance of a user running a template.
+
+
+id 
+
+
+template_id (the template being used) 
+
+
+organization_id (the organisation being assessed) 
+
+
+created_at 
+
+
+status 
+
+
+Answer: Stores the outcome for a single question within an assessment.
+
+
+id 
+
+
+assessment_id 
+
+
+question_id 
+
+
+
+score 
+
+
+
+explanation 
+
+
+
+source_reference (e.g., the document name where the answer was found) 
+
+
+
+status (e.g., "complete" or "incomplete") 
+
+Step 2: Implement the AI Interaction Flow
+This is the core logic engine that performs the assessment. For a given assessment instance, the system must iterate through every 
+
+Question entity associated with the chosen Template. For each individual question, execute the following four-step process:
+
+
+
+Generate an AI Prompt.
+
+Combine the 
+
+ai_prompt_hint field with the full text from the Question entity to create a specific prompt for the AI.
+
+
+Perform Document Matching.
+
+The AI must use this prompt to search across all data sources provided by the user.
+
+The search scope includes the content of the organisation's website and any uploaded documents (PDF, DOCX, XLSX, HTML).
+
+
+
+The AI must attempt to locate relevant evidence to answer the question.
+
+
+Score the Finding.
+
+If data is found, the AI evaluates its clarity and completeness.
+
+Using the 
+
+scoring_rules defined in the Question entity, assign a score (e.g., 0-5).
+
+If no data is found for a question, it must be flagged as incomplete.
+
+
+Store the Answer Record.
+
+Create a new record in the 
+
+Answer table for each question.
+
+Populate it with the 
+
+assessment_id, question_id, the calculated score, an explanation from the AI, and the source_document if applicable.
+
+Step 3: Develop the Assessment Execution and Output Generation
+Finally, orchestrate the end-to-end process and generate the user-facing output.
+
+
+Initiate the Assessment: The flow begins when a user selects an assessment template to run (e.g., "Financial Crime Compliance"). This creates an 
+
+Assessment record.
+
+Execute the AI Logic: Trigger the AI interaction flow from Step 2, which will populate the Answer table with results for every question in the template.
+
+
+Implement the Scoring Engine: After all questions are processed, aggregate the scores from the Answer records to build a complete picture of the organisation's compliance gaps.
+
+Generate the Output:
+
+Produce a summary report that categorises risk areas into "Critical," "Medium," and "Low".
+
+
+Generate a "strategy matrix" that recommends focus areas. For the MVP, this does not require full budget logic.
+
+
+
+The final report should be available for download in PDF format for premium users.

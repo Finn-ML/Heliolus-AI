@@ -1,0 +1,68 @@
+{
+  "name": "heliolus-platform",
+  "version": "0.0.0",
+  "description": "Heliolus Platform - Full Stack Application",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:frontend": "cd frontend && npm run start",
+    "start:backend": "cd backend && npm run start",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:backend": "cd backend && npm run lint",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,yml,yaml}\"",
+    "lint:fix": "npm run lint:frontend -- --fix && npm run lint:backend -- --fix",
+    "clean": "rm -rf frontend/node_modules backend/node_modules node_modules frontend/dist backend/dist",
+    "setup": "cd frontend && npm install && cd ../backend && npm install",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "prettier": "^3.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^8.3.1",
+    "@google-cloud/storage": "^7.17.1",
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.3",
+    "@types/papaparse": "^5.3.16",
+    "@vitejs/plugin-react": "^4.7.0",
+    "bcrypt": "^6.0.0",
+    "cheerio": "^1.1.2",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "fastify-cookie": "^5.6.1",
+    "framer-motion": "^12.23.22",
+    "handlebars": "^4.7.8",
+    "mammoth": "^1.10.0",
+    "openai": "^5.20.1",
+    "papaparse": "^5.5.3",
+    "pdf-parse": "^1.1.1",
+    "postmark": "^4.0.5",
+    "puppeteer": "^24.20.0",
+    "xlsx": "^0.18.5",
+    "zod-to-json-schema": "^3.24.6"
+  }
+}

@@ -1,0 +1,793 @@
+/**
+ * AI-powered recommendation engine and analysis
+ */
+
+import OpenAI from 'openai';
+import { z } from 'zod';
+import {
+  RecommendationEngine as IRecommendationEngine,
+  ComplianceGap,
+  RiskItem,
+  Recommendation,
+  ProcessingContext,
+  ImplementationPlan,
+  AIAnalysisError
+} from './types.js';
+import { Priority, CostRange } from '../../types/database.js';
+import { ASSESSMENT_CONFIG } from './index.js';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Recommendation generation prompts
+const RECOMMENDATION_PROMPTS = {
+  generate: `You are a compliance consultant generating actionable recommendations based on identified gaps and risks.
+
+Organization Context:
+- Industry: {industry}
+- Company Size: {companySize}
+- Region: {region}
+
+Compliance Gaps:
+{gaps}
+
+Risk Items:
+{risks}
+
+Instructions:
+1. Analyze gaps and risks to identify root causes and interconnections
+2. Generate specific, actionable recommendations that address multiple issues where possible
+3. Prioritize recommendations based on impact, urgency, and feasibility
+4. Provide detailed implementation plans with phases, timelines, and resource requirements
+5. Consider industry best practices and regulatory requirements
+
+For each recommendation, provide:
+- Type: 'gap', 'risk', 'improvement', or 'vendor'
+- Specific title and description
+- Clear rationale explaining why this recommendation is important
+- Priority (IMMEDIATE/SHORT_TERM/MEDIUM_TERM/LONG_TERM)
+- Expected benefits (quantified where possible)
+- Detailed implementation plan with phases
+- Resource requirements (internal/external/technology/training)
+- Success criteria and KPIs
+- Related gaps and risks this addresses
+
+Focus on recommendations that:
+- Address multiple gaps/risks simultaneously
+- Provide quick wins alongside long-term improvements
+- Are proportionate to organization size and resources
+- Consider regulatory and industry-specific requirements
+
+Respond with a valid JSON array of recommendation objects.`,
+
+  enhance: `Enhance and validate the following recommendations based on additional context:
+
+Original Recommendations:
+{recommendations}
+
+Additional Context:
+- Previous Assessment Results: {previousAssessments}
+- Industry Benchmarks: {benchmarks}
+- Regulatory Changes: {regulatoryChanges}
+- Budget Constraints: {budgetConstraints}
+
+Instructions:
+1. Refine recommendations based on additional context
+2. Adjust priorities based on benchmarks and previous assessments
+3. Consider budget constraints and resource availability
+4. Add specific vendor recommendations where appropriate
+5. Update implementation timelines based on organizational capacity
+
+Respond with enhanced JSON array of recommendation objects.`
+};
+
+/**
+ * AI-powered recommendation generation engine
+ */
+export class RecommendationGenerator implements IRecommendationEngine {
+  private readonly maxRetries = 3;
+  private readonly baseDelay = 1000;
+
+  /**
+   * Generate comprehensive recommendations from gaps and risks
+   */
+  async generateRecommendations(
+    gaps: ComplianceGap[],
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): Promise<Recommendation[]> {
+    try {
+      console.log(`Generating recommendations from ${gaps.length} gaps and ${risks.length} risks`);
+
+      // Step 1: AI-powered recommendation generation
+      const aiRecommendations = await this.generateAIRecommendations(gaps, risks, context);
+
+      // Step 2: Rule-based recommendations for common scenarios
+      const ruleBasedRecommendations = this.generateRuleBasedRecommendations(gaps, risks, context);
+
+      // Step 3: Best practice recommendations
+      const bestPracticeRecommendations = this.generateBestPracticeRecommendations(context);
+
+      // Step 4: Combine and deduplicate
+      const allRecommendations = [
+        ...aiRecommendations,
+        ...ruleBasedRecommendations,
+        ...bestPracticeRecommendations
+      ];
+
+      const uniqueRecommendations = this.deduplicateRecommendations(allRecommendations);
+
+      // Step 5: Prioritize recommendations
+      const prioritizedRecommendations = this.prioritizeRecommendations(
+        uniqueRecommendations,
+        gaps,
+        risks,
+        context
+      );
+
+      // Step 6: Enhance with additional context if available
+      const enhancedRecommendations = context.previousAssessments && context.previousAssessments.length > 0
+        ? await this.enhanceWithContext(prioritizedRecommendations, context)
+        : prioritizedRecommendations;
+
+      console.log(`Generated ${enhancedRecommendations.length} actionable recommendations`);
+      return enhancedRecommendations.slice(0, 15); // Limit to top 15 recommendations
+
+    } catch (error) {
+      console.error('Recommendation generation error:', error);
+      
+      // Fallback to rule-based recommendations
+      try {
+        const fallbackRecommendations = this.generateRuleBasedRecommendations(gaps, risks, context);
+        return fallbackRecommendations.slice(0, 10);
+      } catch (fallbackError) {
+        console.error('Fallback recommendation generation failed:', fallbackError);
+        return [];
+      }
+    }
+  }
+
+  /**
+   * Generate AI-powered recommendations
+   */
+  private async generateAIRecommendations(
+    gaps: ComplianceGap[],
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): Promise<Recommendation[]> {
+    if (gaps.length === 0 && risks.length === 0) {
+      return [];
+    }
+
+    const prompt = this.buildRecommendationPrompt(gaps, risks, context);
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: ASSESSMENT_CONFIG.openai.model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert compliance consultant specializing in practical, actionable recommendations.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: ASSESSMENT_CONFIG.openai.maxTokens,
+          temperature: ASSESSMENT_CONFIG.openai.temperature,
+          response_format: { type: 'json_object' }
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+
+        const result = JSON.parse(content);
+        const recommendations = Array.isArray(result) ? result : result.recommendations || [];
+        
+        return recommendations.map((rec: any, index: number) => 
+          this.normalizeRecommendation(rec, index, gaps, risks)
+        );
+
+      } catch (error) {
+        console.error(`AI recommendation attempt ${attempt + 1} failed:`, error);
+        
+        if (attempt === this.maxRetries - 1) {
+          throw new AIAnalysisError(`Failed after ${this.maxRetries} attempts: ${error}`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, this.baseDelay * Math.pow(2, attempt)));
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Generate rule-based recommendations
+   */
+  private generateRuleBasedRecommendations(
+    gaps: ComplianceGap[],
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): Recommendation[] {
+    const recommendations: Recommendation[] = [];
+
+    // Critical gap recommendations
+    const criticalGaps = gaps.filter(gap => gap.severity === 'CRITICAL');
+    for (const gap of criticalGaps) {
+      recommendations.push({
+        id: `rec-critical-${gap.id}`,
+        type: 'gap',
+        title: `Immediate Action Required: ${gap.title}`,
+        description: `Critical compliance gap requiring immediate attention to prevent regulatory violations.`,
+        rationale: `This critical gap poses significant regulatory and business risks: ${gap.businessImpact}`,
+        priority: Priority.IMMEDIATE,
+        expectedBenefit: 'Prevent regulatory violations and reduce compliance risk',
+        implementation: this.createImplementationPlan(gap.suggestedActions, 'immediate', gap.estimatedCost),
+        relatedGaps: [gap.id],
+        relatedRisks: []
+      });
+    }
+
+    // High-risk mitigation recommendations
+    const criticalRisks = risks.filter(risk => risk.riskLevel === 'CRITICAL');
+    for (const risk of criticalRisks) {
+      if (risk.mitigationStrategy) {
+        recommendations.push({
+          id: `rec-risk-${risk.id}`,
+          type: 'risk',
+          title: `Critical Risk Mitigation: ${risk.title}`,
+          description: risk.mitigationStrategy,
+          rationale: `Critical risk with high likelihood and impact requiring immediate mitigation`,
+          priority: Priority.IMMEDIATE,
+          expectedBenefit: 'Reduce critical risk exposure and potential business impact',
+          implementation: this.createRiskMitigationPlan(risk),
+          relatedGaps: [],
+          relatedRisks: [risk.id]
+        });
+      }
+    }
+
+    // Quick wins (low effort, high impact)
+    const quickWinGaps = gaps.filter(gap => 
+      gap.estimatedEffort === 'WEEKS' && 
+      (gap.severity === 'HIGH' || gap.severity === 'MEDIUM')
+    );
+
+    if (quickWinGaps.length > 0) {
+      recommendations.push({
+        id: `rec-quick-wins-${Date.now()}`,
+        type: 'improvement',
+        title: 'Quick Wins Package',
+        description: `Address ${quickWinGaps.length} compliance gaps that can be resolved quickly with high impact.`,
+        rationale: 'These items provide immediate compliance improvements with minimal effort investment',
+        priority: Priority.SHORT_TERM,
+        expectedBenefit: `Resolve ${quickWinGaps.length} gaps quickly, improving compliance posture`,
+        implementation: {
+          phases: [
+            {
+              name: 'Quick Implementation',
+              duration: '2-4 weeks',
+              activities: quickWinGaps.flatMap(gap => gap.suggestedActions.slice(0, 2)),
+              deliverables: quickWinGaps.map(gap => `Resolved: ${gap.title}`),
+              cost: CostRange.LOW
+            }
+          ],
+          totalDuration: '2-4 weeks',
+          totalCost: CostRange.LOW,
+          prerequisites: ['Management approval', 'Resource allocation'],
+          risks: ['Resource conflicts with other priorities'],
+          successCriteria: ['All identified gaps resolved', 'Compliance metrics improved']
+        },
+        relatedGaps: quickWinGaps.map(gap => gap.id),
+        relatedRisks: []
+      });
+    }
+
+    // Governance recommendations for larger organizations
+    if (context.companySize === 'ENTERPRISE') {
+      const governanceGaps = gaps.filter(gap => 
+        gap.category.toLowerCase().includes('governance')
+      );
+      
+      if (governanceGaps.length > 0) {
+        recommendations.push({
+          id: `rec-governance-${Date.now()}`,
+          type: 'improvement',
+          title: 'Enterprise Governance Framework',
+          description: 'Establish comprehensive governance framework appropriate for enterprise scale',
+          rationale: 'Enterprise organizations require robust governance structures for effective compliance management',
+          priority: Priority.MEDIUM_TERM,
+          expectedBenefit: 'Improved oversight, accountability, and compliance effectiveness',
+          implementation: this.createGovernanceImplementationPlan(),
+          relatedGaps: governanceGaps.map(gap => gap.id),
+          relatedRisks: risks.filter(risk => risk.category === 'GOVERNANCE').map(risk => risk.id)
+        });
+      }
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Generate best practice recommendations
+   */
+  private generateBestPracticeRecommendations(context: ProcessingContext): Recommendation[] {
+    const recommendations: Recommendation[] = [];
+
+    // Industry-specific best practices
+    switch (context.industry?.toLowerCase()) {
+      case 'financial services':
+      case 'banking':
+        recommendations.push({
+          id: `rec-fs-monitoring-${Date.now()}`,
+          type: 'improvement',
+          title: 'Financial Services Compliance Monitoring',
+          description: 'Implement comprehensive transaction monitoring and suspicious activity reporting',
+          rationale: 'Financial services require robust monitoring for AML/BSA compliance',
+          priority: Priority.SHORT_TERM,
+          expectedBenefit: 'Enhanced regulatory compliance and risk detection',
+          implementation: this.createFinancialServicesMonitoringPlan(),
+          relatedGaps: [],
+          relatedRisks: []
+        });
+        break;
+
+      case 'healthcare':
+        recommendations.push({
+          id: `rec-healthcare-privacy-${Date.now()}`,
+          type: 'improvement',
+          title: 'Healthcare Privacy Enhancement',
+          description: 'Strengthen HIPAA compliance with enhanced privacy and security measures',
+          rationale: 'Healthcare organizations must maintain strict patient privacy protections',
+          priority: Priority.SHORT_TERM,
+          expectedBenefit: 'Improved patient privacy protection and HIPAA compliance',
+          implementation: this.createHealthcarePrivacyPlan(),
+          relatedGaps: [],
+          relatedRisks: []
+        });
+        break;
+
+      case 'technology':
+        recommendations.push({
+          id: `rec-tech-security-${Date.now()}`,
+          type: 'improvement',
+          title: 'Technology Security Framework',
+          description: 'Implement comprehensive cybersecurity framework aligned with industry standards',
+          rationale: 'Technology companies require robust security measures to protect intellectual property and customer data',
+          priority: Priority.SHORT_TERM,
+          expectedBenefit: 'Enhanced security posture and reduced cyber risk',
+          implementation: this.createTechnologySecurityPlan(),
+          relatedGaps: [],
+          relatedRisks: []
+        });
+        break;
+    }
+
+    // Universal best practice: Regular assessment and monitoring
+    recommendations.push({
+      id: `rec-continuous-monitoring-${Date.now()}`,
+      type: 'improvement',
+      title: 'Continuous Compliance Monitoring',
+      description: 'Establish ongoing compliance monitoring and assessment program',
+      rationale: 'Regular monitoring ensures sustained compliance and early identification of issues',
+      priority: Priority.MEDIUM_TERM,
+      expectedBenefit: 'Proactive compliance management and reduced regulatory risk',
+      implementation: {
+        phases: [
+          {
+            name: 'Setup Phase',
+            duration: '1 month',
+            activities: [
+              'Define monitoring metrics and KPIs',
+              'Establish monitoring procedures',
+              'Train responsible staff'
+            ],
+            deliverables: [
+              'Monitoring framework document',
+              'KPI dashboard',
+              'Training materials'
+            ],
+            cost: CostRange.MEDIUM
+          },
+          {
+            name: 'Implementation Phase',
+            duration: '2 months',
+            activities: [
+              'Deploy monitoring tools',
+              'Begin regular assessments',
+              'Establish reporting schedule'
+            ],
+            deliverables: [
+              'Monitoring system operational',
+              'Regular assessment reports',
+              'Management dashboards'
+            ],
+            cost: CostRange.MEDIUM
+          }
+        ],
+        totalDuration: '3 months',
+        totalCost: CostRange.MEDIUM,
+        prerequisites: ['Management commitment', 'Resource allocation'],
+        risks: ['Staff resistance to change', 'Tool implementation challenges'],
+        successCriteria: [
+          'Monthly compliance reports generated',
+          'KPI dashboards operational',
+          'Issues identified and resolved proactively'
+        ]
+      },
+      relatedGaps: [],
+      relatedRisks: []
+    });
+
+    return recommendations;
+  }
+
+  /**
+   * Enhance recommendations with additional context
+   */
+  private async enhanceWithContext(
+    recommendations: Recommendation[],
+    context: ProcessingContext
+  ): Promise<Recommendation[]> {
+    try {
+      const prompt = RECOMMENDATION_PROMPTS.enhance
+        .replace('{recommendations}', JSON.stringify(recommendations.slice(0, 10), null, 2))
+        .replace('{previousAssessments}', context.previousAssessments?.join(', ') || 'None')
+        .replace('{benchmarks}', 'Industry benchmarks not available')
+        .replace('{regulatoryChanges}', 'Recent regulatory updates')
+        .replace('{budgetConstraints}', 'Standard budget considerations');
+
+      const completion = await openai.chat.completions.create({
+        model: ASSESSMENT_CONFIG.openai.model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are enhancing compliance recommendations with additional organizational context.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 3000,
+        temperature: 0.2,
+        response_format: { type: 'json_object' }
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (content) {
+        const result = JSON.parse(content);
+        const enhancedRecs = Array.isArray(result) ? result : result.recommendations || recommendations;
+        
+        return enhancedRecs.map((rec: any, index: number) => 
+          this.normalizeRecommendation(rec, index, [], [])
+        );
+      }
+    } catch (error) {
+      console.error('Recommendation enhancement failed, using original:', error);
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Remove duplicate recommendations
+   */
+  private deduplicateRecommendations(recommendations: Recommendation[]): Recommendation[] {
+    const uniqueRecs: Recommendation[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const rec of recommendations) {
+      const normalizedTitle = rec.title.toLowerCase().trim();
+      
+      if (!seenTitles.has(normalizedTitle)) {
+        seenTitles.add(normalizedTitle);
+        uniqueRecs.push(rec);
+      }
+    }
+
+    return uniqueRecs;
+  }
+
+  /**
+   * Prioritize recommendations based on impact and urgency
+   */
+  private prioritizeRecommendations(
+    recommendations: Recommendation[],
+    gaps: ComplianceGap[],
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): Recommendation[] {
+    return recommendations.sort((a, b) => {
+      const priorityWeight = {
+        'IMMEDIATE': 4,
+        'SHORT_TERM': 3,
+        'MEDIUM_TERM': 2,
+        'LONG_TERM': 1
+      };
+
+      const aWeight = priorityWeight[a.priority as keyof typeof priorityWeight] || 1;
+      const bWeight = priorityWeight[b.priority as keyof typeof priorityWeight] || 1;
+
+      // Consider number of related gaps/risks
+      const aImpact = (a.relatedGaps?.length || 0) + (a.relatedRisks?.length || 0);
+      const bImpact = (b.relatedGaps?.length || 0) + (b.relatedRisks?.length || 0);
+
+      if (aWeight !== bWeight) return bWeight - aWeight;
+      return bImpact - aImpact;
+    });
+  }
+
+  // Helper methods for creating implementation plans
+
+  private createImplementationPlan(
+    actions: string[],
+    urgency: string,
+    cost?: CostRange
+  ): ImplementationPlan {
+    const duration = urgency === 'immediate' ? '2-4 weeks' : '1-3 months';
+    
+    return {
+      phases: [
+        {
+          name: 'Planning',
+          duration: '1 week',
+          activities: ['Assess current state', 'Define requirements', 'Plan implementation'],
+          deliverables: ['Implementation plan', 'Resource requirements'],
+          cost: CostRange.LOW
+        },
+        {
+          name: 'Implementation',
+          duration: urgency === 'immediate' ? '1-2 weeks' : '2-8 weeks',
+          activities: actions.slice(0, 5),
+          deliverables: ['Gap resolved', 'Documentation updated'],
+          cost: cost || CostRange.MEDIUM
+        }
+      ],
+      totalDuration: duration,
+      totalCost: cost || CostRange.MEDIUM,
+      prerequisites: ['Management approval', 'Resource availability'],
+      risks: ['Resource constraints', 'Technical challenges'],
+      successCriteria: ['Gap fully addressed', 'Compliance improved']
+    };
+  }
+
+  private createRiskMitigationPlan(risk: RiskItem): ImplementationPlan {
+    return {
+      phases: [
+        {
+          name: 'Risk Assessment',
+          duration: '1 week',
+          activities: ['Detailed risk analysis', 'Control assessment', 'Mitigation planning'],
+          deliverables: ['Risk assessment report', 'Mitigation plan'],
+          cost: CostRange.LOW
+        },
+        {
+          name: 'Control Implementation',
+          duration: '2-4 weeks',
+          activities: [
+            'Implement additional controls',
+            'Enhance existing controls',
+            'Monitor effectiveness'
+          ],
+          deliverables: ['Controls operational', 'Monitoring procedures'],
+          cost: CostRange.MEDIUM
+        }
+      ],
+      totalDuration: '3-5 weeks',
+      totalCost: CostRange.MEDIUM,
+      prerequisites: ['Risk owner assignment', 'Budget approval'],
+      risks: ['Control implementation delays', 'Effectiveness concerns'],
+      successCriteria: ['Risk level reduced', 'Controls operating effectively']
+    };
+  }
+
+  private createGovernanceImplementationPlan(): ImplementationPlan {
+    return {
+      phases: [
+        {
+          name: 'Framework Design',
+          duration: '1 month',
+          activities: [
+            'Design governance structure',
+            'Define roles and responsibilities',
+            'Create governance policies'
+          ],
+          deliverables: ['Governance framework', 'Policy documents', 'Role definitions'],
+          cost: CostRange.MEDIUM
+        },
+        {
+          name: 'Implementation',
+          duration: '2 months',
+          activities: [
+            'Establish committees',
+            'Train governance participants',
+            'Implement reporting processes'
+          ],
+          deliverables: ['Committees operational', 'Training completed', 'Reports generated'],
+          cost: CostRange.HIGH
+        },
+        {
+          name: 'Optimization',
+          duration: '1 month',
+          activities: [
+            'Monitor effectiveness',
+            'Refine processes',
+            'Continuous improvement'
+          ],
+          deliverables: ['Optimized processes', 'Effectiveness metrics'],
+          cost: CostRange.LOW
+        }
+      ],
+      totalDuration: '4 months',
+      totalCost: CostRange.HIGH,
+      prerequisites: ['Board approval', 'Senior management commitment'],
+      risks: ['Resistance to change', 'Resource competition'],
+      successCriteria: [
+        'Governance framework operational',
+        'Regular oversight meetings',
+        'Improved compliance outcomes'
+      ]
+    };
+  }
+
+  private createFinancialServicesMonitoringPlan(): ImplementationPlan {
+    return {
+      phases: [
+        {
+          name: 'Requirements Analysis',
+          duration: '2 weeks',
+          activities: [
+            'Analyze regulatory requirements',
+            'Assess current monitoring',
+            'Define enhancement needs'
+          ],
+          deliverables: ['Requirements document', 'Gap analysis', 'Enhancement plan'],
+          cost: CostRange.LOW
+        },
+        {
+          name: 'System Implementation',
+          duration: '2 months',
+          activities: [
+            'Configure monitoring systems',
+            'Implement detection rules',
+            'Test monitoring effectiveness'
+          ],
+          deliverables: ['Monitoring system operational', 'Detection rules configured'],
+          cost: CostRange.HIGH
+        }
+      ],
+      totalDuration: '2.5 months',
+      totalCost: CostRange.HIGH,
+      prerequisites: ['Technology budget', 'Compliance team resources'],
+      risks: ['System integration challenges', 'False positive rates'],
+      successCriteria: ['Effective transaction monitoring', 'Reduced compliance risk']
+    };
+  }
+
+  private createHealthcarePrivacyPlan(): ImplementationPlan {
+    return {
+      phases: [
+        {
+          name: 'Privacy Assessment',
+          duration: '2 weeks',
+          activities: [
+            'HIPAA compliance audit',
+            'Privacy risk assessment',
+            'Enhancement planning'
+          ],
+          deliverables: ['Compliance assessment', 'Privacy plan'],
+          cost: CostRange.LOW
+        },
+        {
+          name: 'Enhancement Implementation',
+          duration: '6 weeks',
+          activities: [
+            'Strengthen access controls',
+            'Enhance data encryption',
+            'Update privacy procedures'
+          ],
+          deliverables: ['Enhanced privacy controls', 'Updated procedures'],
+          cost: CostRange.HIGH
+        }
+      ],
+      totalDuration: '2 months',
+      totalCost: CostRange.HIGH,
+      prerequisites: ['Privacy officer assignment', 'Technology resources'],
+      risks: ['Operational disruption', 'Staff resistance'],
+      successCriteria: ['HIPAA compliance improved', 'Privacy incidents reduced']
+    };
+  }
+
+  private createTechnologySecurityPlan(): ImplementationPlan {
+    return {
+      phases: [
+        {
+          name: 'Security Assessment',
+          duration: '2 weeks',
+          activities: [
+            'Security posture evaluation',
+            'Vulnerability assessment',
+            'Framework selection'
+          ],
+          deliverables: ['Security assessment', 'Framework plan'],
+          cost: CostRange.MEDIUM
+        },
+        {
+          name: 'Framework Implementation',
+          duration: '3 months',
+          activities: [
+            'Implement security controls',
+            'Deploy monitoring tools',
+            'Establish incident response'
+          ],
+          deliverables: ['Security controls operational', 'Monitoring systems'],
+          cost: CostRange.VERY_HIGH
+        }
+      ],
+      totalDuration: '3.5 months',
+      totalCost: CostRange.VERY_HIGH,
+      prerequisites: ['Security budget', 'Technical team', 'Management support'],
+      risks: ['Implementation complexity', 'Business disruption'],
+      successCriteria: ['Security framework operational', 'Cyber risk reduced']
+    };
+  }
+
+  private buildRecommendationPrompt(
+    gaps: ComplianceGap[],
+    risks: RiskItem[],
+    context: ProcessingContext
+  ): string {
+    const gapText = gaps
+      .map(g => `Title: ${g.title}\nSeverity: ${g.severity}\nCategory: ${g.category}\nDescription: ${g.description}\nSuggested Actions: ${g.suggestedActions.join(', ')}`)
+      .join('\n\n');
+
+    const riskText = risks
+      .map(r => `Title: ${r.title}\nLevel: ${r.riskLevel}\nCategory: ${r.category}\nDescription: ${r.description}\nMitigation: ${r.mitigationStrategy || 'None specified'}`)
+      .join('\n\n');
+
+    return RECOMMENDATION_PROMPTS.generate
+      .replace('{industry}', context.industry || 'General')
+      .replace('{companySize}', context.companySize || 'Unknown')
+      .replace('{region}', context.region || 'Global')
+      .replace('{gaps}', gapText)
+      .replace('{risks}', riskText);
+  }
+
+  private normalizeRecommendation(
+    rec: any,
+    index: number,
+    gaps: ComplianceGap[],
+    risks: RiskItem[]
+  ): Recommendation {
+    return {
+      id: rec.id || `rec-${Date.now()}-${index}`,
+      type: rec.type || 'improvement',
+      title: rec.title || 'Untitled Recommendation',
+      description: rec.description || '',
+      rationale: rec.rationale || 'Improves compliance posture',
+      priority: this.normalizePriority(rec.priority),
+      expectedBenefit: rec.expectedBenefit || 'Compliance improvement',
+      implementation: rec.implementation || this.createImplementationPlan(['Implement recommendation'], 'standard'),
+      resources: rec.resources || [],
+      kpis: rec.kpis || [],
+      relatedGaps: rec.relatedGaps || [],
+      relatedRisks: rec.relatedRisks || []
+    };
+  }
+
+  private normalizePriority(priority: any): Priority {
+    const str = String(priority).toUpperCase();
+    const validPriorities = ['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM'];
+    if (validPriorities.includes(str)) {
+      return str as Priority;
+    }
+    return Priority.MEDIUM_TERM;
+  }
+}

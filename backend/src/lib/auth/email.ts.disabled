@@ -1,0 +1,482 @@
+/**
+ * Email verification and password reset utilities
+ */
+
+import crypto from 'crypto';
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  ValidationError,
+  TokenExpiredError,
+  InvalidTokenError,
+  AuthResult
+} from './types.js';
+import {
+  generateEmailVerificationToken,
+  generatePasswordResetToken,
+  verifyEmailVerificationToken,
+  verifyPasswordResetToken
+} from './jwt.js';
+import { AUTH_CONFIG } from './index.js';
+
+const prisma = new PrismaClient();
+
+// Validation schemas
+const EmailSchema = z.string().email('Invalid email format');
+
+/**
+ * Send email verification
+ */
+export async function sendEmailVerification(email: string): Promise<AuthResult> {
+  try {
+    // Validate email format
+    const validEmail = EmailSchema.parse(email.toLowerCase());
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email: validEmail }
+    });
+
+    if (!user) {
+      // Don't reveal if email exists
+      return {
+        success: true,
+        message: 'If the email exists, a verification link has been sent'
+      };
+    }
+
+    if (user.emailVerified) {
+      return {
+        success: true,
+        message: 'Email is already verified'
+      };
+    }
+
+    // Generate new verification token
+    const verificationToken = generateEmailVerificationToken(validEmail);
+
+    // Update user with new token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationToken: verificationToken
+      }
+    });
+
+    // TODO: Send actual email
+    // For now, just log the token
+    console.log(`Email verification token for ${validEmail}: ${verificationToken}`);
+
+    return {
+      success: true,
+      message: 'Verification email sent successfully'
+    };
+
+  } catch (error) {
+    console.error('Send email verification error:', error);
+    
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid email format'
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Failed to send verification email'
+    };
+  }
+}
+
+/**
+ * Verify email with token
+ */
+export async function verifyEmailWithToken(token: string): Promise<AuthResult> {
+  try {
+    // Verify and decode token
+    const { email } = verifyEmailVerificationToken(token);
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+
+    if (!user) {
+      throw new InvalidTokenError();
+    }
+
+    if (user.emailVerified) {
+      return {
+        success: true,
+        message: 'Email is already verified'
+      };
+    }
+
+    // Update user
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null
+      }
+    });
+
+    return {
+      success: true,
+      message: 'Email verified successfully'
+    };
+
+  } catch (error) {
+    console.error('Email verification error:', error);
+    
+    if (error instanceof TokenExpiredError) {
+      return {
+        success: false,
+        error: 'Verification link has expired. Please request a new one.'
+      };
+    }
+
+    if (error instanceof InvalidTokenError) {
+      return {
+        success: false,
+        error: 'Invalid verification link'
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Email verification failed'
+    };
+  }
+}
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(email: string): Promise<AuthResult> {
+  try {
+    // Validate email format
+    const validEmail = EmailSchema.parse(email.toLowerCase());
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email: validEmail }
+    });
+
+    if (!user) {
+      // Don't reveal if email exists for security
+      return {
+        success: true,
+        message: 'If the email exists, a password reset link has been sent'
+      };
+    }
+
+    // Check if user has exceeded reset attempts
+    const recentResets = await prisma.user.findMany({
+      where: {
+        email: validEmail,
+        passwordResetExpires: {
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+        }
+      }
+    });
+
+    if (recentResets.length >= AUTH_CONFIG.email.maxPasswordResetAttempts) {
+      return {
+        success: false,
+        error: 'Too many password reset attempts. Please try again later.'
+      };
+    }
+
+    // Generate reset token
+    const resetToken = generatePasswordResetToken(user.id, user.email);
+
+    // Update user with reset token and expiry
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetToken,
+        passwordResetExpires: new Date(Date.now() + AUTH_CONFIG.email.passwordResetTokenExpiry)
+      }
+    });
+
+    // TODO: Send actual email
+    // For now, just log the token
+    console.log(`Password reset token for ${validEmail}: ${resetToken}`);
+
+    return {
+      success: true,
+      message: 'If the email exists, a password reset link has been sent'
+    };
+
+  } catch (error) {
+    console.error('Send password reset email error:', error);
+    
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid email format'
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Failed to send password reset email'
+    };
+  }
+}
+
+/**
+ * Verify password reset token
+ */
+export async function verifyPasswordResetToken(token: string): Promise<AuthResult<{ userId: string; email: string }>> {
+  try {
+    // Verify and decode token
+    const { id, email } = verifyPasswordResetToken(token);
+
+    // Find user and validate token
+    const user = await prisma.user.findUnique({
+      where: { id }
+    });
+
+    if (!user || user.email !== email) {
+      throw new InvalidTokenError();
+    }
+
+    if (!user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+      throw new TokenExpiredError();
+    }
+
+    if (user.passwordResetToken !== token) {
+      throw new InvalidTokenError();
+    }
+
+    return {
+      success: true,
+      data: { userId: id, email },
+      message: 'Token is valid'
+    };
+
+  } catch (error) {
+    console.error('Verify password reset token error:', error);
+    
+    if (error instanceof TokenExpiredError) {
+      return {
+        success: false,
+        error: 'Password reset link has expired. Please request a new one.'
+      };
+    }
+
+    if (error instanceof InvalidTokenError) {
+      return {
+        success: false,
+        error: 'Invalid password reset link'
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Token verification failed'
+    };
+  }
+}
+
+/**
+ * Generate secure random token (for non-JWT use cases)
+ */
+export function generateSecureToken(length: number = 32): string {
+  return crypto.randomBytes(length).toString('hex');
+}
+
+/**
+ * Generate time-based one-time password (TOTP) - basic implementation
+ */
+export function generateTOTP(secret: string, window: number = 30): string {
+  const time = Math.floor(Date.now() / 1000 / window);
+  const hmac = crypto.createHmac('sha1', secret);
+  hmac.update(Buffer.from(time.toString(16).padStart(16, '0'), 'hex'));
+  const hash = hmac.digest();
+  
+  const offset = hash[hash.length - 1] & 0x0f;
+  const code = ((hash[offset] & 0x7f) << 24) |
+               ((hash[offset + 1] & 0xff) << 16) |
+               ((hash[offset + 2] & 0xff) << 8) |
+               (hash[offset + 3] & 0xff);
+  
+  return (code % 1000000).toString().padStart(6, '0');
+}
+
+/**
+ * Verify TOTP code
+ */
+export function verifyTOTP(
+  secret: string, 
+  code: string, 
+  window: number = 30,
+  tolerance: number = 1
+): boolean {
+  const normalizedCode = code.replace(/\s/g, '');
+  
+  for (let i = -tolerance; i <= tolerance; i++) {
+    const time = Math.floor(Date.now() / 1000 / window) + i;
+    const hmac = crypto.createHmac('sha1', secret);
+    hmac.update(Buffer.from(time.toString(16).padStart(16, '0'), 'hex'));
+    const hash = hmac.digest();
+    
+    const offset = hash[hash.length - 1] & 0x0f;
+    const generatedCode = ((hash[offset] & 0x7f) << 24) |
+                          ((hash[offset + 1] & 0xff) << 16) |
+                          ((hash[offset + 2] & 0xff) << 8) |
+                          (hash[offset + 3] & 0xff);
+    
+    const expectedCode = (generatedCode % 1000000).toString().padStart(6, '0');
+    
+    if (normalizedCode === expectedCode) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Clean up expired tokens
+ */
+export async function cleanupExpiredTokens(): Promise<number> {
+  try {
+    const result = await prisma.user.updateMany({
+      where: {
+        OR: [
+          {
+            passwordResetExpires: {
+              lt: new Date()
+            }
+          }
+        ]
+      },
+      data: {
+        passwordResetToken: null,
+        passwordResetExpires: null
+      }
+    });
+
+    console.log(`Cleaned up ${result.count} expired tokens`);
+    return result.count;
+
+  } catch (error) {
+    console.error('Cleanup expired tokens error:', error);
+    return 0;
+  }
+}
+
+/**
+ * Rate limiting for email operations
+ */
+export interface EmailRateLimit {
+  email: string;
+  attempts: number;
+  lastAttempt: Date;
+  resetAt: Date;
+}
+
+const emailRateLimits = new Map<string, EmailRateLimit>();
+
+/**
+ * Check if email operation is rate limited
+ */
+export function isEmailRateLimited(email: string, maxAttempts: number = 3, windowMs: number = 60000): boolean {
+  const now = new Date();
+  const rateLimit = emailRateLimits.get(email.toLowerCase());
+
+  if (!rateLimit) {
+    return false;
+  }
+
+  // Reset if window has passed
+  if (now >= rateLimit.resetAt) {
+    emailRateLimits.delete(email.toLowerCase());
+    return false;
+  }
+
+  return rateLimit.attempts >= maxAttempts;
+}
+
+/**
+ * Record email operation attempt
+ */
+export function recordEmailAttempt(email: string, windowMs: number = 60000): void {
+  const now = new Date();
+  const normalizedEmail = email.toLowerCase();
+  const existing = emailRateLimits.get(normalizedEmail);
+
+  if (!existing || now >= existing.resetAt) {
+    emailRateLimits.set(normalizedEmail, {
+      email: normalizedEmail,
+      attempts: 1,
+      lastAttempt: now,
+      resetAt: new Date(now.getTime() + windowMs)
+    });
+  } else {
+    existing.attempts++;
+    existing.lastAttempt = now;
+  }
+}
+
+/**
+ * Email template helpers (for future email service integration)
+ */
+export const EmailTemplates = {
+  verification: {
+    subject: 'Verify Your Email - Heliolus Platform',
+    html: (token: string, baseUrl: string) => `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Verify Your Email Address</h2>
+        <p>Please click the button below to verify your email address:</p>
+        <a href="${baseUrl}/verify-email?token=${token}" 
+           style="display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+          Verify Email
+        </a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p><a href="${baseUrl}/verify-email?token=${token}">${baseUrl}/verify-email?token=${token}</a></p>
+        <p>This link will expire in 24 hours.</p>
+      </div>
+    `,
+    text: (token: string, baseUrl: string) => `
+      Verify Your Email Address
+      
+      Please click the link below to verify your email address:
+      ${baseUrl}/verify-email?token=${token}
+      
+      This link will expire in 24 hours.
+    `
+  },
+
+  passwordReset: {
+    subject: 'Reset Your Password - Heliolus Platform',
+    html: (token: string, baseUrl: string) => `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Reset Your Password</h2>
+        <p>You requested a password reset. Click the button below to set a new password:</p>
+        <a href="${baseUrl}/reset-password?token=${token}" 
+           style="display: inline-block; background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+          Reset Password
+        </a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p><a href="${baseUrl}/reset-password?token=${token}">${baseUrl}/reset-password?token=${token}</a></p>
+        <p>This link will expire in 2 hours.</p>
+        <p>If you didn't request this password reset, please ignore this email.</p>
+      </div>
+    `,
+    text: (token: string, baseUrl: string) => `
+      Reset Your Password
+      
+      You requested a password reset. Click the link below to set a new password:
+      ${baseUrl}/reset-password?token=${token}
+      
+      This link will expire in 2 hours.
+      
+      If you didn't request this password reset, please ignore this email.
+    `
+  }
+};

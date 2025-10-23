@@ -1,0 +1,1229 @@
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  Download,
+  FileText,
+  Target,
+  TrendingUp,
+  AlertCircle,
+  Info,
+  Lock,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Zap,
+  BookOpen,
+  Brain,
+  Activity,
+  BarChart3,
+  Users,
+  FileSearch,
+  ShieldCheck,
+  MessageSquareWarning,
+  Lightbulb,
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { toast } from '@/hooks/use-toast';
+import { assessmentApi, queryKeys } from '@/lib/api';
+import {
+  AssessmentResults as AssessmentResultsType,
+  Gap,
+  Risk,
+  Severity,
+  Priority,
+  RiskLevel,
+} from '@/types/assessment';
+import RiskScoreGauge from '@/components/assessment/RiskScoreGauge';
+import GapCard from '@/components/assessment/GapCard';
+import StrategyMatrix from '@/components/assessment/StrategyMatrix';
+import RiskHeatmap from '@/components/assessment/RiskHeatmap';
+
+const severityColors: Record<Severity, string> = {
+  CRITICAL: 'bg-red-500/20 text-red-400 border-red-500/50',
+  HIGH: 'bg-orange-500/20 text-orange-400 border-orange-500/50',
+  MEDIUM: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
+  LOW: 'bg-green-500/20 text-green-400 border-green-500/50',
+};
+
+const priorityIcons: Record<Priority, any> = {
+  IMMEDIATE: Zap,
+  SHORT_TERM: TrendingUp,
+  MEDIUM_TERM: Target,
+  LONG_TERM: BookOpen,
+};
+
+// Component for Low Confidence Questions Review
+const LowConfidenceQuestionsReview = ({
+  questions,
+  onSubmit,
+}: {
+  questions: any[];
+  onSubmit: (answers: Record<string, string>) => void;
+}) => {
+  const [manualAnswers, setManualAnswers] = useState<Record<string, string>>({});
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  // Group questions by section
+  const questionsBySection = questions.reduce(
+    (acc, q) => {
+      const section = q.sectionTitle || 'General';
+      if (!acc[section]) acc[section] = [];
+      acc[section].push(q);
+      return acc;
+    },
+    {} as Record<string, any[]>
+  );
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(section)) {
+        newSet.delete(section);
+      } else {
+        newSet.add(section);
+      }
+      return newSet;
+    });
+  };
+
+  const answeredCount = Object.keys(manualAnswers).filter(key => manualAnswers[key]?.trim()).length;
+  const progress = (answeredCount / questions.length) * 100;
+
+  return (
+    <div className="min-h-screen bg-gray-950 relative overflow-hidden">
+      {/* Background gradients */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-yellow-500/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center p-4 mb-6 rounded-2xl bg-orange-500/20 backdrop-blur-sm">
+            <MessageSquareWarning className="h-12 w-12 text-orange-400" />
+          </div>
+
+          <h1 className="text-4xl font-bold mb-4 gradient-text">Manual Review Required</h1>
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            Our AI couldn't find sufficient information for {questions.length} questions. Your input
+            will help us provide more accurate risk assessment results.
+          </p>
+        </div>
+
+        {/* Progress Card */}
+        <Card className="mb-8 bg-gray-900/50 backdrop-blur-sm border-gray-800">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-white">Review Progress</CardTitle>
+                <CardDescription className="text-gray-400">
+                  {answeredCount} of {questions.length} questions answered
+                </CardDescription>
+              </div>
+              <div className="text-2xl font-bold text-orange-400">{Math.round(progress)}%</div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Progress value={progress} className="h-3 bg-gray-800" />
+          </CardContent>
+        </Card>
+
+        {/* Why This Matters Card */}
+        <Alert className="mb-8 bg-cyan-900/20 border-cyan-800/50">
+          <Lightbulb className="h-5 w-5" />
+          <AlertTitle className="text-cyan-400">Why Your Input Matters</AlertTitle>
+          <AlertDescription className="text-gray-300">
+            These questions are critical for assessing your compliance posture. Without this
+            information, your risk score may be overestimated, and recommendations may not be fully
+            tailored to your organization.
+          </AlertDescription>
+        </Alert>
+
+        {/* Questions by Section */}
+        <div className="space-y-4 mb-8">
+          {Object.entries(questionsBySection).map(([section, sectionQuestions]) => (
+            <Collapsible
+              key={section}
+              open={expandedSections.has(section) || Object.keys(questionsBySection).length === 1}
+              onOpenChange={() => toggleSection(section)}
+            >
+              <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+                <CardHeader>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full group">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-orange-500/20">
+                        <FileSearch className="h-5 w-5 text-orange-400" />
+                      </div>
+                      <div className="text-left">
+                        <CardTitle className="text-white text-lg">{section}</CardTitle>
+                        <CardDescription className="text-gray-400">
+                          {sectionQuestions.length} question{sectionQuestions.length > 1 ? 's' : ''}{' '}
+                          to review
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/50">
+                        {sectionQuestions.filter(q => manualAnswers[q.questionId]?.trim()).length}/
+                        {sectionQuestions.length}
+                      </Badge>
+                      {expandedSections.has(section) ||
+                      Object.keys(questionsBySection).length === 1 ? (
+                        <ChevronUp className="h-5 w-5 text-gray-400 group-hover:text-gray-300" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-400 group-hover:text-gray-300" />
+                      )}
+                    </div>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4">
+                    {sectionQuestions.map((item: any, idx) => (
+                      <div
+                        key={item.questionId}
+                        className="bg-gray-800/50 rounded-lg p-4 border border-gray-700"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+                              <span className="text-sm font-bold text-orange-400">{idx + 1}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-white font-medium mb-2">{item.question}</p>
+                            <div className="mb-3">
+                              <Badge
+                                variant="outline"
+                                className="text-xs border-gray-600 text-gray-400"
+                              >
+                                AI Confidence: {Math.round((item.confidence || 0) * 100)}%
+                              </Badge>
+                              {item.currentAnswer && (
+                                <div className="mt-2 p-2 bg-gray-900/50 rounded text-sm text-gray-500 italic">
+                                  AI Response: {item.currentAnswer}
+                                </div>
+                              )}
+                            </div>
+                            <textarea
+                              className="w-full bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-300 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none min-h-[120px] resize-none"
+                              placeholder="Please provide detailed information about this aspect of your compliance framework..."
+                              value={manualAnswers[item.questionId] || ''}
+                              onChange={e =>
+                                setManualAnswers(prev => ({
+                                  ...prev,
+                                  [item.questionId]: e.target.value,
+                                }))
+                              }
+                              data-testid={`input-manual-answer-${item.questionId}`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          ))}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 justify-center">
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Skip and show results anyway (with warning)
+              if (
+                confirm(
+                  'Are you sure you want to skip? Your risk assessment may be less accurate without this information.'
+                )
+              ) {
+                onSubmit({});
+              }
+            }}
+            className="border-gray-700 text-gray-300 hover:bg-gray-800"
+          >
+            Skip for Now
+          </Button>
+          <Button
+            onClick={() => onSubmit(manualAnswers)}
+            disabled={answeredCount === 0}
+            className="bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700 text-white min-w-[200px]"
+            data-testid="button-submit-manual-answers"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Submit{' '}
+            {answeredCount > 0
+              ? `${answeredCount} Answer${answeredCount > 1 ? 's' : ''}`
+              : 'Answers'}{' '}
+            & View Results
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main Assessment Results Component
+const AssessmentResults = () => {
+  const { assessmentId } = useParams<{ assessmentId: string }>();
+  const navigate = useNavigate();
+  const [expandedGaps, setExpandedGaps] = useState<Set<string>>(new Set());
+  const [expandedRisks, setExpandedRisks] = useState<Set<string>>(new Set());
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [selectedTab, setSelectedTab] = useState('overview');
+  const [hasReviewedQuestions, setHasReviewedQuestions] = useState(false);
+  const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
+
+  // Fetch assessment results
+  const {
+    data: results,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.assessmentResults(assessmentId!),
+    queryFn: () => assessmentApi.getAssessmentResults(assessmentId!),
+    enabled: !!assessmentId,
+  });
+
+  // Fetch priorities to check if questionnaire is completed
+  const { data: priorities } = useQuery({
+    queryKey: queryKeys.priorities(assessmentId!),
+    queryFn: () => assessmentApi.getPriorities(assessmentId!),
+    enabled: !!assessmentId && !!results,
+    retry: false,
+  });
+
+  // Fetch vendor matches count for the button badge (only if priorities exist)
+  const { data: vendorMatchesData } = useQuery({
+    queryKey: queryKeys.vendorMatches(assessmentId!, 80),
+    queryFn: () => assessmentApi.getVendorMatches(assessmentId!, 80),
+    enabled: !!assessmentId && !!results && !!priorities,
+    retry: false, // Don't retry if priorities questionnaire not completed
+  });
+
+  const vendorMatchesCount = vendorMatchesData?.data?.count || 0;
+  const hasPriorities = !!priorities;
+
+  const toggleGapExpansion = (gapId: string) => {
+    setExpandedGaps(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(gapId)) {
+        newSet.delete(gapId);
+      } else {
+        newSet.add(gapId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleRiskExpansion = (riskId: string) => {
+    setExpandedRisks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(riskId)) {
+        newSet.delete(riskId);
+      } else {
+        newSet.add(riskId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleCardExpansion = (cardId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cardId)) {
+        newSet.delete(cardId);
+      } else {
+        newSet.add(cardId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSubmitManualAnswers = async (answers: Record<string, string>) => {
+    if (Object.keys(answers).length === 0) {
+      // User skipped, just show results
+      setHasReviewedQuestions(true);
+      return;
+    }
+
+    setIsSubmittingAnswers(true);
+    try {
+      // Submit manual answers to backend
+      await assessmentApi.updateAssessmentAnswers(assessmentId!, answers);
+      toast({
+        title: 'Answers Submitted',
+        description: 'Re-calculating your risk score with the new information...',
+      });
+
+      // Re-execute assessment with new data
+      await assessmentApi.executeAssessment(assessmentId!);
+
+      // Refresh results
+      await refetch();
+
+      setHasReviewedQuestions(true);
+
+      toast({
+        title: 'Analysis Complete',
+        description: 'Your risk assessment has been updated with the new information.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Failed to submit answers',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingAnswers(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    try {
+      toast({
+        title: 'Generating Report',
+        description: 'Your compliance report is being generated...',
+      });
+
+      const reportData = await assessmentApi.generatePDFReport(assessmentId!);
+      await assessmentApi.downloadPDFReport(assessmentId!);
+
+      toast({
+        title: 'Report Ready',
+        description: `${reportData.filename} has been downloaded successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Failed to generate report:', error);
+
+      if (error.message?.includes('Premium') || error.message?.includes('premium')) {
+        toast({
+          title: 'Premium Feature',
+          description:
+            'PDF reports are only available for premium users. Please upgrade your subscription.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Report Generation Failed',
+          description:
+            error.message || 'Failed to generate the compliance report. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
+  const getRiskLevelColor = (level: RiskLevel) => {
+    switch (level) {
+      case 'CRITICAL':
+        return 'text-red-400';
+      case 'HIGH':
+        return 'text-orange-400';
+      case 'MEDIUM':
+        return 'text-yellow-400';
+      case 'LOW':
+        return 'text-green-400';
+      default:
+        return 'text-gray-400';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <Shield className="h-12 w-12 text-cyan-400 animate-pulse mx-auto mb-4" />
+          <p className="text-gray-400">Loading assessment results...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !results) {
+    return (
+      <div className="min-h-screen bg-gray-950 p-8">
+        <Card className="max-w-2xl mx-auto bg-red-900/20 border-red-800">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <p className="text-red-400 mb-4">Failed to load assessment results</p>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/assessment-templates')}
+              className="border-gray-700 text-gray-300"
+            >
+              Back to Assessments
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show low-confidence questions first if they exist and haven't been reviewed
+  // BUT ONLY if the assessment is not already completed
+  if (
+    results.lowConfidenceAnswers &&
+    results.lowConfidenceAnswers.length > 0 &&
+    !hasReviewedQuestions &&
+    !isSubmittingAnswers &&
+    results.assessment.status !== 'COMPLETED'
+  ) {
+    return (
+      <LowConfidenceQuestionsReview
+        questions={results.lowConfidenceAnswers}
+        onSubmit={handleSubmitManualAnswers}
+      />
+    );
+  }
+
+  // Show main results after review (or if no questions need review)
+  return (
+    <div className="min-h-screen bg-gray-950 relative overflow-hidden">
+      {/* Background gradients */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-pink-500/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-4xl font-bold gradient-text mb-2">Risk Assessment Results</h1>
+              <p className="text-gray-400">Comprehensive analysis of your compliance framework</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/assessment-templates')}
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
+                Back to Assessments
+              </Button>
+              <Button
+                onClick={handleDownloadReport}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                data-testid="button-download-report"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download Report
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Top Cards Row */}
+        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+          {/* Main Risk Score Card */}
+          <Card className="lg:col-span-2 bg-gray-900/50 backdrop-blur-sm border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-white">Overall Risk Assessment</CardTitle>
+              <CardDescription className="text-gray-400">
+                Your organization's comprehensive risk score
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-8">
+                <RiskScoreGauge score={results.overallRiskScore} size="large" />
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Risk Level</p>
+                    <Badge className={`${getRiskScoreColor(results.overallRiskScore)} px-3 py-1`}>
+                      {getRiskLevel(results.overallRiskScore)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Assessment Priority</p>
+                    <div className="flex items-center gap-2">
+                      {getPriorityIcon(results.summary.priority)}
+                      <span className="text-white font-medium">
+                        {results.summary.priority.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-gray-800">
+                    <p className="text-sm text-gray-300">
+                      Your compliance framework requires{' '}
+                      {results.summary.priority.toLowerCase().replace('_', ' ')} attention with an
+                      estimated investment of {results.summary.estimatedCost}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Key Metrics Card */}
+          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-white">Key Metrics</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-gray-400">Total Gaps</span>
+                  <span className="text-xl font-bold text-white">{results.summary.totalGaps}</span>
+                </div>
+                <Progress value={70} className="h-2 bg-gray-800" />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-gray-400">Critical Issues</span>
+                  <span className="text-xl font-bold text-red-400">
+                    {results.summary.criticalGaps}
+                  </span>
+                </div>
+                <Progress value={30} className="h-2 bg-gray-800" />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-gray-400">High Risks</span>
+                  <span className="text-xl font-bold text-orange-400">
+                    {results.summary.highRisks}
+                  </span>
+                </div>
+                <Progress value={50} className="h-2 bg-gray-800" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Find Matching Vendors or Complete Priorities - Prominent Call to Action */}
+        <Card className="mb-8 bg-gradient-to-r from-pink-900/30 to-purple-900/30 border-pink-800/50">
+          <CardContent className="p-6">
+            {!hasPriorities ? (
+              // Show Priorities Questionnaire CTA if not completed
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                    <Target className="h-6 w-6 text-pink-400" />
+                    Complete Your Priorities Questionnaire
+                  </h3>
+                  <p className="text-gray-300">
+                    Tell us about your organization's priorities and get personalized vendor
+                    recommendations based on your specific needs.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => navigate(`/assessments/${assessmentId}/priorities`)}
+                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white px-8 py-6 text-lg font-semibold"
+                  data-testid="button-complete-priorities"
+                >
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Complete Questionnaire
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </Button>
+              </div>
+            ) : (
+              // Show Vendor Matching CTA if priorities completed
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                    <Users className="h-6 w-6 text-pink-400" />
+                    Ready to Address Your Compliance Gaps?
+                  </h3>
+                  <p className="text-gray-300">
+                    Discover vendors specifically matched to your assessment results and compliance
+                    needs.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => navigate(`/marketplace?assessmentId=${assessmentId}`)}
+                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white px-8 py-6 text-lg font-semibold"
+                  data-testid="button-find-matching-vendors"
+                >
+                  <Users className="h-5 w-5 mr-2" />
+                  Find Matching Vendors
+                  {vendorMatchesCount > 0 && (
+                    <Badge className="ml-3 bg-white text-pink-600 font-bold">
+                      {vendorMatchesCount} Matches
+                    </Badge>
+                  )}
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Analysis Cards Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Compliance Coverage Card */}
+          <Collapsible
+            open={expandedCards.has('compliance')}
+            onOpenChange={() => toggleCardExpansion('compliance')}
+          >
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 h-full">
+              <CardHeader>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-green-400" />
+                    <CardTitle className="text-white text-base">Compliance Coverage</CardTitle>
+                  </div>
+                  {expandedCards.has('compliance') ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl font-bold text-white">
+                    {100 - results.overallRiskScore}%
+                  </span>
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/50">
+                    Compliant
+                  </Badge>
+                </div>
+                <CollapsibleContent>
+                  <div className="mt-4 space-y-2 text-sm text-gray-400">
+                    <div className="flex justify-between">
+                      <span>Policies Implemented</span>
+                      <span className="text-white">
+                        {Math.floor((100 - results.overallRiskScore) * 0.8)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Controls Active</span>
+                      <span className="text-white">
+                        {Math.floor((100 - results.overallRiskScore) * 0.9)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Documentation</span>
+                      <span className="text-white">
+                        {Math.floor((100 - results.overallRiskScore) * 0.7)}%
+                      </span>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </CardContent>
+            </Card>
+          </Collapsible>
+
+          {/* Risk Distribution Card */}
+          <Collapsible
+            open={expandedCards.has('risk-dist')}
+            onOpenChange={() => toggleCardExpansion('risk-dist')}
+          >
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 h-full">
+              <CardHeader>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-orange-400" />
+                    <CardTitle className="text-white text-base">Risk Distribution</CardTitle>
+                  </div>
+                  {expandedCards.has('risk-dist') ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-red-400 rounded-full" />
+                    <span className="text-sm text-gray-400">Critical</span>
+                    <span className="ml-auto text-white font-medium">
+                      {results.risks.filter(r => r.riskLevel === 'CRITICAL').length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-400 rounded-full" />
+                    <span className="text-sm text-gray-400">High</span>
+                    <span className="ml-auto text-white font-medium">
+                      {results.risks.filter(r => r.riskLevel === 'HIGH').length}
+                    </span>
+                  </div>
+                </div>
+                <CollapsibleContent>
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-yellow-400 rounded-full" />
+                      <span className="text-sm text-gray-400">Medium</span>
+                      <span className="ml-auto text-white font-medium">
+                        {results.risks.filter(r => r.riskLevel === 'MEDIUM').length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-400 rounded-full" />
+                      <span className="text-sm text-gray-400">Low</span>
+                      <span className="ml-auto text-white font-medium">
+                        {results.risks.filter(r => r.riskLevel === 'LOW').length}
+                      </span>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </CardContent>
+            </Card>
+          </Collapsible>
+
+          {/* Gap Categories Card */}
+          <Collapsible
+            open={expandedCards.has('gap-cat')}
+            onOpenChange={() => toggleCardExpansion('gap-cat')}
+          >
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 h-full">
+              <CardHeader>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-cyan-400" />
+                    <CardTitle className="text-white text-base">Gap Categories</CardTitle>
+                  </div>
+                  {expandedCards.has('gap-cat') ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white mb-2">
+                  {results.gaps.length} Total
+                </div>
+                <div className="text-sm text-gray-400">
+                  Across {new Set(results.gaps.map(g => g.category)).size} categories
+                </div>
+                <CollapsibleContent>
+                  <div className="mt-4 space-y-2">
+                    {Array.from(new Set(results.gaps.map(g => g.category)))
+                      .slice(0, 5)
+                      .map(cat => (
+                        <div key={cat} className="flex justify-between items-center">
+                          <span className="text-sm text-gray-400">{cat}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {results.gaps.filter(g => g.category === cat).length}
+                          </Badge>
+                        </div>
+                      ))}
+                  </div>
+                </CollapsibleContent>
+              </CardContent>
+            </Card>
+          </Collapsible>
+
+          {/* Estimated Timeline Card */}
+          <Collapsible
+            open={expandedCards.has('timeline')}
+            onOpenChange={() => toggleCardExpansion('timeline')}
+          >
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 h-full">
+              <CardHeader>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-pink-400" />
+                    <CardTitle className="text-white text-base">Remediation Timeline</CardTitle>
+                  </div>
+                  {expandedCards.has('timeline') ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white mb-2">
+                  {results.summary.estimatedEffort}
+                </div>
+                <div className="text-sm text-gray-400">Full remediation</div>
+                <CollapsibleContent>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Immediate fixes</span>
+                      <span className="text-white">2-4 weeks</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Short-term</span>
+                      <span className="text-white">1-2 months</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Long-term</span>
+                      <span className="text-white">3-6 months</span>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </CardContent>
+            </Card>
+          </Collapsible>
+
+          {/* Investment Required Card */}
+          <Collapsible
+            open={expandedCards.has('investment')}
+            onOpenChange={() => toggleCardExpansion('investment')}
+          >
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 h-full">
+              <CardHeader>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-yellow-400" />
+                    <CardTitle className="text-white text-base">Investment Required</CardTitle>
+                  </div>
+                  {expandedCards.has('investment') ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white mb-2">
+                  {results.summary.estimatedCost}
+                </div>
+                <div className="text-sm text-gray-400">Total budget estimate</div>
+                <CollapsibleContent>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Technology</span>
+                      <span className="text-white">30-40%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Consulting</span>
+                      <span className="text-white">25-35%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Training</span>
+                      <span className="text-white">15-20%</span>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </CardContent>
+            </Card>
+          </Collapsible>
+
+          {/* Team Impact Card */}
+          <Collapsible
+            open={expandedCards.has('team')}
+            onOpenChange={() => toggleCardExpansion('team')}
+          >
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 h-full">
+              <CardHeader>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-400" />
+                    <CardTitle className="text-white text-base">Team Impact</CardTitle>
+                  </div>
+                  {expandedCards.has('team') ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white mb-2">
+                  {3 + Math.floor(results.gaps.length / 8)} Teams
+                </div>
+                <div className="text-sm text-gray-400">Will be involved</div>
+                <CollapsibleContent>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-cyan-400" />
+                      <span className="text-gray-300">Compliance Team</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-cyan-400" />
+                      <span className="text-gray-300">IT Security</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-cyan-400" />
+                      <span className="text-gray-300">Legal Department</span>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </CardContent>
+            </Card>
+          </Collapsible>
+        </div>
+
+        {/* Detailed Tabs */}
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
+          <TabsList className="bg-gray-900/50 border border-gray-800">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-cyan-600">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="gaps" className="data-[state=active]:bg-cyan-600">
+              Gap Analysis
+            </TabsTrigger>
+            <TabsTrigger value="risks" className="data-[state=active]:bg-cyan-600">
+              Risk Matrix
+            </TabsTrigger>
+            <TabsTrigger value="strategy" className="data-[state=active]:bg-cyan-600">
+              Strategy
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* AI Insights Card */}
+            <Card className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-purple-800/50">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-purple-400" />
+                  <CardTitle className="text-white">AI-Powered Insights</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full mt-1.5 animate-pulse" />
+                  <p className="text-gray-300">
+                    Your highest risk exposure is in{' '}
+                    {results.gaps[0]?.category || 'regulatory compliance'} with{' '}
+                    {results.gaps.filter(g => g.severity === 'CRITICAL').length} critical gaps
+                    requiring immediate remediation.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-pink-400 rounded-full mt-1.5 animate-pulse" />
+                  <p className="text-gray-300">
+                    The assessment identifies opportunities to reduce risk by{' '}
+                    {Math.round(results.overallRiskScore * 0.6)}% through implementation of
+                    recommended controls.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full mt-1.5 animate-pulse" />
+                  <p className="text-gray-300">
+                    Quick wins available: {Math.floor(results.gaps.length * 0.3)} gaps can be
+                    resolved within 30 days with minimal investment.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Recommendations */}
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">Priority Recommendations</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Immediate actions to improve your compliance posture
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {results.recommendations.slice(0, 5).map((rec, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <div className="mt-1">
+                        <CheckCircle className="h-5 w-5 text-cyan-400" />
+                      </div>
+                      <p className="text-gray-300">{rec}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Gap Analysis Tab */}
+          <TabsContent value="gaps" className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-white">Identified Compliance Gaps</h2>
+              <Badge className="bg-gray-800 text-gray-300">{results.gaps.length} Total Gaps</Badge>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {results.gaps.map(gap => (
+                <GapCard
+                  key={gap.id}
+                  gap={gap}
+                  isExpanded={expandedGaps.has(gap.id)}
+                  onToggle={() => toggleGapExpansion(gap.id)}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Risk Matrix Tab */}
+          <TabsContent value="risks" className="space-y-6">
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">Risk Heat Map</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Visual representation of likelihood vs impact
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RiskHeatmap risks={results.risks} />
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              {results.risks.map(risk => (
+                <Card key={risk.id} className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+                  <CardContent className="p-6">
+                    <Collapsible
+                      open={expandedRisks.has(risk.id)}
+                      onOpenChange={() => toggleRiskExpansion(risk.id)}
+                    >
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex items-start justify-between">
+                          <div className="text-left">
+                            <div className="flex items-center gap-3 mb-2">
+                              <Badge className={`${getRiskLevelColor(risk.riskLevel)}`}>
+                                {risk.riskLevel}
+                              </Badge>
+                              <Badge variant="outline" className="border-gray-700 text-gray-300">
+                                {risk.category.replace('_', ' ')}
+                              </Badge>
+                            </div>
+                            <h3 className="text-lg font-semibold text-white mb-1">{risk.title}</h3>
+                            <p className="text-gray-400 text-sm">{risk.description}</p>
+                          </div>
+                          {expandedRisks.has(risk.id) ? (
+                            <ChevronUp className="h-5 w-5 text-gray-400 mt-1" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-gray-400 mt-1" />
+                          )}
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-4 pt-4 border-t border-gray-800">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-400 mb-2">
+                              Current Controls
+                            </p>
+                            <ul className="space-y-1">
+                              {risk.currentControls?.map((control, idx) => (
+                                <li
+                                  key={idx}
+                                  className="text-sm text-gray-300 flex items-start gap-2"
+                                >
+                                  <span className="text-cyan-400 mt-1">•</span>
+                                  {control}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-400 mb-2">
+                              Recommended Actions
+                            </p>
+                            <ul className="space-y-1">
+                              {risk.recommendedActions?.map((action, idx) => (
+                                <li
+                                  key={idx}
+                                  className="text-sm text-gray-300 flex items-start gap-2"
+                                >
+                                  <span className="text-pink-400 mt-1">→</span>
+                                  {action}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Strategy Tab */}
+          <TabsContent value="strategy" className="space-y-6">
+            <StrategyMatrix assessmentId={assessmentId!} />
+
+            {/* Secondary Vendor Matching Button */}
+            <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+              <CardContent className="p-6 text-center">
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  Find Vendors for Your Strategy
+                </h3>
+                <p className="text-gray-400 mb-4">
+                  Browse our marketplace of vendors matched to your specific compliance gaps
+                </p>
+                <Button
+                  onClick={() => navigate(`/marketplace?assessmentId=${assessmentId}`)}
+                  className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white"
+                  data-testid="button-find-vendors-strategy"
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Explore Matched Vendors
+                  {vendorMatchesCount > 0 && (
+                    <Badge className="ml-2 bg-cyan-200 text-cyan-900">{vendorMatchesCount}</Badge>
+                  )}
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Next Steps */}
+        <Card className="mt-8 bg-gradient-to-r from-gray-900 to-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white">Next Steps</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              {results.nextSteps.map((step, index) => (
+                <div key={index} className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                    <span className="text-sm font-bold text-cyan-400">{index + 1}</span>
+                  </div>
+                  <p className="text-gray-300">{step}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex gap-3">
+              <Button
+                onClick={() => navigate('/marketplace')}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                data-testid="button-find-consultants"
+              >
+                Find Consultants
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/assessment-templates')}
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
+                Run Another Assessment
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// Helper functions
+function getRiskLevel(score: number): string {
+  if (score >= 80) return 'CRITICAL';
+  if (score >= 60) return 'HIGH';
+  if (score >= 40) return 'MEDIUM';
+  return 'LOW';
+}
+
+function getRiskScoreColor(score: number): string {
+  if (score >= 80) return 'bg-red-500/20 text-red-400 border-red-500/50';
+  if (score >= 60) return 'bg-orange-500/20 text-orange-400 border-orange-500/50';
+  if (score >= 40) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+  return 'bg-green-500/20 text-green-400 border-green-500/50';
+}
+
+function getPriorityIcon(priority: Priority) {
+  const Icon = priorityIcons[priority];
+  return <Icon className="h-5 w-5 text-cyan-400" />;
+}
+
+export default AssessmentResults;

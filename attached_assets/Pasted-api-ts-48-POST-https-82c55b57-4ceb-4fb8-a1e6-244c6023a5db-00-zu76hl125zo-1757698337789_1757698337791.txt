@@ -1,0 +1,110 @@
+api.ts:48 
+        
+        
+       POST https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/v1/assessments 403 (Forbidden)
+apiRequest @ api.ts:48
+createAssessment @ api.ts:109
+mutationFn @ AssessmentExecution.tsx:109
+fn @ @tanstack_react-query.js?v=edf702fb:1991
+run @ @tanstack_react-query.js?v=edf702fb:795
+start @ @tanstack_react-query.js?v=edf702fb:838
+execute @ @tanstack_react-query.js?v=edf702fb:2027
+await in execute (async)
+mutate @ @tanstack_react-query.js?v=edf702fb:2346
+(anonymous) @ @tanstack_react-query.js?v=edf702fb:3507
+(anonymous) @ AssessmentExecution.tsx:197
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=edf702fb:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=edf702fb:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=edf702fb:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=edf702fb:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=edf702fb:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=edf702fb:19447
+commitRootImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19416
+commitRoot @ chunk-AVJPV5ZH.js?v=edf702fb:19277
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=edf702fb:18895
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=edf702fb:9119
+(anonymous) @ chunk-AVJPV5ZH.js?v=edf702fb:18627
+setTimeout (async)
+systemSetTimeoutZero @ @tanstack_react-query.js?v=edf702fb:103
+flush @ @tanstack_react-query.js?v=edf702fb:610
+batch @ @tanstack_react-query.js?v=edf702fb:628
+dispatch_fn @ @tanstack_react-query.js?v=edf702fb:1260
+setData @ @tanstack_react-query.js?v=edf702fb:931
+fetch @ @tanstack_react-query.js?v=edf702fb:1153
+await in fetch (async)
+executeFetch_fn @ @tanstack_react-query.js?v=edf702fb:1639
+onSubscribe @ @tanstack_react-query.js?v=edf702fb:1335
+subscribe @ @tanstack_react-query.js?v=edf702fb:24
+(anonymous) @ @tanstack_react-query.js?v=edf702fb:3239
+subscribeToStore @ chunk-AVJPV5ZH.js?v=edf702fb:11984
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=edf702fb:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=edf702fb:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=edf702fb:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=edf702fb:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=edf702fb:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=edf702fb:19447
+commitRootImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19416
+commitRoot @ chunk-AVJPV5ZH.js?v=edf702fb:19277
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=edf702fb:18895
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=edf702fb:9119
+(anonymous) @ chunk-AVJPV5ZH.js?v=edf702fb:18627
+Show 41 more frames
+Show less
+api.ts:49 [API] Response status: 403
+api.ts:62 [API] Error response: {message: 'Access denied', code: 'FORBIDDEN', statusCode: 403, timestamp: '2025-09-12T17:32:05.073Z'}
+apiRequest @ api.ts:62
+await in apiRequest (async)
+createAssessment @ api.ts:109
+mutationFn @ AssessmentExecution.tsx:109
+fn @ @tanstack_react-query.js?v=edf702fb:1991
+run @ @tanstack_react-query.js?v=edf702fb:795
+start @ @tanstack_react-query.js?v=edf702fb:838
+execute @ @tanstack_react-query.js?v=edf702fb:2027
+await in execute (async)
+mutate @ @tanstack_react-query.js?v=edf702fb:2346
+(anonymous) @ @tanstack_react-query.js?v=edf702fb:3507
+(anonymous) @ AssessmentExecution.tsx:197
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=edf702fb:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=edf702fb:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=edf702fb:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=edf702fb:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=edf702fb:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=edf702fb:19447
+commitRootImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19416
+commitRoot @ chunk-AVJPV5ZH.js?v=edf702fb:19277
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=edf702fb:18895
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=edf702fb:9119
+(anonymous) @ chunk-AVJPV5ZH.js?v=edf702fb:18627
+setTimeout (async)
+systemSetTimeoutZero @ @tanstack_react-query.js?v=edf702fb:103
+flush @ @tanstack_react-query.js?v=edf702fb:610
+batch @ @tanstack_react-query.js?v=edf702fb:628
+dispatch_fn @ @tanstack_react-query.js?v=edf702fb:1260
+setData @ @tanstack_react-query.js?v=edf702fb:931
+fetch @ @tanstack_react-query.js?v=edf702fb:1153
+await in fetch (async)
+executeFetch_fn @ @tanstack_react-query.js?v=edf702fb:1639
+onSubscribe @ @tanstack_react-query.js?v=edf702fb:1335
+subscribe @ @tanstack_react-query.js?v=edf702fb:24
+(anonymous) @ @tanstack_react-query.js?v=edf702fb:3239
+subscribeToStore @ chunk-AVJPV5ZH.js?v=edf702fb:11984
+commitHookEffectListMount @ chunk-AVJPV5ZH.js?v=edf702fb:16915
+commitPassiveMountOnFiber @ chunk-AVJPV5ZH.js?v=edf702fb:18156
+commitPassiveMountEffects_complete @ chunk-AVJPV5ZH.js?v=edf702fb:18129
+commitPassiveMountEffects_begin @ chunk-AVJPV5ZH.js?v=edf702fb:18119
+commitPassiveMountEffects @ chunk-AVJPV5ZH.js?v=edf702fb:18109
+flushPassiveEffectsImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19490
+flushPassiveEffects @ chunk-AVJPV5ZH.js?v=edf702fb:19447
+commitRootImpl @ chunk-AVJPV5ZH.js?v=edf702fb:19416
+commitRoot @ chunk-AVJPV5ZH.js?v=edf702fb:19277
+performSyncWorkOnRoot @ chunk-AVJPV5ZH.js?v=edf702fb:18895
+flushSyncCallbacks @ chunk-AVJPV5ZH.js?v=edf702fb:9119
+(anonymous) @ chunk-AVJPV5ZH.js?v=edf702fb:18627
+Show 41 more frames
+Show less
+api.ts:70 [API] Fetch error: Error: Access denied
+    at apiRequest (api.ts:63:13)
+    at async Object.createAssessment (api.ts:109:22)

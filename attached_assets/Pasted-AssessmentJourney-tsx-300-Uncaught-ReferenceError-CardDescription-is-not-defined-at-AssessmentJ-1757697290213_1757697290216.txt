@@ -1,0 +1,43 @@
+AssessmentJourney.tsx:300 Uncaught ReferenceError: CardDescription is not defined
+    at AssessmentJourney (AssessmentJourney.tsx:300:22)
+    at renderWithHooks (chunk-AVJPV5ZH.js?v=edf702fb:11548:26)
+    at updateFunctionComponent (chunk-AVJPV5ZH.js?v=edf702fb:14582:28)
+    at beginWork (chunk-AVJPV5ZH.js?v=edf702fb:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-AVJPV5ZH.js?v=edf702fb:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-AVJPV5ZH.js?v=edf702fb:3699:24)
+    at invokeGuardedCallback (chunk-AVJPV5ZH.js?v=edf702fb:3733:39)
+    at beginWork$1 (chunk-AVJPV5ZH.js?v=edf702fb:19765:15)
+    at performUnitOfWork (chunk-AVJPV5ZH.js?v=edf702fb:19198:20)
+    at workLoopSync (chunk-AVJPV5ZH.js?v=edf702fb:19137:13)
+chunk-AVJPV5ZH.js?v=edf702fb:14032 The above error occurred in the <AssessmentJourney> component:
+
+    at AssessmentJourney (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/pages/AssessmentJourney.tsx:38:20)
+    at RenderedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=edf702fb:4088:5)
+    at Routes (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=edf702fb:4558:5)
+    at div
+    at Router (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=edf702fb:4501:15)
+    at BrowserRouter (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=edf702fb:5247:5)
+    at Provider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/chunk-ANXU5LOI.js?v=edf702fb:38:15)
+    at TooltipProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=edf702fb:63:5)
+    at O (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=edf702fb:23:25)
+    at z (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=edf702fb:21:18)
+    at AuthProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/AuthContext.tsx:20:32)
+    at QueryClientProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=edf702fb:3022:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ chunk-AVJPV5ZH.js?v=edf702fb:14032
+Show 1 more frame
+Show less
+chunk-AVJPV5ZH.js?v=edf702fb:19413 Uncaught ReferenceError: CardDescription is not defined
+    at AssessmentJourney (AssessmentJourney.tsx:300:22)
+    at renderWithHooks (chunk-AVJPV5ZH.js?v=edf702fb:11548:26)
+    at updateFunctionComponent (chunk-AVJPV5ZH.js?v=edf702fb:14582:28)
+    at beginWork (chunk-AVJPV5ZH.js?v=edf702fb:15924:22)
+    at beginWork$1 (chunk-AVJPV5ZH.js?v=edf702fb:19753:22)
+    at performUnitOfWork (chunk-AVJPV5ZH.js?v=edf702fb:19198:20)
+    at workLoopSync (chunk-AVJPV5ZH.js?v=edf702fb:19137:13)
+    at renderRootSync (chunk-AVJPV5ZH.js?v=edf702fb:19116:15)
+    at recoverFromConcurrentError (chunk-AVJPV5ZH.js?v=edf702fb:18736:28)
+    at performConcurrentWorkOnRoot (chunk-AVJPV5ZH.js?v=edf702fb:18684:30)

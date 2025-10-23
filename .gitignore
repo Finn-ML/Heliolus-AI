@@ -1,0 +1,15 @@
+.env.local
+# Large binaries and chromium
+backend/chromium/
+**/chrome
+**/chromium/
+
+# Screenshots and PDFs (if you don't need them in version control)
+*.pdf
+screenshots/
+**/*screenshot*.png
+
+# Common large files
+node_modules/
+*.log
+.DS_Store

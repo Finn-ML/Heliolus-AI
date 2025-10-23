@@ -1,0 +1,925 @@
+/**
+ * Vendor matching engine implementation
+ */
+
+import { z } from 'zod';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  VendorMatchEngine,
+  MatchingRequest,
+  MatchingResult,
+  MatchingCriteria,
+  VendorProfile,
+  SolutionProfile,
+  VendorMatch,
+  CompatibilityScore,
+  GapProfile,
+  MatchingContext,
+  VendorRecommendation,
+  MatchingError,
+  InsufficientDataError
+} from './types.js';
+import { VendorScorer } from './scoring.js';
+import { VENDOR_CONFIG } from './index.js';
+import { VendorCategory, CompanySize } from '../../types/database.js';
+
+const prisma = new PrismaClient();
+
+// Validation schemas
+const MatchingRequestSchema = z.object({
+  gaps: z.array(z.object({
+    id: z.string(),
+    category: z.string(),
+    title: z.string(),
+    description: z.string(),
+    severity: z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']),
+    priority: z.enum(['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM']),
+    businessImpact: z.string(),
+    requiredCapabilities: z.array(z.string()),
+    preferredSolution: z.string().optional(),
+    budget: z.enum(['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH']).optional(),
+    timeline: z.string().optional()
+  })),
+  context: z.object({
+    organizationId: z.string(),
+    industry: z.string().optional(),
+    companySize: z.enum(['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE']).optional(),
+    region: z.string().optional(),
+    budget: z.enum(['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH']).optional(),
+    timeline: z.enum(['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM']).optional(),
+    existingVendors: z.array(z.string()).optional(),
+    preferredCategories: z.array(z.string()).optional(),
+    requiredFeatures: z.array(z.string()).optional(),
+    excludedVendors: z.array(z.string()).optional()
+  }),
+  filters: z.object({
+    categories: z.array(z.string()).optional(),
+    pricingModels: z.array(z.string()).optional(),
+    companySizes: z.array(z.string()).optional(),
+    regions: z.array(z.string()).optional(),
+    industries: z.array(z.string()).optional(),
+    minRating: z.number().optional(),
+    verifiedOnly: z.boolean().optional(),
+    featuredOnly: z.boolean().optional(),
+    maxStartingPrice: z.number().optional()
+  }).optional(),
+  options: z.object({
+    maxResults: z.number().optional(),
+    includePartialMatches: z.boolean().optional(),
+    boostFeatured: z.boolean().optional(),
+    includeNewVendors: z.boolean().optional(),
+    prioritizeQuickWins: z.boolean().optional()
+  }).optional()
+});
+
+/**
+ * Advanced vendor-to-gap matching engine
+ */
+export class VendorMatchingEngine implements VendorMatchEngine {
+  private scorer: VendorScorer;
+
+  constructor() {
+    this.scorer = new VendorScorer();
+  }
+
+  /**
+   * Find vendor matches for identified gaps
+   */
+  async findMatches(request: MatchingRequest): Promise<MatchingResult> {
+    const startTime = Date.now();
+
+    try {
+      // Validate request
+      const validatedRequest = MatchingRequestSchema.parse(request);
+      console.log(`Finding matches for ${validatedRequest.gaps.length} gaps`);
+
+      if (validatedRequest.gaps.length === 0) {
+        throw new InsufficientDataError('No gaps provided for matching');
+      }
+
+      // Get candidate vendors
+      const candidateVendors = await this.getCandidateVendors(
+        validatedRequest.gaps,
+        validatedRequest.context,
+        validatedRequest.filters
+      );
+
+      console.log(`Evaluating ${candidateVendors.length} candidate vendors`);
+
+      // Score and match vendors
+      const matches = await this.scoreAndMatchVendors(
+        candidateVendors,
+        validatedRequest.gaps,
+        validatedRequest.context,
+        validatedRequest.options
+      );
+
+      // Generate alternatives
+      const alternatives = await this.generateAlternatives(
+        matches,
+        candidateVendors,
+        validatedRequest.gaps,
+        validatedRequest.context
+      );
+
+      // Create summary
+      const summary = this.createMatchingSummary(matches, validatedRequest.gaps);
+
+      const result: MatchingResult = {
+        request: validatedRequest,
+        matches,
+        summary,
+        alternatives,
+        metadata: {
+          requestId: `match-${Date.now()}`,
+          processedAt: new Date(),
+          processingTime: Date.now() - startTime,
+          algorithm: 'advanced-matching-v1',
+          version: '1.0.0',
+          totalVendorsEvaluated: candidateVendors.length,
+          filtersApplied: this.getAppliedFilters(validatedRequest.filters),
+          confidenceLevel: this.calculateOverallConfidence(matches)
+        }
+      };
+
+      console.log(`Matching completed: ${matches.length} matches found in ${result.metadata.processingTime}ms`);
+      return result;
+
+    } catch (error) {
+      console.error('Vendor matching error:', error);
+      
+      if (error instanceof z.ZodError) {
+        throw new MatchingError(`Invalid request: ${error.errors[0].message}`);
+      }
+      
+      if (error instanceof InsufficientDataError) {
+        throw error;
+      }
+
+      throw new MatchingError('Vendor matching failed');
+    }
+  }
+
+  /**
+   * Score compatibility between vendor and criteria
+   */
+  async scoreCompatibility(
+    vendor: VendorProfile, 
+    criteria: MatchingCriteria
+  ): Promise<CompatibilityScore> {
+    try {
+      return await this.scorer.calculateCompatibilityScore(vendor, criteria);
+    } catch (error) {
+      console.error('Compatibility scoring error:', error);
+      throw new MatchingError('Compatibility scoring failed');
+    }
+  }
+
+  /**
+   * Generate vendor recommendations
+   */
+  async generateRecommendations(
+    gaps: GapProfile[], 
+    context: MatchingContext
+  ): Promise<VendorRecommendation[]> {
+    try {
+      console.log(`Generating recommendations for ${gaps.length} gaps`);
+
+      const request: MatchingRequest = {
+        gaps,
+        context,
+        options: {
+          maxResults: VENDOR_CONFIG.matching.maxRecommendations,
+          includePartialMatches: true,
+          boostFeatured: true,
+          includeNewVendors: true,
+          prioritizeQuickWins: true
+        }
+      };
+
+      const matchingResult = await this.findMatches(request);
+
+      const recommendations: VendorRecommendation[] = [];
+
+      // Primary recommendations (high compatibility)
+      const primaryMatches = matchingResult.matches
+        .filter(match => match.compatibilityScore.overall >= 80)
+        .slice(0, 5);
+
+      for (const match of primaryMatches) {
+        recommendations.push(await this.createRecommendation(match, 'primary', gaps));
+      }
+
+      // Alternative recommendations (good compatibility)
+      const alternativeMatches = matchingResult.matches
+        .filter(match => match.compatibilityScore.overall >= 60 && match.compatibilityScore.overall < 80)
+        .slice(0, 5);
+
+      for (const match of alternativeMatches) {
+        recommendations.push(await this.createRecommendation(match, 'alternative', gaps));
+      }
+
+      // Complementary recommendations (different gaps)
+      const complementaryMatches = matchingResult.alternatives
+        .slice(0, 3);
+
+      for (const match of complementaryMatches) {
+        recommendations.push(await this.createRecommendation(match, 'complementary', gaps));
+      }
+
+      console.log(`Generated ${recommendations.length} recommendations`);
+      return recommendations;
+
+    } catch (error) {
+      console.error('Recommendation generation error:', error);
+      throw new MatchingError('Recommendation generation failed');
+    }
+  }
+
+  // Private helper methods
+
+  private async getCandidateVendors(
+    gaps: GapProfile[],
+    context: MatchingContext,
+    filters?: any
+  ): Promise<VendorProfile[]> {
+    // Extract relevant categories from gaps
+    const gapCategories = [...new Set(gaps.map(gap => gap.category))];
+    
+    // Build vendor search criteria
+    const whereClause: any = {
+      status: 'APPROVED',
+      OR: [
+        // Match by vendor categories
+        {
+          categories: {
+            hasSome: this.mapGapCategoriesToVendorCategories(gapCategories)
+          }
+        },
+        // Match by solution categories
+        {
+          solutions: {
+            some: {
+              isActive: true,
+              gapCategories: {
+                hasSome: gapCategories
+              }
+            }
+          }
+        }
+      ]
+    };
+
+    // Apply filters
+    if (filters) {
+      if (filters.verifiedOnly) {
+        whereClause.verified = true;
+      }
+      if (filters.featuredOnly) {
+        whereClause.featured = true;
+      }
+      if (filters.minRating) {
+        whereClause.rating = { gte: filters.minRating };
+      }
+      if (filters.categories && filters.categories.length > 0) {
+        whereClause.categories = { hasSome: filters.categories };
+      }
+      if (context.companySize) {
+        whereClause.solutions = {
+          some: {
+            ...whereClause.solutions?.some,
+            companySizes: { has: context.companySize }
+          }
+        };
+      }
+    }
+
+    // Exclude vendors already used by organization
+    if (context.existingVendors && context.existingVendors.length > 0) {
+      whereClause.id = { notIn: context.existingVendors };
+    }
+
+    if (context.excludedVendors && context.excludedVendors.length > 0) {
+      whereClause.id = whereClause.id 
+        ? { ...whereClause.id, notIn: [...(whereClause.id.notIn || []), ...context.excludedVendors] }
+        : { notIn: context.excludedVendors };
+    }
+
+    const vendors = await prisma.vendor.findMany({
+      where: whereClause,
+      include: {
+        solutions: {
+          where: { isActive: true }
+        }
+      },
+      orderBy: [
+        { featured: 'desc' },
+        { verified: 'desc' },
+        { rating: 'desc' },
+        { reviewCount: 'desc' }
+      ],
+      take: 200 // Reasonable limit for processing
+    });
+
+    return vendors.map(vendor => this.mapPrismaVendorToProfile(vendor));
+  }
+
+  private async scoreAndMatchVendors(
+    vendors: VendorProfile[],
+    gaps: GapProfile[],
+    context: MatchingContext,
+    options?: any
+  ): Promise<VendorMatch[]> {
+    const matches: VendorMatch[] = [];
+
+    for (const vendor of vendors) {
+      try {
+        // Create matching criteria from gaps and context
+        const criteria = this.createMatchingCriteria(gaps, context);
+        
+        // Calculate compatibility score
+        const compatibilityScore = await this.scorer.calculateCompatibilityScore(vendor, criteria);
+
+        // Check if meets minimum threshold
+        if (compatibilityScore.overall < VENDOR_CONFIG.matching.minCompatibilityScore) {
+          continue;
+        }
+
+        // Find best solution match
+        const bestSolution = this.findBestSolutionMatch(vendor, gaps);
+
+        // Identify addressed gaps
+        const addressedGaps = this.identifyAddressedGaps(vendor, bestSolution, gaps);
+
+        // Generate match reasons
+        const matchReasons = this.generateMatchReasons(vendor, bestSolution, compatibilityScore, addressedGaps);
+
+        // Create match
+        const match: VendorMatch = {
+          vendor,
+          solution: bestSolution,
+          compatibilityScore,
+          matchReasons,
+          addressedGaps: addressedGaps.map(gap => gap.id),
+          nextSteps: this.generateNextSteps(vendor, bestSolution)
+        };
+
+        matches.push(match);
+
+      } catch (error) {
+        console.error(`Error scoring vendor ${vendor.id}:`, error);
+        // Continue with other vendors
+      }
+    }
+
+    // Sort by compatibility score
+    matches.sort((a, b) => b.compatibilityScore.overall - a.compatibilityScore.overall);
+
+    // Apply options
+    const maxResults = options?.maxResults || VENDOR_CONFIG.matching.maxRecommendations;
+    return matches.slice(0, maxResults);
+  }
+
+  private async generateAlternatives(
+    primaryMatches: VendorMatch[],
+    allVendors: VendorProfile[],
+    gaps: GapProfile[],
+    context: MatchingContext
+  ): Promise<VendorMatch[]> {
+    // Get vendors not in primary matches
+    const primaryVendorIds = new Set(primaryMatches.map(match => match.vendor.id));
+    const alternativeVendors = allVendors.filter(vendor => !primaryVendorIds.has(vendor.id));
+
+    // Find vendors that address different gaps or use different approaches
+    const alternatives: VendorMatch[] = [];
+
+    for (const vendor of alternativeVendors.slice(0, 10)) {
+      try {
+        const criteria = this.createMatchingCriteria(gaps, context);
+        const compatibilityScore = await this.scorer.calculateCompatibilityScore(vendor, criteria);
+
+        if (compatibilityScore.overall >= 50) { // Lower threshold for alternatives
+          const bestSolution = this.findBestSolutionMatch(vendor, gaps);
+          const addressedGaps = this.identifyAddressedGaps(vendor, bestSolution, gaps);
+
+          const match: VendorMatch = {
+            vendor,
+            solution: bestSolution,
+            compatibilityScore,
+            matchReasons: [`Alternative solution approach`, `Different vendor category`],
+            addressedGaps: addressedGaps.map(gap => gap.id),
+            nextSteps: this.generateNextSteps(vendor, bestSolution)
+          };
+
+          alternatives.push(match);
+        }
+      } catch (error) {
+        console.error(`Error evaluating alternative vendor ${vendor.id}:`, error);
+      }
+    }
+
+    return alternatives.sort((a, b) => b.compatibilityScore.overall - a.compatibilityScore.overall).slice(0, 5);
+  }
+
+  private createMatchingCriteria(gaps: GapProfile[], context: MatchingContext): MatchingCriteria {
+    return {
+      requiredCategories: [...new Set(gaps.map(gap => gap.category))],
+      preferredFeatures: gaps.flatMap(gap => gap.requiredCapabilities),
+      industry: context.industry,
+      companySize: context.companySize,
+      region: context.region,
+      budget: context.budget,
+      timeline: context.timeline,
+      criticalGaps: gaps.filter(gap => gap.severity === 'CRITICAL').map(gap => gap.id),
+      preferredVendors: [],
+      excludedVendors: context.excludedVendors || []
+    };
+  }
+
+  private findBestSolutionMatch(vendor: VendorProfile, gaps: GapProfile[]): SolutionProfile | undefined {
+    if (!vendor.solutions || vendor.solutions.length === 0) {
+      return undefined;
+    }
+
+    const gapCategories = gaps.map(gap => gap.category);
+    const requiredCapabilities = gaps.flatMap(gap => gap.requiredCapabilities);
+
+    // Score each solution
+    const scoredSolutions = vendor.solutions.map(solution => {
+      let score = 0;
+
+      // Category alignment
+      const categoryMatch = solution.gapCategories.some(cat => gapCategories.includes(cat));
+      if (categoryMatch) score += 40;
+
+      // Feature coverage
+      const featureMatches = requiredCapabilities.filter(cap => 
+        solution.features.some(feature => 
+          feature.toLowerCase().includes(cap.toLowerCase()) ||
+          cap.toLowerCase().includes(feature.toLowerCase())
+        )
+      );
+      score += (featureMatches.length / requiredCapabilities.length) * 30;
+
+      // Use case alignment
+      const useCaseMatches = gaps.filter(gap =>
+        solution.useCases.some(useCase =>
+          useCase.toLowerCase().includes(gap.title.toLowerCase()) ||
+          gap.description.toLowerCase().includes(useCase.toLowerCase())
+        )
+      );
+      score += (useCaseMatches.length / gaps.length) * 20;
+
+      // Industry alignment
+      if (solution.industries.length > 0 && vendor.categories) {
+        const industryMatch = solution.industries.some(industry => 
+          vendor.categories.includes(industry as VendorCategory)
+        );
+        if (industryMatch) score += 10;
+      }
+
+      return { solution, score };
+    });
+
+    // Return highest scoring solution
+    scoredSolutions.sort((a, b) => b.score - a.score);
+    return scoredSolutions[0]?.solution;
+  }
+
+  private identifyAddressedGaps(
+    vendor: VendorProfile, 
+    solution: SolutionProfile | undefined, 
+    gaps: GapProfile[]
+  ): GapProfile[] {
+    const addressedGaps: GapProfile[] = [];
+
+    for (const gap of gaps) {
+      let addresses = false;
+
+      // Check vendor categories
+      const vendorCategoryMatch = vendor.categories.some(category =>
+        this.categoryMatchesGap(category, gap.category)
+      );
+
+      // Check solution alignment if available
+      let solutionMatch = false;
+      if (solution) {
+        solutionMatch = solution.gapCategories.includes(gap.category) ||
+          solution.features.some(feature =>
+            gap.requiredCapabilities.some(cap =>
+              feature.toLowerCase().includes(cap.toLowerCase()) ||
+              cap.toLowerCase().includes(feature.toLowerCase())
+            )
+          );
+      }
+
+      addresses = vendorCategoryMatch || solutionMatch;
+
+      if (addresses) {
+        addressedGaps.push(gap);
+      }
+    }
+
+    return addressedGaps;
+  }
+
+  private generateMatchReasons(
+    vendor: VendorProfile,
+    solution: SolutionProfile | undefined,
+    compatibilityScore: CompatibilityScore,
+    addressedGaps: GapProfile[]
+  ): string[] {
+    const reasons: string[] = [];
+
+    // Compatibility-based reasons
+    if (compatibilityScore.overall >= 90) {
+      reasons.push('Excellent compatibility match');
+    } else if (compatibilityScore.overall >= 75) {
+      reasons.push('Strong compatibility match');
+    }
+
+    // Functional fit
+    if (compatibilityScore.breakdown.functionalFit >= 80) {
+      reasons.push('Strong functional fit for your requirements');
+    }
+
+    // Industry experience
+    if (compatibilityScore.breakdown.industryExperience >= 80) {
+      reasons.push('Proven experience in your industry');
+    }
+
+    // Company size alignment
+    if (compatibilityScore.breakdown.companySize >= 80) {
+      reasons.push('Solutions designed for your company size');
+    }
+
+    // Gap coverage
+    if (addressedGaps.length > 1) {
+      reasons.push(`Addresses ${addressedGaps.length} of your compliance gaps`);
+    }
+
+    // Critical gap coverage
+    const criticalGaps = addressedGaps.filter(gap => gap.severity === 'CRITICAL');
+    if (criticalGaps.length > 0) {
+      reasons.push(`Addresses ${criticalGaps.length} critical compliance gaps`);
+    }
+
+    // Vendor qualifications
+    if (vendor.verified) {
+      reasons.push('Verified vendor with proven track record');
+    }
+
+    if (vendor.rating && vendor.rating >= 4.0) {
+      reasons.push(`High customer rating (${vendor.rating.toFixed(1)}/5.0)`);
+    }
+
+    // Solution-specific reasons
+    if (solution) {
+      if (solution.implementationTime && solution.implementationTime.toLowerCase().includes('quick')) {
+        reasons.push('Quick implementation timeline');
+      }
+
+      if (solution.setupComplexity === 'Simple') {
+        reasons.push('Simple setup and configuration');
+      }
+
+      if (solution.demoUrl) {
+        reasons.push('Demo available for evaluation');
+      }
+
+      if (solution.caseStudyUrls.length > 0) {
+        reasons.push('Case studies available showing proven results');
+      }
+    }
+
+    return reasons.slice(0, 6); // Limit to most important reasons
+  }
+
+  private generateNextSteps(vendor: VendorProfile, solution: SolutionProfile | undefined): string[] {
+    const steps: string[] = [];
+
+    // Always start with basic research
+    steps.push(`Review ${vendor.companyName} company profile and solution details`);
+
+    // Demo if available
+    if (solution?.demoUrl) {
+      steps.push(`Schedule product demo to see ${solution.name} in action`);
+    } else {
+      steps.push(`Request product demonstration from ${vendor.companyName}`);
+    }
+
+    // Case studies
+    if (solution?.caseStudyUrls.length > 0) {
+      steps.push(`Review case studies to understand implementation success stories`);
+    }
+
+    // Contact
+    steps.push(`Contact ${vendor.companyName} sales team to discuss requirements`);
+
+    // Evaluation
+    steps.push(`Request detailed proposal and pricing information`);
+
+    // Due diligence
+    if (vendor.verified) {
+      steps.push(`Conduct vendor due diligence and reference checks`);
+    } else {
+      steps.push(`Perform thorough vendor verification and reference checks`);
+    }
+
+    return steps;
+  }
+
+  private createMatchingSummary(matches: VendorMatch[], gaps: GapProfile[]) {
+    const perfectMatches = matches.filter(match => match.compatibilityScore.overall >= 90).length;
+    const goodMatches = matches.filter(match => 
+      match.compatibilityScore.overall >= 70 && match.compatibilityScore.overall < 90
+    ).length;
+    const partialMatches = matches.filter(match => match.compatibilityScore.overall < 70).length;
+
+    const coverageByGap: Record<string, number> = {};
+    for (const gap of gaps) {
+      coverageByGap[gap.id] = matches.filter(match => 
+        match.addressedGaps.includes(gap.id)
+      ).length;
+    }
+
+    const averageScore = matches.length > 0 
+      ? matches.reduce((sum, match) => sum + match.compatibilityScore.overall, 0) / matches.length
+      : 0;
+
+    const categoryCount: Record<string, number> = {};
+    matches.forEach(match => {
+      match.vendor.categories.forEach(category => {
+        categoryCount[category] = (categoryCount[category] || 0) + 1;
+      });
+    });
+
+    const topCategories = Object.entries(categoryCount)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([category]) => category);
+
+    return {
+      totalMatches: matches.length,
+      perfectMatches,
+      goodMatches,
+      partialMatches,
+      coverageByGap,
+      averageScore: Math.round(averageScore),
+      topCategories
+    };
+  }
+
+  private async createRecommendation(
+    match: VendorMatch,
+    type: 'primary' | 'alternative' | 'complementary',
+    gaps: GapProfile[]
+  ): Promise<VendorRecommendation> {
+    const addressedGaps = gaps.filter(gap => match.addressedGaps.includes(gap.id));
+
+    return {
+      id: `rec-${match.vendor.id}-${Date.now()}`,
+      type,
+      vendor: match.vendor,
+      solution: match.solution,
+      reason: this.getRecommendationReason(type, match, addressedGaps),
+      benefits: this.getRecommendationBenefits(match, addressedGaps),
+      addressedGaps,
+      score: match.compatibilityScore.overall,
+      confidence: match.compatibilityScore.confidence,
+      implementation: {
+        effort: this.estimateImplementationEffort(match.solution),
+        timeline: match.solution?.implementationTime || 'To be determined',
+        complexity: match.solution?.setupComplexity || 'Moderate'
+      },
+      businessCase: {
+        roi: 'To be calculated based on specific requirements',
+        paybackPeriod: 'Typically 6-18 months',
+        totalCost: this.estimateTotalCost(match.solution),
+        benefits: [
+          'Reduced compliance risk',
+          'Improved operational efficiency',
+          'Enhanced regulatory reporting'
+        ]
+      },
+      nextSteps: match.nextSteps,
+      metadata: {
+        matchedAt: new Date(),
+        algorithm: 'advanced-matching-v1',
+        version: '1.0.0'
+      }
+    };
+  }
+
+  // Helper methods for mapping and utilities
+  private mapGapCategoriesToVendorCategories(gapCategories: string[]): VendorCategory[] {
+    const mapping: Record<string, VendorCategory[]> = {
+      'Data Privacy': [VendorCategory.DATA_GOVERNANCE],
+      'Financial Crime': [VendorCategory.KYC_AML, VendorCategory.SANCTIONS_SCREENING],
+      'Risk Management': [VendorCategory.RISK_ASSESSMENT],
+      'Transaction Monitoring': [VendorCategory.TRANSACTION_MONITORING],
+      'Compliance Training': [VendorCategory.COMPLIANCE_TRAINING],
+      'Regulatory Reporting': [VendorCategory.REGULATORY_REPORTING],
+      'Trade Compliance': [VendorCategory.TRADE_SURVEILLANCE],
+      'Cybersecurity': [VendorCategory.DATA_GOVERNANCE],
+      'Governance': [VendorCategory.RISK_ASSESSMENT]
+    };
+
+    const categories = new Set<VendorCategory>();
+    gapCategories.forEach(gapCat => {
+      const vendorCats = mapping[gapCat] || [];
+      vendorCats.forEach(cat => categories.add(cat));
+    });
+
+    return Array.from(categories);
+  }
+
+  private categoryMatchesGap(vendorCategory: VendorCategory, gapCategory: string): boolean {
+    const matches: Record<VendorCategory, string[]> = {
+      [VendorCategory.KYC_AML]: ['Financial Crime', 'AML', 'KYC', 'Customer Due Diligence'],
+      [VendorCategory.TRANSACTION_MONITORING]: ['Transaction Monitoring', 'Financial Crime', 'AML'],
+      [VendorCategory.SANCTIONS_SCREENING]: ['Sanctions', 'Financial Crime', 'Screening'],
+      [VendorCategory.TRADE_SURVEILLANCE]: ['Trade Compliance', 'Market Surveillance', 'Trading'],
+      [VendorCategory.RISK_ASSESSMENT]: ['Risk Management', 'Risk Assessment', 'Governance'],
+      [VendorCategory.COMPLIANCE_TRAINING]: ['Training', 'Education', 'Awareness'],
+      [VendorCategory.REGULATORY_REPORTING]: ['Reporting', 'Regulatory', 'Compliance'],
+      [VendorCategory.DATA_GOVERNANCE]: ['Data Privacy', 'Data Management', 'Governance']
+    };
+
+    const matchingCategories = matches[vendorCategory] || [];
+    return matchingCategories.some(cat => 
+      gapCategory.toLowerCase().includes(cat.toLowerCase()) ||
+      cat.toLowerCase().includes(gapCategory.toLowerCase())
+    );
+  }
+
+  private mapPrismaVendorToProfile(prismaVendor: any): VendorProfile {
+    return {
+      id: prismaVendor.id,
+      userId: prismaVendor.userId,
+      companyName: prismaVendor.companyName,
+      website: prismaVendor.website,
+      logo: prismaVendor.logo,
+      description: prismaVendor.description,
+      shortDescription: prismaVendor.shortDescription,
+      categories: prismaVendor.categories,
+      contactEmail: prismaVendor.contactEmail,
+      contactPhone: prismaVendor.contactPhone,
+      contactName: prismaVendor.contactName,
+      salesEmail: prismaVendor.salesEmail,
+      featured: prismaVendor.featured,
+      verified: prismaVendor.verified,
+      rating: prismaVendor.rating,
+      reviewCount: prismaVendor.reviewCount,
+      status: prismaVendor.status,
+      solutions: (prismaVendor.solutions || []).map((solution: any) => ({
+        id: solution.id,
+        vendorId: solution.vendorId,
+        name: solution.name,
+        description: solution.description,
+        category: solution.category,
+        features: solution.features,
+        benefits: solution.benefits,
+        useCases: solution.useCases,
+        gapCategories: solution.gapCategories,
+        industries: solution.industries,
+        companySizes: solution.companySizes,
+        pricingModel: solution.pricingModel,
+        startingPrice: solution.startingPrice,
+        currency: solution.currency,
+        pricingDetails: solution.pricingDetails,
+        implementationTime: '2-4 weeks', // Default
+        setupComplexity: 'Moderate' as const,
+        demoUrl: solution.demoUrl,
+        brochureUrl: solution.brochureUrl,
+        caseStudyUrls: solution.caseStudyUrls,
+        metrics: {
+          views: 0,
+          interests: 0,
+          demonstrations: 0,
+          implementations: 0,
+          successRate: 85,
+          averageImplementationTime: 30,
+          customerSatisfaction: 80,
+          renewalRate: 90
+        },
+        isActive: solution.isActive,
+        createdAt: solution.createdAt,
+        updatedAt: solution.updatedAt
+      })),
+      metrics: {
+        profileViews: 0,
+        contactRequests: 0,
+        demoRequests: 0,
+        leads: 0,
+        conversions: 0,
+        averageRating: prismaVendor.rating || 0,
+        ratingCount: prismaVendor.reviewCount,
+        responseTime: 24,
+        responseRate: 85,
+        lastActivityAt: new Date()
+      },
+      approvedAt: prismaVendor.approvedAt,
+      createdAt: prismaVendor.createdAt,
+      updatedAt: prismaVendor.updatedAt
+    };
+  }
+
+  private getAppliedFilters(filters: any): string[] {
+    const applied: string[] = [];
+    if (filters?.verifiedOnly) applied.push('verified-only');
+    if (filters?.featuredOnly) applied.push('featured-only');
+    if (filters?.minRating) applied.push('minimum-rating');
+    if (filters?.categories?.length > 0) applied.push('category-filter');
+    return applied;
+  }
+
+  private calculateOverallConfidence(matches: VendorMatch[]): number {
+    if (matches.length === 0) return 0;
+    const avgConfidence = matches.reduce((sum, match) => sum + match.compatibilityScore.confidence, 0) / matches.length;
+    return Math.round(avgConfidence);
+  }
+
+  private getRecommendationReason(
+    type: 'primary' | 'alternative' | 'complementary',
+    match: VendorMatch,
+    addressedGaps: GapProfile[]
+  ): string {
+    switch (type) {
+      case 'primary':
+        return `Top compatibility match (${match.compatibilityScore.overall}%) addressing ${addressedGaps.length} gaps`;
+      case 'alternative':
+        return `Strong alternative solution with different approach (${match.compatibilityScore.overall}% match)`;
+      case 'complementary':
+        return `Complementary solution that can work alongside other vendors`;
+      default:
+        return 'Recommended based on compatibility analysis';
+    }
+  }
+
+  private getRecommendationBenefits(match: VendorMatch, addressedGaps: GapProfile[]): string[] {
+    const benefits: string[] = [];
+
+    benefits.push(`Addresses ${addressedGaps.length} compliance gaps`);
+    
+    const criticalGaps = addressedGaps.filter(gap => gap.severity === 'CRITICAL');
+    if (criticalGaps.length > 0) {
+      benefits.push(`Resolves ${criticalGaps.length} critical compliance issues`);
+    }
+
+    if (match.vendor.verified) {
+      benefits.push('Verified vendor with proven track record');
+    }
+
+    if (match.vendor.rating && match.vendor.rating >= 4.0) {
+      benefits.push(`High customer satisfaction (${match.vendor.rating.toFixed(1)}/5)`);
+    }
+
+    if (match.solution) {
+      if (match.solution.setupComplexity === 'Simple') {
+        benefits.push('Quick and easy implementation');
+      }
+      if (match.solution.caseStudyUrls.length > 0) {
+        benefits.push('Proven success in similar implementations');
+      }
+    }
+
+    return benefits;
+  }
+
+  private estimateImplementationEffort(solution: SolutionProfile | undefined): 'Low' | 'Medium' | 'High' {
+    if (!solution) return 'Medium';
+    
+    if (solution.setupComplexity === 'Simple') return 'Low';
+    if (solution.setupComplexity === 'Complex') return 'High';
+    return 'Medium';
+  }
+
+  private estimateTotalCost(solution: SolutionProfile | undefined): any {
+    if (!solution || !solution.startingPrice) {
+      return 'MEDIUM'; // Default estimate
+    }
+
+    if (solution.startingPrice < 10000) return 'LOW';
+    if (solution.startingPrice < 50000) return 'MEDIUM';
+    if (solution.startingPrice < 200000) return 'HIGH';
+    return 'VERY_HIGH';
+  }
+}
+
+// Export the matching engine instance
+export const vendorMatchingEngine = new VendorMatchingEngine();
+
+// Types for the matching criteria interface
+interface MatchingCriteria {
+  requiredCategories: string[];
+  preferredFeatures: string[];
+  industry?: string;
+  companySize?: CompanySize;
+  region?: string;
+  budget?: any;
+  timeline?: any;
+  criticalGaps: string[];
+  preferredVendors: string[];
+  excludedVendors: string[];
+}

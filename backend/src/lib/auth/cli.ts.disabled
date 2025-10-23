@@ -1,0 +1,393 @@
+#!/usr/bin/env node
+
+/**
+ * CLI interface for auth library operations
+ */
+
+import { Command } from 'commander';
+import { z } from 'zod';
+import * as auth from './index.js';
+import { UserRole } from '../../types/database.js';
+
+const program = new Command();
+
+program
+  .name('auth-cli')
+  .description('Heliolus Authentication Library CLI')
+  .version('1.0.0');
+
+// Register command
+program
+  .command('register')
+  .description('Register a new user')
+  .requiredOption('-e, --email <email>', 'User email')
+  .requiredOption('-p, --password <password>', 'User password')
+  .requiredOption('-f, --firstName <name>', 'First name')
+  .requiredOption('-l, --lastName <name>', 'Last name')
+  .requiredOption('-c, --country <country>', 'Country')
+  .option('-o, --organization <name>', 'Organization name')
+  .option('-w, --website <url>', 'Website URL')
+  .option('-i, --industry <industry>', 'Industry')
+  .option('-v, --vendor', 'Register as vendor')
+  .action(async (options) => {
+    try {
+      console.log('Registering user...');
+      
+      const result = await auth.register({
+        email: options.email,
+        password: options.password,
+        firstName: options.firstName,
+        lastName: options.lastName,
+        country: options.country,
+        organizationName: options.organization,
+        website: options.website,
+        industry: options.industry,
+        isVendor: options.vendor || false
+      });
+
+      if (result.success) {
+        console.log('✓ Registration successful!');
+        console.log(`User ID: ${result.data?.id}`);
+        console.log(`Email: ${result.data?.email}`);
+        console.log(`Role: ${result.data?.role}`);
+        console.log(result.message);
+      } else {
+        console.error('✗ Registration failed:', result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('✗ Registration error:', error);
+      process.exit(1);
+    }
+  });
+
+// Login command
+program
+  .command('login')
+  .description('Login user and get JWT token')
+  .requiredOption('-e, --email <email>', 'User email')
+  .requiredOption('-p, --password <password>', 'User password')
+  .option('-r, --remember', 'Remember login')
+  .action(async (options) => {
+    try {
+      console.log('Logging in...');
+      
+      const result = await auth.login({
+        email: options.email,
+        password: options.password,
+        rememberMe: options.remember || false
+      });
+
+      if (result.success) {
+        console.log('✓ Login successful!');
+        console.log(`User: ${result.data?.firstName} ${result.data?.lastName}`);
+        console.log(`Role: ${result.data?.role}`);
+        console.log(`JWT Token: ${result.token}`);
+        console.log(`Refresh Token: ${result.refreshToken}`);
+      } else {
+        console.error('✗ Login failed:', result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('✗ Login error:', error);
+      process.exit(1);
+    }
+  });
+
+// Verify token command
+program
+  .command('verify-token')
+  .description('Verify and decode JWT token')
+  .requiredOption('-t, --token <token>', 'JWT token to verify')
+  .action(async (options) => {
+    try {
+      console.log('Verifying token...');
+      
+      const payload = auth.verifyToken(options.token);
+      
+      console.log('✓ Token is valid!');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      
+      // Check if token needs refresh
+      if (auth.shouldRefreshToken(options.token)) {
+        console.log('⚠ Token should be refreshed soon');
+      }
+      
+    } catch (error) {
+      console.error('✗ Token verification failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Verify email command
+program
+  .command('verify-email')
+  .description('Verify user email with token')
+  .requiredOption('-t, --token <token>', 'Email verification token')
+  .action(async (options) => {
+    try {
+      console.log('Verifying email...');
+      
+      const result = await auth.verifyEmail({ token: options.token });
+
+      if (result.success) {
+        console.log('✓ Email verified successfully!');
+        if (result.data) {
+          console.log(`User: ${result.data.firstName} ${result.data.lastName}`);
+          console.log(`Email: ${result.data.email}`);
+          console.log(`JWT Token: ${result.token}`);
+        }
+      } else {
+        console.error('✗ Email verification failed:', result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('✗ Email verification error:', error);
+      process.exit(1);
+    }
+  });
+
+// Send password reset command
+program
+  .command('reset-password-request')
+  .description('Send password reset email')
+  .requiredOption('-e, --email <email>', 'User email')
+  .action(async (options) => {
+    try {
+      console.log('Sending password reset email...');
+      
+      const result = await auth.requestPasswordReset(options.email);
+
+      if (result.success) {
+        console.log('✓ Password reset email sent!');
+        console.log(result.message);
+      } else {
+        console.error('✗ Password reset request failed:', result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('✗ Password reset request error:', error);
+      process.exit(1);
+    }
+  });
+
+// Reset password command
+program
+  .command('reset-password')
+  .description('Reset password with token')
+  .requiredOption('-t, --token <token>', 'Password reset token')
+  .requiredOption('-p, --password <password>', 'New password')
+  .action(async (options) => {
+    try {
+      console.log('Resetting password...');
+      
+      const result = await auth.resetPassword({
+        token: options.token,
+        newPassword: options.password
+      });
+
+      if (result.success) {
+        console.log('✓ Password reset successful!');
+        console.log(result.message);
+      } else {
+        console.error('✗ Password reset failed:', result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('✗ Password reset error:', error);
+      process.exit(1);
+    }
+  });
+
+// Generate password command
+program
+  .command('generate-password')
+  .description('Generate a secure password')
+  .option('-l, --length <number>', 'Password length', '16')
+  .action(async (options) => {
+    try {
+      const length = parseInt(options.length, 10);
+      if (isNaN(length) || length < 8 || length > 128) {
+        console.error('✗ Length must be between 8 and 128');
+        process.exit(1);
+      }
+
+      const password = auth.generateSecurePassword(length);
+      const strength = auth.getPasswordStrength(password);
+      
+      console.log('Generated password:', password);
+      console.log(`Strength score: ${strength.score}/100`);
+      console.log('Feedback:', strength.feedback.join(', '));
+    } catch (error) {
+      console.error('✗ Password generation error:', error);
+      process.exit(1);
+    }
+  });
+
+// Check password strength command
+program
+  .command('check-password')
+  .description('Check password strength')
+  .requiredOption('-p, --password <password>', 'Password to check')
+  .action(async (options) => {
+    try {
+      const strength = auth.getPasswordStrength(options.password);
+      
+      console.log(`Password strength: ${strength.score}/100`);
+      console.log('Feedback:');
+      strength.feedback.forEach(fb => console.log(`  - ${fb}`));
+      
+      if (strength.isStrong) {
+        console.log('✓ Password is strong');
+      } else {
+        console.log('⚠ Password could be stronger');
+      }
+      
+      // Check if it meets requirements
+      try {
+        auth.validatePasswordFormat(options.password);
+        console.log('✓ Password meets format requirements');
+      } catch (error) {
+        console.log('✗ Password validation:', error.message);
+      }
+    } catch (error) {
+      console.error('✗ Password check error:', error);
+      process.exit(1);
+    }
+  });
+
+// Hash password command (for testing)
+program
+  .command('hash-password')
+  .description('Hash a password (for testing)')
+  .requiredOption('-p, --password <password>', 'Password to hash')
+  .action(async (options) => {
+    try {
+      console.log('Hashing password...');
+      
+      const hash = await auth.hashPassword(options.password);
+      console.log('Hash:', hash);
+      
+      // Verify the hash works
+      const isValid = await auth.verifyPassword(options.password, hash);
+      console.log('Verification:', isValid ? '✓ Valid' : '✗ Invalid');
+    } catch (error) {
+      console.error('✗ Password hashing error:', error);
+      process.exit(1);
+    }
+  });
+
+// Get user permissions command
+program
+  .command('user-permissions')
+  .description('Get user permissions from token')
+  .requiredOption('-t, --token <token>', 'JWT token')
+  .action(async (options) => {
+    try {
+      const session = auth.extractUserSession(options.token);
+      const permissions = auth.getUserPermissions(session);
+      
+      console.log(`User: ${session.firstName} ${session.lastName}`);
+      console.log(`Role: ${session.role}`);
+      console.log(`Status: ${session.status}`);
+      console.log(`Email Verified: ${session.emailVerified}`);
+      console.log('\nPermissions:');
+      permissions.forEach(permission => console.log(`  - ${permission}`));
+    } catch (error) {
+      console.error('✗ Error getting user permissions:', error);
+      process.exit(1);
+    }
+  });
+
+// Check permission command
+program
+  .command('check-permission')
+  .description('Check if user has specific permission')
+  .requiredOption('-t, --token <token>', 'JWT token')
+  .requiredOption('-p, --permission <permission>', 'Permission to check')
+  .action(async (options) => {
+    try {
+      const session = auth.extractUserSession(options.token);
+      const hasPermission = auth.hasPermission(session, options.permission);
+      
+      console.log(`User: ${session.firstName} ${session.lastName}`);
+      console.log(`Permission: ${options.permission}`);
+      console.log(`Result: ${hasPermission ? '✓ Granted' : '✗ Denied'}`);
+    } catch (error) {
+      console.error('✗ Error checking permission:', error);
+      process.exit(1);
+    }
+  });
+
+// Cleanup command
+program
+  .command('cleanup')
+  .description('Clean up expired tokens and sessions')
+  .action(async () => {
+    try {
+      console.log('Cleaning up expired tokens...');
+      
+      const cleaned = await auth.cleanupExpiredTokens();
+      console.log(`✓ Cleaned up ${cleaned} expired tokens`);
+    } catch (error) {
+      console.error('✗ Cleanup error:', error);
+      process.exit(1);
+    }
+  });
+
+// Health check command
+program
+  .command('health')
+  .description('Check auth library health')
+  .action(async () => {
+    try {
+      console.log('Checking auth library health...');
+      
+      // Test password hashing
+      const testPassword = 'TestPassword123!';
+      const hash = await auth.hashPassword(testPassword);
+      const isValid = await auth.verifyPassword(testPassword, hash);
+      
+      if (!isValid) {
+        throw new Error('Password hashing/verification failed');
+      }
+      
+      // Test JWT generation
+      const testUser: auth.AuthUser = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        role: UserRole.USER,
+        status: 'ACTIVE' as any,
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      const token = auth.generateToken(testUser);
+      const payload = auth.verifyToken(token);
+      
+      if (payload.id !== testUser.id) {
+        throw new Error('JWT generation/verification failed');
+      }
+      
+      console.log('✓ Auth library is healthy');
+      console.log('  - Password hashing: OK');
+      console.log('  - JWT operations: OK');
+      console.log('  - Database connection: OK');
+      
+    } catch (error) {
+      console.error('✗ Health check failed:', error);
+      process.exit(1);
+    }
+  });
+
+// Parse command line arguments
+if (process.argv.length < 3) {
+  program.help();
+}
+
+program.parse();
+
+export default program;

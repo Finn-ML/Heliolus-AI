@@ -1,0 +1,23 @@
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": [
+        "https://heliolus.com",
+        "https://www.heliolus.com",
+        "https://app.heliolus.com",
+        "http://localhost:3000",
+        "http://localhost:3001"
+      ],
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+      "MaxAgeSeconds": 86400,
+      "ExposeHeaders": ["ETag", "x-amz-meta-custom-header"]
+    },
+    {
+      "AllowedOrigins": ["*"],
+      "AllowedHeaders": ["Range"],
+      "AllowedMethods": ["GET"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}

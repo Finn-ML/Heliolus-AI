@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auth Token Test</title>
+</head>
+<body>
+  <h1>Auth Token Validation Test</h1>
+  <button onclick="testAuth()">Test Current Token</button>
+  <pre id="output"></pre>
+  
+  <script>
+    async function testAuth() {
+      const output = document.getElementById('output');
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        output.textContent = 'No token found in localStorage';
+        return;
+      }
+      
+      output.textContent = 'Testing token...\n';
+      
+      try {
+        const response = await fetch('/v1/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        output.textContent += `Status: ${response.status}\n`;
+        
+        if (response.ok) {
+          const data = await response.json();
+          output.textContent += `Response:\n${JSON.stringify(data, null, 2)}`;
+        } else {
+          const error = await response.json();
+          output.textContent += `Error:\n${JSON.stringify(error, null, 2)}`;
+        }
+      } catch (error) {
+        output.textContent += `Network error: ${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html>

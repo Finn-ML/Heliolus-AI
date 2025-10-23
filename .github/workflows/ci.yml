@@ -1,0 +1,290 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '18.x'
+  CACHE_KEY_PREFIX: 'v1'
+
+jobs:
+  # Job 1: Install dependencies and cache them
+  setup:
+    name: Setup Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache-deps.outputs.cache-hit }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            frontend/node_modules
+            backend/node_modules
+            ~/.npm
+          key: ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          npm ci
+          cd frontend && npm ci
+          cd ../backend && npm ci
+
+  # Job 2: Lint code
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            frontend/node_modules
+            backend/node_modules
+            ~/.npm
+          key: ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Lint frontend
+        run: cd frontend && npm run lint
+
+      - name: Lint backend
+        run: cd backend && npm run lint
+
+      - name: Check code formatting
+        run: npm run format:check
+
+  # Job 3: Type checking
+  typecheck:
+    name: TypeScript Type Checking
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            frontend/node_modules
+            backend/node_modules
+            ~/.npm
+          key: ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Type check frontend
+        run: cd frontend && npx tsc --noEmit
+
+      - name: Type check backend
+        run: cd backend && npx tsc --noEmit
+
+  # Job 4: Run tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: postgres
+          POSTGRES_DB: heliumdb_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            frontend/node_modules
+            backend/node_modules
+            ~/.npm
+          key: ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Setup test environment
+        run: |
+          cp backend/.env.example backend/.env.test
+          echo "DATABASE_URL=postgresql://postgres:testpassword@localhost:5432/heliumdb_test" >> backend/.env.test
+          echo "REDIS_URL=redis://localhost:6379/1" >> backend/.env.test
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          npm run db:generate
+          NODE_ENV=test npm run db:migrate
+
+      - name: Run backend tests
+        run: cd backend && npm run test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:testpassword@localhost:5432/heliumdb_test
+          REDIS_URL: redis://localhost:6379/1
+
+      # Frontend tests would go here if you have them
+      # - name: Run frontend tests
+      #   run: cd frontend && npm run test
+
+  # Job 5: Build applications
+  build:
+    name: Build Applications
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      matrix:
+        app: [frontend, backend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            frontend/node_modules
+            backend/node_modules
+            ~/.npm
+          key: ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Create environment file for frontend
+        if: matrix.app == 'frontend'
+        run: |
+          cd frontend
+          cp .env.example .env
+          echo "VITE_API_URL=https://api.example.com" >> .env
+
+      - name: Create environment file for backend
+        if: matrix.app == 'backend'
+        run: |
+          cd backend
+          cp .env.example .env
+          echo "DATABASE_URL=postgresql://user:pass@localhost:5432/db" >> .env
+          echo "REDIS_URL=redis://localhost:6379" >> .env
+
+      - name: Build application
+        run: cd ${{ matrix.app }} && npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.app }}-build
+          path: ${{ matrix.app }}/dist
+          retention-days: 7
+
+  # Job 6: Security scan
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            frontend/node_modules
+            backend/node_modules
+            ~/.npm
+          key: ${{ env.CACHE_KEY_PREFIX }}-deps-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Run security audit
+        run: |
+          npm audit --audit-level=high
+          cd frontend && npm audit --audit-level=high
+          cd ../backend && npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  # Job 7: Check for successful completion
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, build, security]
+    if: always()
+    steps:
+      - name: Check if all jobs succeeded
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.typecheck.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "One or more CI jobs failed"
+            exit 1
+          else
+            echo "All CI jobs completed successfully"
+          fi

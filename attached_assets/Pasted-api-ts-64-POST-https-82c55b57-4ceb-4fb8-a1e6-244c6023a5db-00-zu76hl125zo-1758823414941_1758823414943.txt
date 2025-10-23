@@ -1,0 +1,74 @@
+api.ts:64 
+        
+        
+       POST https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/v1/admin/vendors/bulk-upload 400 (Bad Request)
+apiRequest @ api.ts:64
+handleBulkUpload @ VendorManagement.tsx:752
+handleFileSelect @ VendorManagement.tsx:801
+callCallback2 @ chunk-AVJPV5ZH.js?v=08fd0909:3674
+invokeGuardedCallbackDev @ chunk-AVJPV5ZH.js?v=08fd0909:3699
+invokeGuardedCallback @ chunk-AVJPV5ZH.js?v=08fd0909:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-AVJPV5ZH.js?v=08fd0909:3736
+executeDispatch @ chunk-AVJPV5ZH.js?v=08fd0909:7014
+processDispatchQueueItemsInOrder @ chunk-AVJPV5ZH.js?v=08fd0909:7034
+processDispatchQueue @ chunk-AVJPV5ZH.js?v=08fd0909:7043
+dispatchEventsForPlugins @ chunk-AVJPV5ZH.js?v=08fd0909:7051
+(anonymous) @ chunk-AVJPV5ZH.js?v=08fd0909:7174
+batchedUpdates$1 @ chunk-AVJPV5ZH.js?v=08fd0909:18913
+batchedUpdates @ chunk-AVJPV5ZH.js?v=08fd0909:3579
+dispatchEventForPluginEventSystem @ chunk-AVJPV5ZH.js?v=08fd0909:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-AVJPV5ZH.js?v=08fd0909:5478
+dispatchEvent @ chunk-AVJPV5ZH.js?v=08fd0909:5472
+dispatchDiscreteEvent @ chunk-AVJPV5ZH.js?v=08fd0909:5449
+Show 15 more frames
+Show less
+api.ts:65 [API] Response status: 400
+api.ts:78 [API] Error response: {success: false, error: 'CSV parsing failed', details: Array(5), totalErrors: 56, csvHelp: 'Common fixes: 1) Save as UTF-8 encoding, 2) Escape quotes as "", 3) Check for embedded line breaks'}
+apiRequest @ api.ts:78
+await in apiRequest (async)
+handleBulkUpload @ VendorManagement.tsx:752
+handleFileSelect @ VendorManagement.tsx:801
+callCallback2 @ chunk-AVJPV5ZH.js?v=08fd0909:3674
+invokeGuardedCallbackDev @ chunk-AVJPV5ZH.js?v=08fd0909:3699
+invokeGuardedCallback @ chunk-AVJPV5ZH.js?v=08fd0909:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-AVJPV5ZH.js?v=08fd0909:3736
+executeDispatch @ chunk-AVJPV5ZH.js?v=08fd0909:7014
+processDispatchQueueItemsInOrder @ chunk-AVJPV5ZH.js?v=08fd0909:7034
+processDispatchQueue @ chunk-AVJPV5ZH.js?v=08fd0909:7043
+dispatchEventsForPlugins @ chunk-AVJPV5ZH.js?v=08fd0909:7051
+(anonymous) @ chunk-AVJPV5ZH.js?v=08fd0909:7174
+batchedUpdates$1 @ chunk-AVJPV5ZH.js?v=08fd0909:18913
+batchedUpdates @ chunk-AVJPV5ZH.js?v=08fd0909:3579
+dispatchEventForPluginEventSystem @ chunk-AVJPV5ZH.js?v=08fd0909:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-AVJPV5ZH.js?v=08fd0909:5478
+dispatchEvent @ chunk-AVJPV5ZH.js?v=08fd0909:5472
+dispatchDiscreteEvent @ chunk-AVJPV5ZH.js?v=08fd0909:5449
+Show 15 more frames
+Show less
+api.ts:101 [API] Fetch error: Error: HTTP 400: Bad Request
+    at apiRequest (api.ts:79:13)
+    at async handleBulkUpload (VendorManagement.tsx:752:22)
+apiRequest @ api.ts:101
+await in apiRequest (async)
+handleBulkUpload @ VendorManagement.tsx:752
+handleFileSelect @ VendorManagement.tsx:801
+callCallback2 @ chunk-AVJPV5ZH.js?v=08fd0909:3674
+invokeGuardedCallbackDev @ chunk-AVJPV5ZH.js?v=08fd0909:3699
+invokeGuardedCallback @ chunk-AVJPV5ZH.js?v=08fd0909:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-AVJPV5ZH.js?v=08fd0909:3736
+executeDispatch @ chunk-AVJPV5ZH.js?v=08fd0909:7014
+processDispatchQueueItemsInOrder @ chunk-AVJPV5ZH.js?v=08fd0909:7034
+processDispatchQueue @ chunk-AVJPV5ZH.js?v=08fd0909:7043
+dispatchEventsForPlugins @ chunk-AVJPV5ZH.js?v=08fd0909:7051
+(anonymous) @ chunk-AVJPV5ZH.js?v=08fd0909:7174
+batchedUpdates$1 @ chunk-AVJPV5ZH.js?v=08fd0909:18913
+batchedUpdates @ chunk-AVJPV5ZH.js?v=08fd0909:3579
+dispatchEventForPluginEventSystem @ chunk-AVJPV5ZH.js?v=08fd0909:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-AVJPV5ZH.js?v=08fd0909:5478
+dispatchEvent @ chunk-AVJPV5ZH.js?v=08fd0909:5472
+dispatchDiscreteEvent @ chunk-AVJPV5ZH.js?v=08fd0909:5449
+Show 15 more frames
+Show less
+VendorManagement.tsx:773 Bulk upload error: Error: HTTP 400: Bad Request
+    at apiRequest (api.ts:79:13)
+    at async handleBulkUpload (VendorManagement.tsx:752:22)

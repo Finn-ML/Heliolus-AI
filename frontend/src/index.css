@@ -1,0 +1,251 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark Theme with Glow Effects - Auto Dark Mode */
+
+@layer base {
+  :root {
+    /* Dark Theme Colors - Heliolus Brand */
+    --background: 210 35% 10%; /* Based on #14212D */
+    --foreground: 0 0% 100%; /* Pure white text */
+    
+    --card: 210 35% 12%;
+    --card-foreground: 0 0% 100%; /* Pure white text */
+    
+    --popover: 210 35% 10%;
+    --popover-foreground: 0 0% 100%; /* Pure white text */
+    
+    --primary: 183 81% 57%; /* Based on #3BE2E9 */
+    --primary-foreground: 210 35% 10%;
+    
+    --secondary: 324 85% 60%; /* Based on #F345B8 */
+    --secondary-foreground: 210 35% 10%;
+    
+    --muted: 0 0% 30%; /* Darker muted background */
+    --muted-foreground: 0 0% 100%; /* Pure white for muted text */
+    
+    --accent: 183 81% 57%;
+    --accent-foreground: 210 35% 10%;
+    
+    --destructive: 324 85% 60%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 210 20% 20%;
+    --input: 210 20% 20%;
+    --ring: 183 81% 57%;
+    
+    --radius: 0.75rem;
+    
+    --sidebar-background: 210 35% 10%;
+    --sidebar-foreground: 0 0% 100%; /* Pure white for sidebar text */
+    --sidebar-primary: 183 81% 57%;
+    --sidebar-primary-foreground: 210 35% 10%;
+    --sidebar-accent: 210 35% 15%;
+    --sidebar-accent-foreground: 0 0% 100%; /* Pure white for sidebar accent text */
+    --sidebar-border: 210 20% 20%;
+    --sidebar-ring: 183 81% 57%;
+    
+    /* Glow colors - Heliolus Brand */
+    --glow-cyan: 183 81% 57%; /* #3BE2E9 */
+    --glow-pink: 324 85% 60%; /* #F345B8 */
+    --glow-gray: 0 0% 58%; /* #939393 */
+    --glow-dark: 210 35% 10%; /* #14212D */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    @apply bg-background text-foreground antialiased;
+  }
+  
+  body {
+    @apply bg-background;
+    color: white !important; /* Force white text everywhere */
+    font-family: 'Barlow', sans-serif;
+    background: radial-gradient(ellipse at top, hsl(210, 35%, 15%), hsl(210, 35%, 10%));
+    min-height: 100vh;
+  }
+
+  /* Force white text on ALL elements */
+  *, *::before, *::after {
+    color: white !important;
+  }
+
+  /* Specific overrides for text elements */
+  p, span, div, h1, h2, h3, h4, h5, h6, label, a {
+    color: white !important;
+  }
+
+  /* Card content text */
+  .card, .card-content, .card-header, .card-title, .card-description {
+    color: white !important;
+  }
+
+  /* Button text (but not background) */
+  button:not(.bg-primary):not(.bg-secondary) {
+    color: white !important;
+  }
+  
+  /* Apply Anta font to all headings and titles */
+  h1, h2, h3, h4, h5, h6,
+  .font-bold,
+  .font-semibold,
+  .text-xl,
+  .text-2xl,
+  .text-3xl,
+  .text-4xl,
+  .text-5xl,
+  .text-6xl,
+  .text-7xl {
+    font-family: 'Anta', sans-serif;
+  }
+}
+
+/* Custom Glow Effects */
+@layer utilities {
+  .glow-cyan {
+    box-shadow: 0 0 30px hsl(183, 81%, 57%, 0.3),
+                0 0 60px hsl(183, 81%, 57%, 0.2),
+                0 0 90px hsl(183, 81%, 57%, 0.1);
+  }
+  
+  .glow-pink {
+    box-shadow: 0 0 30px hsl(324, 85%, 60%, 0.3),
+                0 0 60px hsl(324, 85%, 60%, 0.2),
+                0 0 90px hsl(324, 85%, 60%, 0.1);
+  }
+  
+  .glow-gray {
+    box-shadow: 0 0 20px hsl(0, 0%, 58%, 0.2),
+                0 0 40px hsl(0, 0%, 58%, 0.1),
+                0 0 60px hsl(0, 0%, 58%, 0.05);
+  }
+  
+  .glow-text {
+    text-shadow: 0 0 10px currentColor,
+                 0 0 20px currentColor,
+                 0 0 30px currentColor;
+  }
+  
+  .glow-border {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .glow-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: hsl(183, 81%, 57%); /* Solid teal instead of gradient */
+    border-radius: inherit;
+    opacity: 0.3;
+    filter: blur(10px);
+    animation: rotate 9s ease-out forwards;
+    z-index: -1;
+  }
+  
+  @keyframes rotate {
+    0% {
+      transform: rotate(0deg);
+    }
+    15% {
+      transform: rotate(720deg); /* 2 full rotations in first 15% */
+    }
+    100% {
+      transform: rotate(720deg); /* Stay settled */
+    }
+  }
+  
+  .gradient-text {
+    color: hsl(0, 0%, 100%); /* Solid white text instead of gradient */
+  }
+  
+  .hover-glow {
+    transition: all 0.3s ease;
+  }
+  
+  .hover-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px hsl(183, 81%, 57%, 0.3);
+  }
+  
+  /* Geometric Patterns */
+  .geometric-pattern {
+    background-image: 
+      linear-gradient(30deg, hsl(183, 81%, 57%, 0.03) 12%, transparent 12.5%, transparent 87%, hsl(183, 81%, 57%, 0.03) 87.5%, hsl(183, 81%, 57%, 0.03)),
+      linear-gradient(150deg, hsl(324, 85%, 60%, 0.03) 12%, transparent 12.5%, transparent 87%, hsl(324, 85%, 60%, 0.03) 87.5%, hsl(324, 85%, 60%, 0.03)),
+      linear-gradient(30deg, hsl(324, 85%, 60%, 0.03) 12%, transparent 12.5%, transparent 87%, hsl(324, 85%, 60%, 0.03) 87.5%, hsl(324, 85%, 60%, 0.03)),
+      linear-gradient(150deg, hsl(183, 81%, 57%, 0.03) 12%, transparent 12.5%, transparent 87%, hsl(183, 81%, 57%, 0.03) 87.5%, hsl(183, 81%, 57%, 0.03));
+    background-size: 80px 140px;
+    background-position: 0 0, 0 0, 40px 70px, 40px 70px;
+  }
+  
+  .floating-shapes {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: -1;
+  }
+  
+  .shape {
+    position: absolute;
+    opacity: 0.1;
+    animation: float 20s infinite ease-in-out;
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) translateX(0) rotate(0deg);
+    }
+    33% {
+      transform: translateY(-100px) translateX(100px) rotate(120deg);
+    }
+    66% {
+      transform: translateY(100px) translateX(-100px) rotate(240deg);
+    }
+  }
+  
+  /* Card hover effects */
+  .card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid hsl(240, 10%, 20%);
+  }
+  
+  .card-hover:hover {
+    border-color: hsl(183, 81%, 57%, 0.5);
+    background: hsl(240, 10%, 5.9%, 0.8);
+    transform: translateY(-4px);
+  }
+  
+  /* Button effects */
+  .btn-glow {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  
+  .btn-glow::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+  }
+  
+  .btn-glow:hover::after {
+    width: 300px;
+    height: 300px;
+  }
+}

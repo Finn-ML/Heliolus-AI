@@ -1,0 +1,40 @@
+# Docker Compose override for development environment
+# This file is automatically loaded by docker-compose and extends docker-compose.yml
+# Use this for development-specific overrides
+
+version: '3.8'
+
+services:
+  postgres:
+    # Development specific configurations
+    environment:
+      POSTGRES_DB: heliumdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    # Expose additional ports for debugging if needed
+    # ports:
+    #   - "5433:5432"
+
+  redis:
+    # Development specific configurations
+    # Enable Redis persistence in development
+    command: redis-server --appendonly yes --requirepass ""
+
+  pgadmin:
+    # Development specific configurations
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@heliolus.com
+      PGADMIN_DEFAULT_PASSWORD: devpassword
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+
+  localstack:
+    # Development specific configurations
+    environment:
+      SERVICES: s3,sqs,sns
+      DEBUG: 1
+      DATA_DIR: /tmp/localstack/data
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      DOCKER_HOST: unix:///var/run/docker.sock

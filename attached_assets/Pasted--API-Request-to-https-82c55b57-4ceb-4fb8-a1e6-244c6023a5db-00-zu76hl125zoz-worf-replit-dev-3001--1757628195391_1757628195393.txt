@@ -1,0 +1,30 @@
+[API] Request to: https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev:3001/v1/organizations
+api.ts:49 [API] Method: POST
+assessment-journey:1 Access to fetch at 'https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev:3001/v1/organizations' from origin 'https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+:3001/v1/organizations:1 
+        
+        
+       Failed to load resource: net::ERR_FAILED
+api.ts:65 [API] Fetch error: TypeError: Failed to fetch
+    at apiRequest (api.ts:52:28)
+    at Object.createOrganization (api.ts:195:28)
+    at saveBusinessProfile (BusinessProfile.tsx:328:42)
+    at HTMLUnknownElement.callCallback2 (chunk-AVJPV5ZH.js?v=02d1138e:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-AVJPV5ZH.js?v=02d1138e:3699:24)
+    at invokeGuardedCallback (chunk-AVJPV5ZH.js?v=02d1138e:3733:39)
+    at invokeGuardedCallbackAndCatchFirstError (chunk-AVJPV5ZH.js?v=02d1138e:3736:33)
+    at executeDispatch (chunk-AVJPV5ZH.js?v=02d1138e:7014:11)
+    at processDispatchQueueItemsInOrder (chunk-AVJPV5ZH.js?v=02d1138e:7034:15)
+    at processDispatchQueue (chunk-AVJPV5ZH.js?v=02d1138e:7043:13)
+apiRequest @ api.ts:65
+BusinessProfile.tsx:367 Error saving profile: TypeError: Failed to fetch
+    at apiRequest (api.ts:52:28)
+    at Object.createOrganization (api.ts:195:28)
+    at saveBusinessProfile (BusinessProfile.tsx:328:42)
+    at HTMLUnknownElement.callCallback2 (chunk-AVJPV5ZH.js?v=02d1138e:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-AVJPV5ZH.js?v=02d1138e:3699:24)
+    at invokeGuardedCallback (chunk-AVJPV5ZH.js?v=02d1138e:3733:39)
+    at invokeGuardedCallbackAndCatchFirstError (chunk-AVJPV5ZH.js?v=02d1138e:3736:33)
+    at executeDispatch (chunk-AVJPV5ZH.js?v=02d1138e:7014:11)
+    at processDispatchQueueItemsInOrder (chunk-AVJPV5ZH.js?v=02d1138e:7034:15)
+    at processDispatchQueue (chunk-AVJPV5ZH.js?v=02d1138e:7043:13)

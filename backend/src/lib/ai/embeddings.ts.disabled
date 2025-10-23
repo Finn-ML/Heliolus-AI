@@ -1,0 +1,537 @@
+/**
+ * Embedding and vector similarity system
+ */
+
+import OpenAI from 'openai';
+import { PrismaClient } from '../../generated/prisma/index.js';
+import {
+  EmbeddingRequest,
+  EmbeddingResult,
+  SimilarityRequest,
+  SimilarityResult,
+  SimilarityMatch,
+  EmbeddingOptions,
+  EmbeddingError
+} from './types.js';
+import { AI_CONFIG } from './index.js';
+
+const prisma = new PrismaClient();
+
+/**
+ * Comprehensive embedding and similarity search system
+ */
+export class HeliolusEmbeddingEngine {
+  private openai: OpenAI;
+  private embeddingCache: Map<string, { embedding: number[]; timestamp: number }> = new Map();
+  private cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours
+
+  constructor() {
+    if (!AI_CONFIG.openai.apiKey) {
+      throw new EmbeddingError('OpenAI API key is required');
+    }
+
+    this.openai = new OpenAI({
+      apiKey: AI_CONFIG.openai.apiKey
+    });
+  }
+
+  /**
+   * Generate embedding for single text
+   */
+  async generateEmbedding(request: EmbeddingRequest): Promise<EmbeddingResult> {
+    const startTime = Date.now();
+
+    try {
+      if (!request.text && !request.texts && !request.documentId) {
+        throw new EmbeddingError('Text, texts, or documentId is required');
+      }
+
+      let texts: string[] = [];
+
+      if (request.text) {
+        texts = [request.text];
+      } else if (request.texts) {
+        texts = request.texts;
+      } else if (request.documentId) {
+        const documentText = await this.getDocumentText(request.documentId);
+        if (!documentText) {
+          throw new EmbeddingError(`Document not found: ${request.documentId}`);
+        }
+        texts = [documentText];
+      }
+
+      // Check cache first for single text requests
+      if (texts.length === 1) {
+        const cached = this.getCachedEmbedding(texts[0]);
+        if (cached) {
+          return {
+            embeddings: [cached],
+            model: request.model || AI_CONFIG.openai.embeddingModel,
+            dimensions: cached.length,
+            tokensUsed: 0, // Cached, no tokens used
+            processingTime: Date.now() - startTime
+          };
+        }
+      }
+
+      // Generate embeddings in batches
+      const batchSize = AI_CONFIG.embeddings.batchSize;
+      const allEmbeddings: number[][] = [];
+      let totalTokens = 0;
+
+      for (let i = 0; i < texts.length; i += batchSize) {
+        const batch = texts.slice(i, i + batchSize);
+        
+        const response = await this.openai.embeddings.create({
+          model: request.model || AI_CONFIG.openai.embeddingModel,
+          input: batch,
+          dimensions: request.dimensions || AI_CONFIG.embeddings.dimensions
+        });
+
+        const batchEmbeddings = response.data.map(item => item.embedding);
+        allEmbeddings.push(...batchEmbeddings);
+        totalTokens += response.usage.total_tokens;
+
+        // Cache individual embeddings
+        batch.forEach((text, index) => {
+          this.cacheEmbedding(text, batchEmbeddings[index]);
+        });
+
+        // Add delay between batches to respect rate limits
+        if (i + batchSize < texts.length) {
+          await this.delay(100);
+        }
+      }
+
+      return {
+        embeddings: allEmbeddings,
+        model: response.model,
+        dimensions: allEmbeddings[0]?.length || 0,
+        tokensUsed: totalTokens,
+        processingTime: Date.now() - startTime
+      };
+    } catch (error: any) {
+      console.error('Embedding generation error:', error);
+      if (error.code === 'context_length_exceeded') {
+        throw new EmbeddingError('Text too long for embedding generation');
+      }
+      throw error instanceof EmbeddingError ? error : new EmbeddingError('Failed to generate embeddings');
+    }
+  }
+
+  /**
+   * Generate embeddings for multiple texts
+   */
+  async generateEmbeddings(texts: string[], options: EmbeddingOptions = {}): Promise<EmbeddingResult> {
+    return this.generateEmbedding({
+      texts,
+      model: options.model,
+      dimensions: options.dimensions
+    });
+  }
+
+  /**
+   * Find similar documents using vector similarity
+   */
+  async findSimilar(request: SimilarityRequest): Promise<SimilarityResult> {
+    const startTime = Date.now();
+
+    try {
+      // Get query embedding
+      let queryEmbedding: number[];
+      
+      if (typeof request.query === 'string') {
+        const embeddingResult = await this.generateEmbedding({ text: request.query });
+        queryEmbedding = embeddingResult.embeddings[0];
+      } else {
+        queryEmbedding = request.query;
+      }
+
+      // Get candidate documents
+      let candidates: { content: string; embedding?: number[]; metadata?: any }[] = [];
+
+      if (request.documents) {
+        // Generate embeddings for provided documents
+        const embeddingResult = await this.generateEmbedding({ texts: request.documents });
+        candidates = request.documents.map((doc, index) => ({
+          content: doc,
+          embedding: embeddingResult.embeddings[index]
+        }));
+      } else if (request.documentIds) {
+        // Get stored document embeddings
+        candidates = await this.getStoredDocumentEmbeddings(request.documentIds);
+      } else {
+        // Search all stored documents
+        candidates = await this.getAllStoredDocumentEmbeddings();
+      }
+
+      // Calculate similarities
+      const similarities = candidates
+        .map(candidate => ({
+          content: candidate.content,
+          similarity: candidate.embedding ? 
+            this.calculateCosineSimilarity(queryEmbedding, candidate.embedding) : 0,
+          metadata: candidate.metadata
+        }))
+        .filter(match => match.similarity >= (request.threshold || AI_CONFIG.embeddings.similarity_threshold))
+        .sort((a, b) => b.similarity - a.similarity);
+
+      // Apply limit
+      const matches = similarities.slice(0, request.limit || 10);
+
+      return {
+        matches,
+        query: request.query,
+        processingTime: Date.now() - startTime
+      };
+    } catch (error) {
+      console.error('Similarity search error:', error);
+      throw error instanceof EmbeddingError ? error : new EmbeddingError('Failed to find similar documents');
+    }
+  }
+
+  /**
+   * Store document embedding for future similarity searches
+   */
+  async storeDocumentEmbedding(documentId: string, content: string, metadata?: any): Promise<void> {
+    try {
+      // Generate embedding
+      const embeddingResult = await this.generateEmbedding({ text: content });
+      const embedding = embeddingResult.embeddings[0];
+
+      // Store in database
+      await prisma.documentEmbedding.upsert({
+        where: { documentId },
+        create: {
+          documentId,
+          embedding: JSON.stringify(embedding),
+          content: content.substring(0, 1000), // Store first 1000 chars for preview
+          metadata: metadata ? JSON.stringify(metadata) : null,
+          model: embeddingResult.model,
+          dimensions: embeddingResult.dimensions
+        },
+        update: {
+          embedding: JSON.stringify(embedding),
+          content: content.substring(0, 1000),
+          metadata: metadata ? JSON.stringify(metadata) : null,
+          model: embeddingResult.model,
+          dimensions: embeddingResult.dimensions,
+          updatedAt: new Date()
+        }
+      });
+
+      console.log(`Stored embedding for document: ${documentId}`);
+    } catch (error) {
+      console.error('Failed to store document embedding:', error);
+      throw new EmbeddingError('Failed to store document embedding');
+    }
+  }
+
+  /**
+   * Update document embedding
+   */
+  async updateDocumentEmbedding(documentId: string, content: string, metadata?: any): Promise<void> {
+    return this.storeDocumentEmbedding(documentId, content, metadata);
+  }
+
+  /**
+   * Delete document embedding
+   */
+  async deleteDocumentEmbedding(documentId: string): Promise<void> {
+    try {
+      await prisma.documentEmbedding.delete({
+        where: { documentId }
+      });
+      
+      console.log(`Deleted embedding for document: ${documentId}`);
+    } catch (error) {
+      console.error('Failed to delete document embedding:', error);
+      // Don't throw error if document doesn't exist
+    }
+  }
+
+  /**
+   * Get similar documents to a specific document
+   */
+  async findSimilarToDocument(documentId: string, limit = 10, threshold?: number): Promise<SimilarityResult> {
+    try {
+      // Get document embedding
+      const documentEmbedding = await prisma.documentEmbedding.findUnique({
+        where: { documentId }
+      });
+
+      if (!documentEmbedding) {
+        throw new EmbeddingError(`Document embedding not found: ${documentId}`);
+      }
+
+      const queryEmbedding = JSON.parse(documentEmbedding.embedding);
+
+      return this.findSimilar({
+        query: queryEmbedding,
+        limit,
+        threshold
+      });
+    } catch (error) {
+      console.error('Error finding similar documents:', error);
+      throw error instanceof EmbeddingError ? error : new EmbeddingError('Failed to find similar documents');
+    }
+  }
+
+  /**
+   * Batch process documents for embedding storage
+   */
+  async batchStoreEmbeddings(documents: { id: string; content: string; metadata?: any }[]): Promise<void> {
+    const batchSize = 10;
+    
+    for (let i = 0; i < documents.length; i += batchSize) {
+      const batch = documents.slice(i, i + batchSize);
+      
+      await Promise.all(
+        batch.map(doc => this.storeDocumentEmbedding(doc.id, doc.content, doc.metadata))
+      );
+
+      console.log(`Processed embeddings for batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(documents.length / batchSize)}`);
+
+      // Add delay between batches
+      if (i + batchSize < documents.length) {
+        await this.delay(1000);
+      }
+    }
+  }
+
+  /**
+   * Search documents with text query and filters
+   */
+  async searchDocuments(
+    query: string, 
+    filters: { metadata?: any; minSimilarity?: number } = {},
+    limit = 10
+  ): Promise<SimilarityResult> {
+    try {
+      // Generate query embedding
+      const embeddingResult = await this.generateEmbedding({ text: query });
+      const queryEmbedding = embeddingResult.embeddings[0];
+
+      // Get all stored embeddings with optional filtering
+      let where: any = {};
+      if (filters.metadata) {
+        // Simple metadata filtering - would need more sophisticated filtering in production
+        where.metadata = {
+          contains: JSON.stringify(filters.metadata)
+        };
+      }
+
+      const storedEmbeddings = await prisma.documentEmbedding.findMany({
+        where,
+        select: {
+          documentId: true,
+          content: true,
+          embedding: true,
+          metadata: true
+        }
+      });
+
+      // Calculate similarities
+      const similarities = storedEmbeddings
+        .map(doc => {
+          const embedding = JSON.parse(doc.embedding);
+          const similarity = this.calculateCosineSimilarity(queryEmbedding, embedding);
+          
+          return {
+            documentId: doc.documentId,
+            content: doc.content,
+            similarity,
+            metadata: doc.metadata ? JSON.parse(doc.metadata) : undefined
+          };
+        })
+        .filter(match => match.similarity >= (filters.minSimilarity || AI_CONFIG.embeddings.similarity_threshold))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit);
+
+      return {
+        matches: similarities,
+        query,
+        processingTime: embeddingResult.processingTime
+      };
+    } catch (error) {
+      console.error('Document search error:', error);
+      throw error instanceof EmbeddingError ? error : new EmbeddingError('Failed to search documents');
+    }
+  }
+
+  /**
+   * Get embedding statistics
+   */
+  async getEmbeddingStats(): Promise<{
+    totalDocuments: number;
+    totalDimensions: number;
+    models: string[];
+    averageSimilarity?: number;
+  }> {
+    try {
+      const stats = await prisma.documentEmbedding.aggregate({
+        _count: { documentId: true },
+        _avg: { dimensions: true }
+      });
+
+      const models = await prisma.documentEmbedding.findMany({
+        distinct: ['model'],
+        select: { model: true }
+      });
+
+      return {
+        totalDocuments: stats._count.documentId || 0,
+        totalDimensions: Math.round(stats._avg.dimensions || 0),
+        models: models.map(m => m.model)
+      };
+    } catch (error) {
+      console.error('Failed to get embedding stats:', error);
+      return {
+        totalDocuments: 0,
+        totalDimensions: 0,
+        models: []
+      };
+    }
+  }
+
+  // Private helper methods
+
+  private calculateCosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new EmbeddingError('Embedding dimensions do not match');
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+
+    if (normA === 0 || normB === 0) {
+      return 0;
+    }
+
+    return dotProduct / (normA * normB);
+  }
+
+  private getCachedEmbedding(text: string): number[] | null {
+    const hash = this.hashText(text);
+    const cached = this.embeddingCache.get(hash);
+    
+    if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+      return cached.embedding;
+    }
+    
+    return null;
+  }
+
+  private cacheEmbedding(text: string, embedding: number[]): void {
+    const hash = this.hashText(text);
+    this.embeddingCache.set(hash, {
+      embedding,
+      timestamp: Date.now()
+    });
+
+    // Clean old cache entries periodically
+    if (this.embeddingCache.size > 1000) {
+      this.cleanCache();
+    }
+  }
+
+  private hashText(text: string): string {
+    // Simple hash function for caching
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return hash.toString();
+  }
+
+  private cleanCache(): void {
+    const now = Date.now();
+    const toDelete: string[] = [];
+    
+    this.embeddingCache.forEach((value, key) => {
+      if (now - value.timestamp > this.cacheExpiry) {
+        toDelete.push(key);
+      }
+    });
+    
+    toDelete.forEach(key => this.embeddingCache.delete(key));
+  }
+
+  private async getDocumentText(documentId: string): Promise<string | null> {
+    try {
+      // This would get document text from the database
+      // Placeholder implementation
+      return null;
+    } catch (error) {
+      console.error('Failed to get document text:', error);
+      return null;
+    }
+  }
+
+  private async getStoredDocumentEmbeddings(documentIds: string[]): Promise<any[]> {
+    try {
+      const embeddings = await prisma.documentEmbedding.findMany({
+        where: {
+          documentId: { in: documentIds }
+        },
+        select: {
+          documentId: true,
+          content: true,
+          embedding: true,
+          metadata: true
+        }
+      });
+
+      return embeddings.map(doc => ({
+        content: doc.content,
+        embedding: JSON.parse(doc.embedding),
+        metadata: doc.metadata ? JSON.parse(doc.metadata) : undefined
+      }));
+    } catch (error) {
+      console.error('Failed to get stored document embeddings:', error);
+      return [];
+    }
+  }
+
+  private async getAllStoredDocumentEmbeddings(): Promise<any[]> {
+    try {
+      const embeddings = await prisma.documentEmbedding.findMany({
+        select: {
+          documentId: true,
+          content: true,
+          embedding: true,
+          metadata: true
+        },
+        take: 1000 // Limit to prevent memory issues
+      });
+
+      return embeddings.map(doc => ({
+        content: doc.content,
+        embedding: JSON.parse(doc.embedding),
+        metadata: doc.metadata ? JSON.parse(doc.metadata) : undefined
+      }));
+    } catch (error) {
+      console.error('Failed to get all stored document embeddings:', error);
+      return [];
+    }
+  }
+
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// Export the embedding engine instance
+export const embeddingEngine = new HeliolusEmbeddingEngine();

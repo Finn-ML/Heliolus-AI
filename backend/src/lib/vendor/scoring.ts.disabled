@@ -1,0 +1,369 @@
+/**
+ * Vendor compatibility scoring engine
+ */
+
+import { VendorProfile, CompatibilityScore, VendorCategory, CompanySize } from './types.js';
+import { VENDOR_CONFIG } from './index.js';
+
+interface MatchingCriteria {
+  requiredCategories: string[];
+  preferredFeatures: string[];
+  industry?: string;
+  companySize?: CompanySize;
+  region?: string;
+  budget?: any;
+  timeline?: any;
+  criticalGaps: string[];
+  preferredVendors: string[];
+  excludedVendors: string[];
+}
+
+/**
+ * Advanced vendor compatibility scoring engine
+ */
+export class VendorScorer {
+  /**
+   * Calculate comprehensive compatibility score
+   */
+  async calculateCompatibilityScore(
+    vendor: VendorProfile,
+    criteria: MatchingCriteria
+  ): Promise<CompatibilityScore> {
+    const weights = VENDOR_CONFIG.matching.weightsProfile;
+    const breakdown = {
+      functionalFit: this.calculateFunctionalFit(vendor, criteria),
+      industryExperience: this.calculateIndustryExperience(vendor, criteria),
+      companySize: this.calculateCompanySizeAlignment(vendor, criteria),
+      pricing: this.calculatePricingAlignment(vendor, criteria),
+      reputation: this.calculateReputationScore(vendor)
+    };
+
+    // Calculate weighted overall score
+    const overall = Math.round(
+      breakdown.functionalFit * weights.functionalFit +
+      breakdown.industryExperience * weights.industryExperience +
+      breakdown.companySize * weights.companySize +
+      breakdown.pricing * weights.pricing +
+      breakdown.reputation * weights.reputation
+    );
+
+    // Apply boost factors
+    let boostedScore = overall;
+    if (vendor.verified) boostedScore *= VENDOR_CONFIG.matching.boostFactors.verified;
+    if (vendor.featured) boostedScore *= VENDOR_CONFIG.matching.boostFactors.featured;
+    if (vendor.rating && vendor.rating >= 4.5) boostedScore *= VENDOR_CONFIG.matching.boostFactors.highRating;
+
+    // Cap at 100
+    boostedScore = Math.min(100, boostedScore);
+
+    const confidence = this.calculateConfidence(vendor, criteria, breakdown);
+    const reasoning = this.generateReasoning(breakdown, vendor);
+
+    return {
+      overall: Math.round(boostedScore),
+      breakdown,
+      confidence,
+      reasoning
+    };
+  }
+
+  private calculateFunctionalFit(vendor: VendorProfile, criteria: MatchingCriteria): number {
+    let score = 0;
+    let maxScore = 100;
+
+    // Category alignment (40 points)
+    const categoryScore = this.calculateCategoryAlignment(vendor.categories, criteria.requiredCategories);
+    score += categoryScore * 0.4;
+
+    // Feature coverage (35 points)
+    const featureScore = this.calculateFeatureCoverage(vendor, criteria.preferredFeatures);
+    score += featureScore * 0.35;
+
+    // Solution depth (25 points)
+    const solutionScore = this.calculateSolutionDepth(vendor, criteria);
+    score += solutionScore * 0.25;
+
+    return Math.round(Math.min(100, score));
+  }
+
+  private calculateCategoryAlignment(vendorCategories: VendorCategory[], requiredCategories: string[]): number {
+    if (requiredCategories.length === 0) return 50; // Neutral if no requirements
+
+    const matchCount = requiredCategories.filter(reqCat =>
+      vendorCategories.some(vendorCat =>
+        this.categoriesMatch(vendorCat, reqCat)
+      )
+    ).length;
+
+    return Math.round((matchCount / requiredCategories.length) * 100);
+  }
+
+  private calculateFeatureCoverage(vendor: VendorProfile, preferredFeatures: string[]): number {
+    if (preferredFeatures.length === 0) return 60; // Neutral if no preferences
+
+    const allVendorFeatures = vendor.solutions.flatMap(solution => solution.features);
+    
+    const matchCount = preferredFeatures.filter(prefFeature =>
+      allVendorFeatures.some(vendorFeature =>
+        this.featuresMatch(vendorFeature, prefFeature)
+      )
+    ).length;
+
+    return Math.round((matchCount / preferredFeatures.length) * 100);
+  }
+
+  private calculateSolutionDepth(vendor: VendorProfile, criteria: MatchingCriteria): number {
+    let score = 0;
+
+    // Solution count (more solutions = better coverage)
+    const solutionCount = vendor.solutions.length;
+    score += Math.min(30, solutionCount * 10);
+
+    // Critical gap coverage
+    const criticalGapCoverage = this.calculateCriticalGapCoverage(vendor, criteria.criticalGaps);
+    score += criticalGapCoverage * 0.7;
+
+    return Math.round(Math.min(100, score));
+  }
+
+  private calculateCriticalGapCoverage(vendor: VendorProfile, criticalGaps: string[]): number {
+    if (criticalGaps.length === 0) return 50;
+
+    const coveredGaps = criticalGaps.filter(gapId =>
+      vendor.solutions.some(solution =>
+        solution.gapCategories.some(category =>
+          category.toLowerCase().includes(gapId.toLowerCase()) ||
+          gapId.toLowerCase().includes(category.toLowerCase())
+        )
+      )
+    ).length;
+
+    return Math.round((coveredGaps / criticalGaps.length) * 100);
+  }
+
+  private calculateIndustryExperience(vendor: VendorProfile, criteria: MatchingCriteria): number {
+    let score = 50; // Base score
+
+    if (!criteria.industry) return score;
+
+    // Check if vendor has industry-specific solutions
+    const industryMatch = vendor.solutions.some(solution =>
+      solution.industries.some(industry =>
+        industry.toLowerCase().includes(criteria.industry!.toLowerCase()) ||
+        criteria.industry!.toLowerCase().includes(industry.toLowerCase())
+      )
+    );
+
+    if (industryMatch) score += 40;
+
+    // Check case studies for industry relevance
+    const hasCaseStudies = vendor.solutions.some(solution =>
+      solution.caseStudyUrls.length > 0
+    );
+
+    if (hasCaseStudies) score += 10;
+
+    return Math.min(100, score);
+  }
+
+  private calculateCompanySizeAlignment(vendor: VendorProfile, criteria: MatchingCriteria): number {
+    if (!criteria.companySize) return 60; // Neutral if no size specified
+
+    const sizeMatch = vendor.solutions.some(solution =>
+      solution.companySizes.includes(criteria.companySize!)
+    );
+
+    if (sizeMatch) return 90;
+
+    // Partial alignment based on adjacent sizes
+    const sizeOrder: CompanySize[] = ['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE'];
+    const criteriaIndex = sizeOrder.indexOf(criteria.companySize);
+    
+    if (criteriaIndex !== -1) {
+      const adjacentSizes = [
+        sizeOrder[criteriaIndex - 1],
+        sizeOrder[criteriaIndex + 1]
+      ].filter(Boolean);
+
+      const adjacentMatch = vendor.solutions.some(solution =>
+        solution.companySizes.some(size => adjacentSizes.includes(size))
+      );
+
+      if (adjacentMatch) return 70;
+    }
+
+    return 30; // Poor alignment
+  }
+
+  private calculatePricingAlignment(vendor: VendorProfile, criteria: MatchingCriteria): number {
+    if (!criteria.budget) return 60; // Neutral if no budget specified
+
+    const solutions = vendor.solutions.filter(solution => solution.startingPrice !== null);
+    if (solutions.length === 0) return 50; // No pricing info
+
+    const budgetRanges = {
+      'LOW': { min: 0, max: 10000 },
+      'MEDIUM': { min: 10000, max: 50000 },
+      'HIGH': { min: 50000, max: 200000 },
+      'VERY_HIGH': { min: 200000, max: Infinity }
+    };
+
+    const budget = budgetRanges[criteria.budget as keyof typeof budgetRanges];
+    if (!budget) return 50;
+
+    const affordableSolutions = solutions.filter(solution =>
+      solution.startingPrice! >= budget.min && solution.startingPrice! <= budget.max
+    );
+
+    const alignmentRatio = affordableSolutions.length / solutions.length;
+    return Math.round(alignmentRatio * 100);
+  }
+
+  private calculateReputationScore(vendor: VendorProfile): number {
+    let score = 50; // Base score
+
+    // Rating contribution (40% of reputation score)
+    if (vendor.rating && vendor.reviewCount > 0) {
+      const ratingScore = (vendor.rating / 5) * 40;
+      const reviewBonus = Math.min(20, vendor.reviewCount * 2); // Bonus for more reviews
+      score += ratingScore + reviewBonus;
+    }
+
+    // Verification status (20% of reputation score)
+    if (vendor.verified) score += 20;
+
+    // Featured status (10% of reputation score)
+    if (vendor.featured) score += 10;
+
+    // Activity and responsiveness (based on metrics)
+    if (vendor.metrics.responseRate >= 80) score += 10;
+    if (vendor.metrics.responseTime <= 24) score += 10;
+
+    return Math.min(100, Math.round(score));
+  }
+
+  private calculateConfidence(
+    vendor: VendorProfile,
+    criteria: MatchingCriteria,
+    breakdown: any
+  ): number {
+    let confidence = 70; // Base confidence
+
+    // Data completeness
+    const completenessFactors = [
+      vendor.solutions.length > 0,
+      vendor.rating !== null && vendor.reviewCount > 0,
+      vendor.verified,
+      vendor.solutions.some(s => s.caseStudyUrls.length > 0),
+      vendor.solutions.some(s => s.startingPrice !== null)
+    ];
+
+    const completeness = completenessFactors.filter(Boolean).length / completenessFactors.length;
+    confidence += (completeness - 0.5) * 40;
+
+    // Scoring consistency (low variance in breakdown scores)
+    const scores = Object.values(breakdown);
+    const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const variance = scores.reduce((sum, score) => sum + Math.pow(score - average, 2), 0) / scores.length;
+    const standardDeviation = Math.sqrt(variance);
+    
+    if (standardDeviation < 15) confidence += 10;
+    else if (standardDeviation > 30) confidence -= 10;
+
+    // Clear match indicators
+    if (breakdown.functionalFit >= 80) confidence += 10;
+    if (breakdown.industryExperience >= 80) confidence += 5;
+
+    return Math.round(Math.min(100, Math.max(0, confidence)));
+  }
+
+  private generateReasoning(breakdown: any, vendor: VendorProfile): string[] {
+    const reasons: string[] = [];
+
+    if (breakdown.functionalFit >= 80) {
+      reasons.push(`Strong functional fit (${breakdown.functionalFit}%) for your requirements`);
+    } else if (breakdown.functionalFit < 50) {
+      reasons.push(`Limited functional alignment (${breakdown.functionalFit}%) with requirements`);
+    }
+
+    if (breakdown.industryExperience >= 80) {
+      reasons.push(`Excellent industry experience and domain knowledge`);
+    } else if (breakdown.industryExperience < 50) {
+      reasons.push(`Limited proven experience in your industry sector`);
+    }
+
+    if (breakdown.companySize >= 80) {
+      reasons.push(`Solutions well-suited for your company size`);
+    } else if (breakdown.companySize < 50) {
+      reasons.push(`Solutions may not be optimized for your company size`);
+    }
+
+    if (breakdown.pricing >= 80) {
+      reasons.push(`Pricing aligns well with your budget parameters`);
+    } else if (breakdown.pricing < 50) {
+      reasons.push(`Pricing may be outside your budget range`);
+    }
+
+    if (breakdown.reputation >= 80) {
+      reasons.push(`Strong reputation with high customer satisfaction`);
+    }
+
+    // Vendor-specific factors
+    if (vendor.verified) {
+      reasons.push(`Verified vendor with validated credentials`);
+    }
+
+    if (vendor.rating && vendor.rating >= 4.0) {
+      reasons.push(`High customer rating (${vendor.rating.toFixed(1)}/5.0)`);
+    }
+
+    if (vendor.solutions.length > 3) {
+      reasons.push(`Comprehensive solution portfolio with ${vendor.solutions.length} offerings`);
+    }
+
+    return reasons;
+  }
+
+  // Helper methods for matching logic
+  private categoriesMatch(vendorCategory: VendorCategory, requiredCategory: string): boolean {
+    const categoryMappings: Record<string, VendorCategory[]> = {
+      'Data Privacy': [VendorCategory.DATA_GOVERNANCE],
+      'Financial Crime': [VendorCategory.KYC_AML, VendorCategory.SANCTIONS_SCREENING],
+      'AML': [VendorCategory.KYC_AML, VendorCategory.TRANSACTION_MONITORING],
+      'KYC': [VendorCategory.KYC_AML],
+      'Transaction Monitoring': [VendorCategory.TRANSACTION_MONITORING],
+      'Risk Management': [VendorCategory.RISK_ASSESSMENT],
+      'Compliance Training': [VendorCategory.COMPLIANCE_TRAINING],
+      'Regulatory Reporting': [VendorCategory.REGULATORY_REPORTING],
+      'Trade Compliance': [VendorCategory.TRADE_SURVEILLANCE],
+      'Sanctions': [VendorCategory.SANCTIONS_SCREENING]
+    };
+
+    const matchingCategories = categoryMappings[requiredCategory] || [];
+    return matchingCategories.includes(vendorCategory) ||
+           vendorCategory.toLowerCase().includes(requiredCategory.toLowerCase()) ||
+           requiredCategory.toLowerCase().includes(vendorCategory.toLowerCase());
+  }
+
+  private featuresMatch(vendorFeature: string, preferredFeature: string): boolean {
+    const normalizedVendor = vendorFeature.toLowerCase();
+    const normalizedPreferred = preferredFeature.toLowerCase();
+
+    // Direct match
+    if (normalizedVendor.includes(normalizedPreferred) || 
+        normalizedPreferred.includes(normalizedVendor)) {
+      return true;
+    }
+
+    // Keyword matching
+    const vendorKeywords = normalizedVendor.split(/[\s,.-]+/);
+    const preferredKeywords = normalizedPreferred.split(/[\s,.-]+/);
+
+    return preferredKeywords.some(prefKeyword =>
+      vendorKeywords.some(vendorKeyword =>
+        vendorKeyword.length > 3 && prefKeyword.length > 3 &&
+        (vendorKeyword.includes(prefKeyword) || prefKeyword.includes(vendorKeyword))
+      )
+    );
+  }
+}
