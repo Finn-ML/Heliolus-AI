@@ -574,9 +574,6 @@ export class UserService extends BaseService {
       if (!queryOptions.where.status) {
         queryOptions.where.status = { not: UserStatus.DELETED };
       }
-      
-      // Exclude vendor users from user management (users created for vendors shouldn't appear)
-      queryOptions.where.vendorProfile = null; // Users with no associated vendor profile
 
       const [users, total] = await Promise.all([
         this.prisma.user.findMany({
