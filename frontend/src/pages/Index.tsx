@@ -3,6 +3,7 @@ import { Building2, BarChart3, FileText, Shield, Sparkles } from 'lucide-react';
 import BusinessProfile from '@/components/BusinessProfile';
 import DocumentStorage from '@/components/DocumentStorage';
 import TrackingDashboard from '@/components/TrackingDashboard';
+import { PurchaseAssessmentButton } from '@/components/PurchaseAssessmentButton';
 import Reports from '@/pages/Reports';
 import { useQuery } from '@tanstack/react-query';
 import { organizationApi, queryKeys } from '@/lib/api';
@@ -216,6 +217,12 @@ const Index = () => {
                   Track compliance metrics, risks, and assessment progress in real-time
                 </p>
               </div>
+
+              {/* Purchase Additional Assessment Button (Premium users only) */}
+              <div className="flex justify-center mb-6">
+                <PurchaseAssessmentButton />
+              </div>
+
               <TrackingDashboard />
             </div>
           )}
