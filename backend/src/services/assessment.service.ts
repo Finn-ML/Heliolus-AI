@@ -21,6 +21,7 @@ import {
   Likelihood,
   Impact,
   RiskLevel,
+  SubscriptionPlan,
 } from '../types/database';
 import {
   calculateRiskScore,
@@ -40,6 +41,7 @@ import {
 import { subscriptionService } from './subscription.service';
 import { TemplateService } from './template.service';
 import { FreemiumService } from './freemium.service';
+import { FreemiumContentService } from './freemium-content.service';
 import { DocumentParserService } from './document-parser.service';
 import { DocumentPreprocessingService } from './document-preprocessing.service';
 import { AIAnalysisService } from './ai-analysis.service';
@@ -163,16 +165,59 @@ export class AssessmentService extends BaseService {
         throw this.createError('Template not found or inactive', 404, 'TEMPLATE_NOT_FOUND');
       }
 
-      const assessment = await this.prisma.assessment.create({
-        data: {
-          organizationId: validatedData.organizationId,
-          userId: context?.userId!,
-          templateId: validatedData.templateId,
-          status: AssessmentStatus.DRAFT,
-          responses: {},
-          creditsUsed: 0,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        },
+      // Query user subscription plan to check quota
+      const user = await this.prisma.user.findUnique({
+        where: { id: context?.userId! },
+        include: { subscription: true },
+      });
+
+      const plan = user?.subscription?.plan || SubscriptionPlan.FREE;
+
+      // Check Freemium quota for FREE tier users
+      if (plan === SubscriptionPlan.FREE) {
+        const quota = await this.prisma.userAssessmentQuota.findUnique({
+          where: { userId: context?.userId! },
+        });
+
+        if (quota && quota.totalAssessmentsCreated >= 2) {
+          throw this.createError(
+            'Free users can create maximum 2 assessments. Upgrade to Premium for unlimited access.',
+            402,
+            'FREEMIUM_QUOTA_EXCEEDED'
+          );
+        }
+      }
+
+      // Create assessment with quota increment in atomic transaction
+      const assessment = await this.prisma.$transaction(async (tx) => {
+        // Create assessment
+        const newAssessment = await tx.assessment.create({
+          data: {
+            organizationId: validatedData.organizationId,
+            userId: context?.userId!,
+            templateId: validatedData.templateId,
+            status: AssessmentStatus.DRAFT,
+            responses: {},
+            creditsUsed: 0,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          },
+        });
+
+        // Increment quota for FREE users only
+        if (plan === SubscriptionPlan.FREE) {
+          await tx.userAssessmentQuota.upsert({
+            where: { userId: context?.userId! },
+            create: {
+              userId: context?.userId!,
+              totalAssessmentsCreated: 1,
+            },
+            update: {
+              totalAssessmentsCreated: { increment: 1 },
+            },
+          });
+        }
+
+        return newAssessment;
       });
 
       await this.logAudit(
@@ -369,6 +414,45 @@ export class AssessmentService extends BaseService {
         if (!isAdmin && !isOwner && !belongsToOrg) {
           throw this.createError('Access denied', 403, 'FORBIDDEN');
         }
+      }
+
+      // Check subscription plan to determine if content should be mocked
+      const subscription = await this.prisma.subscription.findUnique({
+        where: { userId: assessment.userId },
+        select: { plan: true },
+      });
+
+      const plan = subscription?.plan || SubscriptionPlan.FREE;
+
+      // Replace with mocked content for FREE tier
+      if (plan === SubscriptionPlan.FREE) {
+        const freemiumService = new FreemiumContentService();
+
+        // Replace gaps with mocked gaps
+        const mockedGaps = await freemiumService.generateMockedGapAnalysis(assessment.id);
+        (assessment as any).gaps = mockedGaps;
+
+        // Replace strategy matrix with mocked version
+        if ((assessment as any).aiStrategyMatrix) {
+          (assessment as any).aiStrategyMatrix = {
+            ...(assessment as any).aiStrategyMatrix,
+            isRestricted: true,
+            matrix: '[UNLOCK PREMIUM TO SEE]',
+            summary: 'Upgrade to Premium to see personalized strategy recommendations',
+          };
+        }
+
+        // Mark assessment as restricted
+        (assessment as any).isRestricted = true;
+        (assessment as any).restrictionReason = 'Upgrade to Premium to see full analysis';
+
+        // Hide vendor matches (set to empty array)
+        (assessment as any).vendorMatches = [];
+
+        // Note: riskScore is ALWAYS visible regardless of tier
+      } else {
+        // Premium/Enterprise users get full content
+        (assessment as any).isRestricted = false;
       }
 
       // Return unfiltered results for results page

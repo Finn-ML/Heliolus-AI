@@ -198,6 +198,11 @@ enum SubscriptionStatus {
   UNPAID
 }
 
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
 enum ReportType {
   EXECUTIVE_SUMMARY
   DETAILED
@@ -236,6 +241,7 @@ enum TransactionType {
   REFUND
   ADJUSTMENT
   SUBSCRIPTION_RENEWAL
+  ADMIN_GRANT  // Manual credit grant by admin
 }
 
 enum InvoiceStatus {
@@ -287,6 +293,7 @@ model User {
   // Relations
   organization      Organization?
   subscription      Subscription?
+  assessmentQuota   UserAssessmentQuota?
   assessments       Assessment[]
   auditLogs         AuditLog[]
   vendorContacts    VendorContact[]
@@ -295,6 +302,26 @@ model User {
   @@index([email])
   @@index([emailVerificationToken])
   @@index([status])
+}
+
+model UserAssessmentQuota {
+  id          String @id @default(cuid())
+  userId      String @unique
+
+  // Freemium tracking
+  totalAssessmentsCreated  Int @default(0)
+
+  // Premium tracking
+  assessmentsThisMonth     Int @default(0)
+  assessmentsUsedThisMonth Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Organization {
@@ -759,6 +786,10 @@ model Subscription {
   currentPeriodEnd   DateTime
   cancelAt           DateTime?
   canceledAt         DateTime?
+  billingCycle       BillingCycle? // MONTHLY or ANNUAL
+  billingEmail       String?       // Billing contact email
+  renewalDate        DateTime?     // Next renewal date
+  stripePriceId      String?       // Links to Stripe price object (price_xxx)
 
   // Trial
   trialEnd DateTime?

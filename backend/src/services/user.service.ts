@@ -1221,6 +1221,35 @@ export class UserService extends BaseService {
       this.handleDatabaseError(error, 'updateOnboardingStatus');
     }
   }
+
+  /**
+   * Ensure user has an assessment quota record
+   * Creates one if it doesn't exist (lazy initialization)
+   * @param userId - User ID to ensure quota for
+   * @returns Promise<UserAssessmentQuota>
+   */
+  async ensureUserQuota(userId: string) {
+    try {
+      // Try to find existing quota
+      let quota = await this.prisma.userAssessmentQuota.findUnique({
+        where: { userId }
+      });
+
+      // Create if doesn't exist
+      if (!quota) {
+        quota = await this.prisma.userAssessmentQuota.create({
+          data: { userId }
+        });
+
+        this.logger.info('Created assessment quota for user', { userId });
+      }
+
+      return quota;
+    } catch (error) {
+      this.logger.error('Error ensuring user quota', { userId, error });
+      throw this.createError('Failed to ensure user quota', 500, 'QUOTA_ERROR');
+    }
+  }
 }
 
 export const userService = new UserService();
