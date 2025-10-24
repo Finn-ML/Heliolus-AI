@@ -228,6 +228,365 @@ export default async function adminRoutes(server: FastifyInstance) {
     });
   }));
 
+  // GET /admin/users/export - Export users to CSV
+  server.get('/users/export', {
+    schema: {
+      description: 'Export users to CSV',
+      tags: ['Admin'],
+      querystring: {
+        type: 'object',
+        properties: {
+          role: { type: 'string', enum: ['ADMIN', 'USER', 'VENDOR'] },
+          status: { type: 'string', enum: ['ACTIVE', 'SUSPENDED', 'DELETED'] },
+          search: { type: 'string' }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      role?: UserRole;
+      status?: string;
+      search?: string;
+    }
+  }>, reply: FastifyReply) => {
+    const { role, status, search } = request.query;
+
+    const { UserService } = await import('../services');
+    const userService = new UserService();
+
+    // Build query options for filtering
+    const queryOptions: any = {};
+
+    // Add filters
+    if (role) {
+      queryOptions.where = { ...queryOptions.where, role };
+    }
+    if (status) {
+      queryOptions.where = { ...queryOptions.where, status };
+    }
+    if (search) {
+      queryOptions.where = {
+        ...queryOptions.where,
+        OR: [
+          { email: { contains: search, mode: 'insensitive' } },
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { organization: { name: { contains: search, mode: 'insensitive' } } }
+        ]
+      };
+    }
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await userService.exportUsers(queryOptions, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    // Set CSV headers
+    const today = new Date().toISOString().split('T')[0];
+    reply.header('Content-Type', 'text/csv');
+    reply.header('Content-Disposition', `attachment; filename="users-export-${today}.csv"`);
+    reply.code(200).send(result.data);
+  }));
+
+  // GET /admin/users/stats - Get user statistics
+  server.get('/users/stats', {
+    schema: {
+      description: 'Get aggregated user statistics',
+      tags: ['Admin'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                total: { type: 'number' },
+                active: { type: 'number' },
+                verified: { type: 'number' },
+                unverified: { type: 'number' },
+                byRole: {
+                  type: 'object',
+                  properties: {
+                    ADMIN: { type: 'number' },
+                    USER: { type: 'number' },
+                    VENDOR: { type: 'number' },
+                  },
+                },
+                byStatus: {
+                  type: 'object',
+                  properties: {
+                    ACTIVE: { type: 'number' },
+                    SUSPENDED: { type: 'number' },
+                    DELETED: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const { UserService } = await import('../services');
+    const userService = new UserService();
+
+    // Transform request.currentUser to ServiceContext format
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await userService.getUserStats(context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // POST /admin/users/bulk-suspend - Bulk suspend users
+  server.post('/users/bulk-suspend', {
+    schema: {
+      description: 'Suspend multiple users at once',
+      tags: ['Admin'],
+      body: {
+        type: 'object',
+        required: ['userIds'],
+        properties: {
+          userIds: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 1,
+            maxItems: 100
+          }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                affected: { type: 'number' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Body: { userIds: string[] }
+  }>, reply: FastifyReply) => {
+    const { userIds } = request.body;
+
+    const { UserService } = await import('../services');
+    const userService = new UserService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await userService.bulkSuspendUsers(userIds, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // POST /admin/users/bulk-activate - Bulk activate users
+  server.post('/users/bulk-activate', {
+    schema: {
+      description: 'Activate multiple users at once',
+      tags: ['Admin'],
+      body: {
+        type: 'object',
+        required: ['userIds'],
+        properties: {
+          userIds: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 1,
+            maxItems: 100
+          }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                affected: { type: 'number' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Body: { userIds: string[] }
+  }>, reply: FastifyReply) => {
+    const { userIds } = request.body;
+
+    const { UserService } = await import('../services');
+    const userService = new UserService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await userService.bulkActivateUsers(userIds, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // POST /admin/users/bulk-delete - Bulk delete users (soft delete)
+  server.post('/users/bulk-delete', {
+    schema: {
+      description: 'Delete multiple users at once (soft delete)',
+      tags: ['Admin'],
+      body: {
+        type: 'object',
+        required: ['userIds'],
+        properties: {
+          userIds: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 1,
+            maxItems: 100
+          }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                affected: { type: 'number' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Body: { userIds: string[] }
+  }>, reply: FastifyReply) => {
+    const { userIds } = request.body;
+
+    const { UserService } = await import('../services');
+    const userService = new UserService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await userService.bulkDeleteUsers(userIds, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // GET /admin/users/:id/audit-log - Get user audit history
+  server.get('/users/:id/audit-log', {
+    schema: {
+      description: 'Get audit log for a specific user',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' }
+        }
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', default: 50 },
+          offset: { type: 'number', default: 0 },
+          actionFilter: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                entries: { type: 'array' },
+                total: { type: 'number' },
+                hasMore: { type: 'boolean' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+    Querystring: { limit?: number; offset?: number; actionFilter?: string };
+  }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    const { limit, offset, actionFilter } = request.query;
+
+    const { UserService } = await import('../services');
+    const userService = new UserService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await userService.getUserAuditLog(id, { limit, offset, actionFilter }, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
   // PATCH /admin/users/:id - Update user status
   server.patch('/users/:id', {
     schema: {

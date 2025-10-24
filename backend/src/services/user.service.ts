@@ -638,6 +638,391 @@ export class UserService extends BaseService {
   }
 
   /**
+   * Get user statistics
+   */
+  async getUserStats(
+    context?: ServiceContext
+  ): Promise<ApiResponse<{
+    total: number;
+    active: number;
+    verified: number;
+    unverified: number;
+    byRole: { ADMIN: number; USER: number; VENDOR: number };
+    byStatus: { ACTIVE: number; SUSPENDED: number; DELETED: number };
+  }>> {
+    try {
+      // Only admins can view user stats
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Run all queries in parallel for efficiency
+      const [total, active, verified, byRole, byStatus] = await Promise.all([
+        // Total users excluding deleted
+        this.prisma.user.count({
+          where: { status: { not: UserStatus.DELETED } }
+        }),
+        // Active users
+        this.prisma.user.count({
+          where: { status: UserStatus.ACTIVE }
+        }),
+        // Verified users (excluding deleted)
+        this.prisma.user.count({
+          where: {
+            emailVerified: true,
+            status: { not: UserStatus.DELETED }
+          }
+        }),
+        // Group by role (excluding deleted)
+        this.prisma.user.groupBy({
+          by: ['role'],
+          where: { status: { not: UserStatus.DELETED } },
+          _count: true
+        }),
+        // Group by status
+        this.prisma.user.groupBy({
+          by: ['status'],
+          _count: true
+        })
+      ]);
+
+      // Calculate unverified count
+      const unverified = total - verified;
+
+      // Transform groupBy results to object format
+      const byRoleMap = {
+        ADMIN: 0,
+        USER: 0,
+        VENDOR: 0
+      };
+      byRole.forEach(item => {
+        byRoleMap[item.role] = item._count;
+      });
+
+      const byStatusMap = {
+        ACTIVE: 0,
+        SUSPENDED: 0,
+        DELETED: 0
+      };
+      byStatus.forEach(item => {
+        byStatusMap[item.status] = item._count;
+      });
+
+      const stats = {
+        total,
+        active,
+        verified,
+        unverified,
+        byRole: byRoleMap,
+        byStatus: byStatusMap
+      };
+
+      return this.createResponse(true, stats);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getUserStats');
+    }
+  }
+
+  /**
+   * Export users to CSV
+   */
+  async exportUsers(
+    options: QueryOptions = {},
+    context?: ServiceContext
+  ): Promise<ApiResponse<string>> {
+    try {
+      // Only admins can export users
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      const queryOptions = this.buildQueryOptions(options);
+
+      // Don't show deleted users by default
+      if (!queryOptions.where.status) {
+        queryOptions.where.status = { not: UserStatus.DELETED };
+      }
+
+      // Get all users matching filters (no pagination for export)
+      const users = await this.prisma.user.findMany({
+        ...queryOptions,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          status: true,
+          emailVerified: true,
+          createdAt: true,
+          lastLogin: true,
+          organization: {
+            select: {
+              name: true
+            }
+          }
+        }
+      });
+
+      // Format data for CSV
+      const csvData = users.map(user => ({
+        ID: user.id,
+        Email: user.email,
+        'First Name': user.firstName,
+        'Last Name': user.lastName,
+        Role: user.role,
+        Status: user.status,
+        'Email Verified': user.emailVerified ? 'Yes' : 'No',
+        Organization: user.organization?.name || 'None',
+        'Created Date': user.createdAt.toISOString().split('T')[0],
+        'Last Login': user.lastLogin ? user.lastLogin.toISOString() : 'Never'
+      }));
+
+      // Convert to CSV format
+      const Papa = await import('papaparse');
+      const csv = Papa.unparse(csvData);
+
+      return this.createResponse(true, csv);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'exportUsers');
+    }
+  }
+
+  /**
+   * Get user audit log
+   */
+  async getUserAuditLog(
+    userId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      actionFilter?: string;
+    } = {},
+    context?: ServiceContext
+  ): Promise<ApiResponse<{
+    entries: any[];
+    total: number;
+    hasMore: boolean;
+  }>> {
+    try {
+      // Only admins can view audit logs
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      const { limit = 50, offset = 0, actionFilter } = options;
+
+      // Build where clause
+      const where: any = {
+        entityId: userId,
+        entity: 'User'
+      };
+
+      if (actionFilter && actionFilter !== 'all') {
+        where.action = actionFilter;
+      }
+
+      // Get audit log entries with admin user info
+      const [entries, total] = await Promise.all([
+        this.prisma.auditLog.findMany({
+          where,
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset
+        }),
+        this.prisma.auditLog.count({ where })
+      ]);
+
+      const hasMore = offset + limit < total;
+
+      return this.createResponse(true, {
+        entries,
+        total,
+        hasMore
+      });
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getUserAuditLog');
+    }
+  }
+
+  /**
+   * Bulk suspend users
+   */
+  async bulkSuspendUsers(
+    userIds: string[],
+    context?: ServiceContext
+  ): Promise<ApiResponse<{ affected: number }>> {
+    try {
+      // Only admins can bulk suspend
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Validate max 100 users
+      if (userIds.length === 0) {
+        throw this.createError('No users provided', 400, 'INVALID_INPUT');
+      }
+      if (userIds.length > 100) {
+        throw this.createError('Bulk operations limited to 100 users', 400, 'LIMIT_EXCEEDED');
+      }
+
+      // Verify all users exist
+      const existingUsers = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true }
+      });
+
+      if (existingUsers.length !== userIds.length) {
+        throw this.createError('Some users not found', 404, 'USERS_NOT_FOUND');
+      }
+
+      // Update users to SUSPENDED
+      const result = await this.prisma.user.updateMany({
+        where: { id: { in: userIds } },
+        data: {
+          status: UserStatus.SUSPENDED,
+          updatedAt: this.now()
+        }
+      });
+
+      // Create audit log entries
+      await this.prisma.auditLog.createMany({
+        data: userIds.map(userId => ({
+          userId,
+          action: 'USER_SUSPENDED',
+          performedBy: context?.userId || 'system',
+          metadata: { bulkOperation: true }
+        }))
+      });
+
+      return this.createResponse(true, { affected: result.count });
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'bulkSuspendUsers');
+    }
+  }
+
+  /**
+   * Bulk activate users
+   */
+  async bulkActivateUsers(
+    userIds: string[],
+    context?: ServiceContext
+  ): Promise<ApiResponse<{ affected: number }>> {
+    try {
+      // Only admins can bulk activate
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Validate max 100 users
+      if (userIds.length === 0) {
+        throw this.createError('No users provided', 400, 'INVALID_INPUT');
+      }
+      if (userIds.length > 100) {
+        throw this.createError('Bulk operations limited to 100 users', 400, 'LIMIT_EXCEEDED');
+      }
+
+      // Verify all users exist
+      const existingUsers = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true }
+      });
+
+      if (existingUsers.length !== userIds.length) {
+        throw this.createError('Some users not found', 404, 'USERS_NOT_FOUND');
+      }
+
+      // Update users to ACTIVE
+      const result = await this.prisma.user.updateMany({
+        where: { id: { in: userIds } },
+        data: {
+          status: UserStatus.ACTIVE,
+          updatedAt: this.now()
+        }
+      });
+
+      // Create audit log entries
+      await this.prisma.auditLog.createMany({
+        data: userIds.map(userId => ({
+          userId,
+          action: 'USER_ACTIVATED',
+          performedBy: context?.userId || 'system',
+          metadata: { bulkOperation: true }
+        }))
+      });
+
+      return this.createResponse(true, { affected: result.count });
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'bulkActivateUsers');
+    }
+  }
+
+  /**
+   * Bulk delete users (soft delete)
+   */
+  async bulkDeleteUsers(
+    userIds: string[],
+    context?: ServiceContext
+  ): Promise<ApiResponse<{ affected: number }>> {
+    try {
+      // Only admins can bulk delete
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Validate max 100 users
+      if (userIds.length === 0) {
+        throw this.createError('No users provided', 400, 'INVALID_INPUT');
+      }
+      if (userIds.length > 100) {
+        throw this.createError('Bulk operations limited to 100 users', 400, 'LIMIT_EXCEEDED');
+      }
+
+      // Ensure current admin is not in the list
+      if (context?.userId && userIds.includes(context.userId)) {
+        throw this.createError('Cannot delete your own account', 400, 'CANNOT_DELETE_SELF');
+      }
+
+      // Verify all users exist
+      const existingUsers = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true }
+      });
+
+      if (existingUsers.length !== userIds.length) {
+        throw this.createError('Some users not found', 404, 'USERS_NOT_FOUND');
+      }
+
+      // Soft delete: set status to DELETED
+      const result = await this.prisma.user.updateMany({
+        where: { id: { in: userIds } },
+        data: {
+          status: UserStatus.DELETED,
+          updatedAt: this.now()
+        }
+      });
+
+      // Create audit log entries
+      await this.prisma.auditLog.createMany({
+        data: userIds.map(userId => ({
+          userId,
+          action: 'USER_DELETED',
+          performedBy: context?.userId || 'system',
+          metadata: { bulkOperation: true, softDelete: true }
+        }))
+      });
+
+      return this.createResponse(true, { affected: result.count });
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'bulkDeleteUsers');
+    }
+  }
+
+  /**
    * Change user password
    */
   async changePassword(
