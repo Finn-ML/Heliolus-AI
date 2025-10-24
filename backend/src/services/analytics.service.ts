@@ -216,7 +216,7 @@ export class AnalyticsService extends BaseService {
 
       // Fetch template names
       const templateIds = byTemplateRaw.map(t => t.templateId);
-      const templates = await this.prisma.assessmentTemplate.findMany({
+      const templates = await this.prisma.template.findMany({
         where: { id: { in: templateIds } },
         select: { id: true, name: true }
       });
@@ -371,13 +371,13 @@ export class AnalyticsService extends BaseService {
         include: {
           _count: {
             select: {
-              vendorMatches: {
+              matches: {
                 where: {
                   viewed: true,
                   ...dateFilter
                 }
               },
-              vendorContacts: {
+              contacts: {
                 where: dateFilter
               }
             }
@@ -392,8 +392,8 @@ export class AnalyticsService extends BaseService {
 
       const topVendorsWithTrend = await Promise.all(
         vendorEngagement.map(async (vendor) => {
-          const clicks = vendor._count.vendorMatches;
-          const contacts = vendor._count.vendorContacts;
+          const clicks = vendor._count.matches;
+          const contacts = vendor._count.contacts;
           const engagementScore = clicks * 1 + contacts * 5;
 
           // Get clicks for last 7 days vs previous 7 days
@@ -716,7 +716,7 @@ export class AnalyticsService extends BaseService {
           CASE
             WHEN assessment_count >= 5 THEN 'highlyActive'
             WHEN assessment_count BETWEEN 2 AND 4 THEN 'active'
-            WHEN assessment_count BETWEEN 0 AND 1 AND last_login > ${ninetyDaysAgo} THEN 'inactive'
+            WHEN assessment_count BETWEEN 0 AND 1 AND "lastLogin" > ${ninetyDaysAgo} THEN 'inactive'
             ELSE 'churned'
           END as segment,
           COUNT(*) as count
@@ -724,11 +724,11 @@ export class AnalyticsService extends BaseService {
           SELECT
             u.id,
             COUNT(a.id) as assessment_count,
-            u.last_login
+            u."lastLogin"
           FROM "User" u
-          LEFT JOIN "Assessment" a ON u.id = a.user_id
+          LEFT JOIN "Assessment" a ON u.id = a."userId"
           WHERE u.status != 'DELETED'
-          GROUP BY u.id, u.last_login
+          GROUP BY u.id, u."lastLogin"
         ) user_stats
         GROUP BY segment
       `;
