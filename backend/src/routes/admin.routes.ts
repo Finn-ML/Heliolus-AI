@@ -4,7 +4,6 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import Papa from 'papaparse';
 import { parse as csvParse } from 'csv-parse/sync';
 import { UserRole, VendorCategory, VendorStatus } from '../types/database';
 import { requireRole, requireFeature, asyncHandler, authenticationMiddleware } from '../middleware';
