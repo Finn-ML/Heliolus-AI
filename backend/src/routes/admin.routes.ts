@@ -1159,6 +1159,53 @@ export default async function adminRoutes(server: FastifyInstance) {
     reply.code(200).send(result);
   }));
 
+  // GET /admin/analytics/export - Export all analytics data to CSV/Excel
+  server.get('/analytics/export', {
+    schema: {
+      description: 'Export comprehensive analytics report to CSV (Excel-compatible)',
+      tags: ['Admin', 'Analytics'],
+      querystring: {
+        type: 'object',
+        properties: {
+          startDate: { type: 'string', format: 'date' },
+          endDate: { type: 'string', format: 'date' }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      startDate?: string;
+      endDate?: string;
+    }
+  }>, reply: FastifyReply) => {
+    const { startDate, endDate } = request.query;
+
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await analyticsService.exportAnalytics(
+      { startDate, endDate },
+      context
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    // Set CSV headers
+    const today = new Date().toISOString().split('T')[0];
+    reply.header('Content-Type', 'text/csv');
+    reply.header('Content-Disposition', `attachment; filename="heliolus-analytics-${today}.csv"`);
+    reply.code(200).send(result.data);
+  }));
+
   // ============================================================================
   // VENDOR MANAGEMENT ENDPOINTS
   // ============================================================================

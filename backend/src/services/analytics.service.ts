@@ -125,6 +125,11 @@ interface ActivityFeedParams {
   userEmail?: string;
 }
 
+interface ExportParams {
+  startDate?: string;
+  endDate?: string;
+}
+
 /**
  * Analytics Service
  * Provides aggregated metrics for admin dashboard
@@ -949,6 +954,103 @@ export class AnalyticsService extends BaseService {
     } catch (error) {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'getActivityFeed');
+    }
+  }
+
+  /**
+   * Export analytics data to CSV (Excel-compatible)
+   */
+  async exportAnalytics(
+    params: ExportParams = {},
+    context?: ServiceContext
+  ): Promise<ApiResponse<string>> {
+    try {
+      // Only admins can export analytics
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Get all analytics data
+      const [assessments, vendors, users] = await Promise.all([
+        this.getAssessmentMetrics(
+          { startDate: params.startDate, endDate: params.endDate, groupBy: 'day' },
+          context
+        ),
+        this.getVendorAnalytics(
+          { startDate: params.startDate, endDate: params.endDate },
+          context
+        ),
+        this.getUserAnalytics(context)
+      ]);
+
+      if (!assessments.success || !vendors.success || !users.success) {
+        throw this.createError('Failed to fetch analytics data', 500, 'EXPORT_ERROR');
+      }
+
+      // Build comprehensive CSV with multiple sections
+      const Papa = await import('papaparse');
+      let csvOutput = '';
+
+      // Section 1: Summary Metrics
+      csvOutput += '=== ANALYTICS SUMMARY ===\n';
+      csvOutput += `Export Date,${new Date().toISOString()}\n`;
+      csvOutput += `Date Range,${params.startDate || 'All Time'} to ${params.endDate || 'Present'}\n`;
+      csvOutput += '\n';
+
+      const summaryData = [
+        { Metric: 'Total Assessments', Value: assessments.data.total },
+        { Metric: 'Completed Assessments', Value: assessments.data.completed },
+        { Metric: 'Completion Rate (%)', Value: assessments.data.completionRate },
+        { Metric: 'Average Completion Time (min)', Value: assessments.data.avgCompletionTime },
+        { Metric: 'Total Vendors', Value: vendors.data.totalVendors },
+        { Metric: 'Active Vendors', Value: vendors.data.activeVendors },
+        { Metric: 'Total Vendor Clicks', Value: vendors.data.totalClicks },
+        { Metric: 'Vendor Conversion Rate (%)', Value: vendors.data.conversionRate },
+        { Metric: 'Total Users', Value: users.data.totalUsers },
+        { Metric: 'Active Users', Value: users.data.activeUsers },
+        { Metric: 'New Users', Value: users.data.newUsers },
+        { Metric: 'User Retention Rate (%)', Value: users.data.retentionRate }
+      ];
+      csvOutput += Papa.unparse(summaryData) + '\n\n';
+
+      // Section 2: Assessment Trend
+      csvOutput += '=== ASSESSMENT TREND ===\n';
+      csvOutput += Papa.unparse(assessments.data.trend) + '\n\n';
+
+      // Section 3: Assessment by Template
+      csvOutput += '=== ASSESSMENTS BY TEMPLATE ===\n';
+      csvOutput += Papa.unparse(assessments.data.byTemplate) + '\n\n';
+
+      // Section 4: Top Vendors
+      csvOutput += '=== TOP VENDORS ===\n';
+      csvOutput += Papa.unparse(vendors.data.topVendors) + '\n\n';
+
+      // Section 5: Vendor Clicks by Category
+      csvOutput += '=== VENDOR CLICKS BY CATEGORY ===\n';
+      csvOutput += Papa.unparse(vendors.data.clicksByCategory) + '\n\n';
+
+      // Section 6: User Conversion Funnel
+      csvOutput += '=== USER CONVERSION FUNNEL ===\n';
+      const funnelData = Object.entries(users.data.conversionFunnel).map(([stage, count]) => ({
+        Stage: stage,
+        Users: count
+      }));
+      csvOutput += Papa.unparse(funnelData) + '\n\n';
+
+      // Section 7: User Engagement Segments
+      csvOutput += '=== USER ENGAGEMENT SEGMENTS ===\n';
+      const segmentData = Object.entries(users.data.engagementSegments).map(([segment, count]) => ({
+        Segment: segment,
+        Users: count
+      }));
+      csvOutput += Papa.unparse(segmentData) + '\n\n';
+
+      // Section 8: Signup Trend
+      csvOutput += '=== SIGNUP TREND ===\n';
+      csvOutput += Papa.unparse(users.data.signupTrend) + '\n\n';
+
+      return this.createResponse(true, csvOutput);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'exportAnalytics');
     }
   }
 }
