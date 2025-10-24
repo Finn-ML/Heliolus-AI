@@ -77,6 +77,54 @@ interface VendorAnalyticsParams {
   limit?: number;
 }
 
+interface UserAnalytics {
+  totalUsers: number;
+  activeUsers: number;
+  newUsers: number;
+  verifiedUsers: number;
+  retentionRate: number;
+  conversionFunnel: {
+    signups: number;
+    emailVerified: number;
+    profileCompleted: number;
+    assessmentStarted: number;
+    assessmentCompleted: number;
+    upgradedToPremium: number;
+  };
+  usersByRole: {
+    USER: number;
+    ADMIN: number;
+    VENDOR: number;
+  };
+  signupTrend: Array<{
+    date: string;
+    signups: number;
+    verifications: number;
+  }>;
+  engagementSegments: {
+    highlyActive: number;
+    active: number;
+    inactive: number;
+    churned: number;
+  };
+}
+
+interface ActivityEvent {
+  id: string;
+  type: 'USER_REGISTERED' | 'ASSESSMENT_STARTED' | 'ASSESSMENT_COMPLETED' | 'VENDOR_CONTACTED' | 'SUBSCRIPTION_CREATED';
+  userId: string;
+  userName: string;
+  userEmail: string;
+  metadata?: any;
+  timestamp: Date;
+}
+
+interface ActivityFeedParams {
+  limit?: number;
+  eventType?: string;
+  userEmail?: string;
+}
+
 /**
  * Analytics Service
  * Provides aggregated metrics for admin dashboard
@@ -512,6 +560,395 @@ export class AnalyticsService extends BaseService {
     } catch (error) {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'getVendorAnalytics');
+    }
+  }
+
+  /**
+   * Get user activity and conversion metrics
+   */
+  async getUserAnalytics(
+    context?: ServiceContext
+  ): Promise<ApiResponse<UserAnalytics>> {
+    try {
+      // Only admins can view analytics
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Date thresholds
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+      // Basic user counts
+      const [totalUsers, activeUsers, newUsers, verifiedUsers, activeInWeek] = await Promise.all([
+        this.prisma.user.count({ where: { status: { not: 'DELETED' } } }),
+        this.prisma.user.count({
+          where: {
+            lastLogin: { gte: thirtyDaysAgo },
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            createdAt: { gte: thirtyDaysAgo },
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            emailVerified: true,
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            lastLogin: { gte: sevenDaysAgo },
+            status: { not: 'DELETED' }
+          }
+        })
+      ]);
+
+      // Retention rate
+      const retentionRate = totalUsers > 0 ? Math.round((activeInWeek / totalUsers) * 100 * 100) / 100 : 0;
+
+      // Conversion funnel
+      const [
+        signups,
+        emailVerified,
+        profileCompleted,
+        assessmentStarted,
+        assessmentCompleted,
+        upgradedToPremium
+      ] = await Promise.all([
+        this.prisma.user.count({ where: { status: { not: 'DELETED' } } }),
+        this.prisma.user.count({
+          where: {
+            emailVerified: true,
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            organizationId: { not: null },
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            assessments: { some: {} },
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            assessments: { some: { status: 'COMPLETED' } },
+            status: { not: 'DELETED' }
+          }
+        }),
+        this.prisma.user.count({
+          where: {
+            subscription: {
+              plan: { in: ['PREMIUM', 'ENTERPRISE'] },
+              status: 'ACTIVE'
+            },
+            status: { not: 'DELETED' }
+          }
+        })
+      ]);
+
+      const conversionFunnel = {
+        signups,
+        emailVerified,
+        profileCompleted,
+        assessmentStarted,
+        assessmentCompleted,
+        upgradedToPremium
+      };
+
+      // Users by role
+      const roleGroups = await this.prisma.user.groupBy({
+        by: ['role'],
+        where: { status: { not: 'DELETED' } },
+        _count: true
+      });
+
+      const usersByRole = {
+        USER: roleGroups.find(r => r.role === 'USER')?._count || 0,
+        ADMIN: roleGroups.find(r => r.role === 'ADMIN')?._count || 0,
+        VENDOR: roleGroups.find(r => r.role === 'VENDOR')?._count || 0
+      };
+
+      // Signup trend (last 30 days)
+      const signupTrendRaw = await this.prisma.$queryRaw<Array<{
+        date: Date;
+        signups: bigint;
+        verifications: bigint;
+      }>>`
+        SELECT
+          DATE_TRUNC('day', created_at)::date as date,
+          COUNT(*) as signups,
+          COUNT(*) FILTER (WHERE email_verified = true) as verifications
+        FROM "User"
+        WHERE created_at >= ${thirtyDaysAgo}
+          AND status != 'DELETED'
+        GROUP BY DATE_TRUNC('day', created_at)
+        ORDER BY date ASC
+      `;
+
+      const signupTrend = signupTrendRaw.map(row => ({
+        date: row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0],
+        signups: Number(row.signups),
+        verifications: Number(row.verifications)
+      }));
+
+      // Engagement segments
+      const segmentsRaw = await this.prisma.$queryRaw<Array<{
+        segment: string;
+        count: bigint;
+      }>>`
+        SELECT
+          CASE
+            WHEN assessment_count >= 5 THEN 'highlyActive'
+            WHEN assessment_count BETWEEN 2 AND 4 THEN 'active'
+            WHEN assessment_count BETWEEN 0 AND 1 AND last_login > ${ninetyDaysAgo} THEN 'inactive'
+            ELSE 'churned'
+          END as segment,
+          COUNT(*) as count
+        FROM (
+          SELECT
+            u.id,
+            COUNT(a.id) as assessment_count,
+            u.last_login
+          FROM "User" u
+          LEFT JOIN "Assessment" a ON u.id = a.user_id
+          WHERE u.status != 'DELETED'
+          GROUP BY u.id, u.last_login
+        ) user_stats
+        GROUP BY segment
+      `;
+
+      const engagementSegments = {
+        highlyActive: Number(segmentsRaw.find(s => s.segment === 'highlyActive')?.count || 0),
+        active: Number(segmentsRaw.find(s => s.segment === 'active')?.count || 0),
+        inactive: Number(segmentsRaw.find(s => s.segment === 'inactive')?.count || 0),
+        churned: Number(segmentsRaw.find(s => s.segment === 'churned')?.count || 0)
+      };
+
+      const analytics: UserAnalytics = {
+        totalUsers,
+        activeUsers,
+        newUsers,
+        verifiedUsers,
+        retentionRate,
+        conversionFunnel,
+        usersByRole,
+        signupTrend,
+        engagementSegments
+      };
+
+      return this.createResponse(true, analytics);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getUserAnalytics');
+    }
+  }
+
+  /**
+   * Get activity feed
+   */
+  async getActivityFeed(
+    params: ActivityFeedParams = {},
+    context?: ServiceContext
+  ): Promise<ApiResponse<ActivityEvent[]>> {
+    try {
+      // Only admins can view activity feed
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      const { limit = 20, eventType, userEmail } = params;
+
+      // Build email filter
+      const emailFilter = userEmail ? { contains: userEmail, mode: 'insensitive' as const } : undefined;
+
+      // Fetch recent events from different sources
+      const events: ActivityEvent[] = [];
+
+      // User registrations
+      if (!eventType || eventType === 'USER_REGISTERED') {
+        const users = await this.prisma.user.findMany({
+          where: {
+            ...(emailFilter && { email: emailFilter }),
+            status: { not: 'DELETED' }
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit
+        });
+
+        events.push(...users.map(user => ({
+          id: user.id,
+          type: 'USER_REGISTERED' as const,
+          userId: user.id,
+          userName: `${user.firstName} ${user.lastName}`,
+          userEmail: user.email,
+          timestamp: user.createdAt
+        })));
+      }
+
+      // Assessment starts
+      if (!eventType || eventType === 'ASSESSMENT_STARTED') {
+        const assessments = await this.prisma.assessment.findMany({
+          where: {
+            ...(emailFilter && { user: { email: emailFilter } })
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true
+              }
+            },
+            template: {
+              select: {
+                name: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit
+        });
+
+        events.push(...assessments.map(assessment => ({
+          id: assessment.id,
+          type: 'ASSESSMENT_STARTED' as const,
+          userId: assessment.userId,
+          userName: `${assessment.user.firstName} ${assessment.user.lastName}`,
+          userEmail: assessment.user.email,
+          metadata: { templateName: assessment.template.name },
+          timestamp: assessment.createdAt
+        })));
+      }
+
+      // Assessment completions
+      if (!eventType || eventType === 'ASSESSMENT_COMPLETED') {
+        const completed = await this.prisma.assessment.findMany({
+          where: {
+            status: 'COMPLETED',
+            completedAt: { not: null },
+            ...(emailFilter && { user: { email: emailFilter } })
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true
+              }
+            },
+            template: {
+              select: {
+                name: true
+              }
+            }
+          },
+          orderBy: { completedAt: 'desc' },
+          take: limit
+        });
+
+        events.push(...completed.map(assessment => ({
+          id: assessment.id,
+          type: 'ASSESSMENT_COMPLETED' as const,
+          userId: assessment.userId,
+          userName: `${assessment.user.firstName} ${assessment.user.lastName}`,
+          userEmail: assessment.user.email,
+          metadata: { templateName: assessment.template.name },
+          timestamp: assessment.completedAt!
+        })));
+      }
+
+      // Vendor contacts
+      if (!eventType || eventType === 'VENDOR_CONTACTED') {
+        const contacts = await this.prisma.vendorContact.findMany({
+          where: {
+            ...(emailFilter && { user: { email: emailFilter } })
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true
+              }
+            },
+            vendor: {
+              select: {
+                companyName: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit
+        });
+
+        events.push(...contacts.map(contact => ({
+          id: contact.id,
+          type: 'VENDOR_CONTACTED' as const,
+          userId: contact.userId,
+          userName: `${contact.user.firstName} ${contact.user.lastName}`,
+          userEmail: contact.user.email,
+          metadata: { vendorName: contact.vendor.companyName },
+          timestamp: contact.createdAt
+        })));
+      }
+
+      // Subscriptions
+      if (!eventType || eventType === 'SUBSCRIPTION_CREATED') {
+        const subscriptions = await this.prisma.subscription.findMany({
+          where: {
+            ...(emailFilter && { user: { email: emailFilter } })
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit
+        });
+
+        events.push(...subscriptions.map(sub => ({
+          id: sub.id,
+          type: 'SUBSCRIPTION_CREATED' as const,
+          userId: sub.userId,
+          userName: `${sub.user.firstName} ${sub.user.lastName}`,
+          userEmail: sub.user.email,
+          metadata: { plan: sub.plan },
+          timestamp: sub.createdAt
+        })));
+      }
+
+      // Sort all events by timestamp and take limit
+      const sortedEvents = events
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, limit);
+
+      return this.createResponse(true, sortedEvents);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getActivityFeed');
     }
   }
 }

@@ -1040,6 +1040,125 @@ export default async function adminRoutes(server: FastifyInstance) {
     reply.code(200).send(result);
   }));
 
+  // GET /admin/analytics/users - Get user activity and conversion metrics
+  server.get('/analytics/users', {
+    schema: {
+      description: 'Get user activity and conversion metrics',
+      tags: ['Admin', 'Analytics'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                totalUsers: { type: 'number' },
+                activeUsers: { type: 'number' },
+                newUsers: { type: 'number' },
+                verifiedUsers: { type: 'number' },
+                retentionRate: { type: 'number' },
+                conversionFunnel: { type: 'object' },
+                usersByRole: { type: 'object' },
+                signupTrend: { type: 'array' },
+                engagementSegments: { type: 'object' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await analyticsService.getUserAnalytics(context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // GET /admin/analytics/activity-feed - Get recent platform activity
+  server.get('/analytics/activity-feed', {
+    schema: {
+      description: 'Get recent platform activity events',
+      tags: ['Admin', 'Analytics'],
+      querystring: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', default: 20 },
+          eventType: {
+            type: 'string',
+            enum: ['USER_REGISTERED', 'ASSESSMENT_STARTED', 'ASSESSMENT_COMPLETED', 'VENDOR_CONTACTED', 'SUBSCRIPTION_CREATED']
+          },
+          userEmail: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  type: { type: 'string' },
+                  userId: { type: 'string' },
+                  userName: { type: 'string' },
+                  userEmail: { type: 'string' },
+                  metadata: { type: 'object' },
+                  timestamp: { type: 'string', format: 'date-time' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      limit?: number;
+      eventType?: string;
+      userEmail?: string;
+    }
+  }>, reply: FastifyReply) => {
+    const { limit, eventType, userEmail } = request.query;
+
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await analyticsService.getActivityFeed(
+      { limit, eventType, userEmail },
+      context
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
   // ============================================================================
   // VENDOR MANAGEMENT ENDPOINTS
   // ============================================================================
