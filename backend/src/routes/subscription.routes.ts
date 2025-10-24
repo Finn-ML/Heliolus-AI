@@ -99,6 +99,68 @@ const InvoiceResponseSchema = {
   },
 };
 
+// Subscription Upgrade Schemas (Story 7.4)
+const UpgradeSubscriptionParamsSchema = z.object({
+  userId: z.string().cuid('Invalid user ID format'),
+});
+
+const UpgradeSubscriptionBodySchema = z.object({
+  plan: z.enum(['PREMIUM'], { errorMap: () => ({ message: 'Only PREMIUM plan upgrades supported' }) }),
+  billingCycle: z.enum(['MONTHLY', 'ANNUAL']),
+  stripePaymentMethodId: z.string().min(1, 'Payment method ID is required'),
+});
+
+const UpgradeSubscriptionResponseSchema = {
+  200: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      data: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          userId: { type: 'string' },
+          plan: { type: 'string' },
+          status: { type: 'string' },
+          billingCycle: { type: 'string', nullable: true },
+          creditsBalance: { type: 'number' },
+          currentPeriodStart: { type: 'string' },
+          currentPeriodEnd: { type: 'string', nullable: true },
+          renewalDate: { type: 'string', nullable: true },
+          stripeCustomerId: { type: 'string', nullable: true },
+          stripeSubscriptionId: { type: 'string', nullable: true },
+          createdAt: { type: 'string' },
+          updatedAt: { type: 'string' },
+        },
+      },
+    },
+  },
+  400: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  401: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  403: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+};
+
 // TypeScript interfaces based on JSON Schema definitions
 interface CreateCheckoutRequest {
   plan: 'FREE' | 'PREMIUM' | 'ENTERPRISE';
@@ -189,6 +251,126 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
       }
 
       reply.status(500).send({
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }));
+
+  // POST /:userId/upgrade - Upgrade User Subscription to PREMIUM
+  server.post('/:userId/upgrade', {
+    schema: {
+      description: 'Upgrade user subscription to PREMIUM plan',
+      tags: ['Subscriptions'],
+      security: [{ bearerAuth: [] }],
+      params: UpgradeSubscriptionParamsSchema,
+      body: UpgradeSubscriptionBodySchema,
+      response: UpgradeSubscriptionResponseSchema,
+    },
+    preHandler: authenticationMiddleware,
+  }, asyncHandler(async (request, reply) => {
+    const { userId } = request.params;
+    const { plan, billingCycle, stripePaymentMethodId } = request.body;
+    const user = request.currentUser!;
+
+    // Authorization check: user can only upgrade their own subscription (or admin)
+    if (user.id !== userId && user.role !== 'ADMIN') {
+      reply.status(403).send({
+        success: false,
+        message: 'You can only upgrade your own subscription',
+        code: 'FORBIDDEN',
+      });
+      return;
+    }
+
+    try {
+      // Check if user already has a subscription
+      const existingResult = await subscriptionService.getSubscriptionByUserId(userId, {
+        userId: user.id,
+        userRole: user.role,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+
+      if (!existingResult.success) {
+        // No existing subscription found - create new one
+        const createResult = await subscriptionService.createSubscription({
+          userId,
+          plan,
+          billingCycle,
+          stripePaymentMethodId,
+        }, {
+          userId: user.id,
+          userRole: user.role,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        });
+
+        if (!createResult.success) {
+          reply.status(400).send({
+            success: false,
+            message: createResult.error || 'Failed to create subscription',
+            code: 'SUBSCRIPTION_CREATION_FAILED',
+          });
+          return;
+        }
+
+        reply.status(200).send({
+          success: true,
+          data: createResult.data,
+        });
+        return;
+      }
+
+      // Existing subscription found - check if upgrade needed
+      const existingSubscription = existingResult.data;
+
+      if (existingSubscription.plan === 'PREMIUM') {
+        reply.status(400).send({
+          success: false,
+          message: 'User is already on PREMIUM plan',
+          code: 'ALREADY_PREMIUM',
+        });
+        return;
+      }
+
+      // Upgrade from FREE to PREMIUM
+      const upgradeResult = await subscriptionService.upgradeSubscription(
+        userId,
+        plan,
+        billingCycle,
+        stripePaymentMethodId,
+        {
+          userId: user.id,
+          userRole: user.role,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        }
+      );
+
+      if (!upgradeResult.success) {
+        reply.status(400).send({
+          success: false,
+          message: upgradeResult.error || 'Failed to upgrade subscription',
+          code: 'UPGRADE_FAILED',
+        });
+        return;
+      }
+
+      reply.status(200).send({
+        success: true,
+        data: upgradeResult.data,
+      });
+    } catch (error: any) {
+      logger.error('Error upgrading subscription', {
+        userId,
+        error: error.message,
+      });
+
+      reply.status(500).send({
+        success: false,
         message: 'Internal server error',
         code: 'INTERNAL_ERROR',
         statusCode: 500,
