@@ -1390,6 +1390,113 @@ export class SubscriptionService extends BaseService {
       this.handleDatabaseError(error, 'getUserInvoices');
     }
   }
+
+  /**
+   * Purchase additional assessment credits
+   *
+   * Allows PREMIUM and ENTERPRISE users to purchase additional assessment credits
+   * when they exceed their monthly allocation. Each purchase adds 50 credits
+   * (enough for 1 complete assessment) for €299.
+   *
+   * @param userId - User ID
+   * @param stripePriceId - Stripe price ID (e.g., price_additional_assessment)
+   * @param context - Service context
+   * @returns Credits added
+   */
+  async purchaseAdditionalAssessment(
+    userId: string,
+    stripePriceId: string,
+    context: ServiceContext
+  ): Promise<ApiResponse<{ success: boolean; creditsAdded: number }>> {
+    try {
+      // Get subscription
+      const subscription = await this.prisma.subscription.findUnique({
+        where: { userId },
+      });
+
+      if (!subscription) {
+        return this.error('Subscription not found', 404, 'SUBSCRIPTION_NOT_FOUND');
+      }
+
+      // Validate plan (PREMIUM or ENTERPRISE only)
+      if (subscription.plan === SubscriptionPlan.FREE) {
+        return this.error(
+          'Upgrade to PREMIUM or ENTERPRISE to purchase additional assessments',
+          402,
+          'UPGRADE_REQUIRED'
+        );
+      }
+
+      // TODO: Stripe payment processing
+      // In production:
+      // 1. Create Stripe payment intent
+      // 2. Confirm payment with stripePriceId
+      // 3. Wait for webhook confirmation
+      // For now, mock successful payment
+
+      // Credits per additional assessment purchase (€299 = 50 credits = 1 assessment)
+      const CREDITS_PER_PURCHASE = 50;
+
+      // Calculate new balance
+      const newBalance = subscription.creditsBalance + CREDITS_PER_PURCHASE;
+
+      // Atomic transaction: create transaction + update balance
+      await this.prisma.$transaction(async (tx) => {
+        // Create credit transaction
+        await tx.creditTransaction.create({
+          data: {
+            subscriptionId: subscription.id,
+            type: TransactionType.PURCHASE,
+            amount: CREDITS_PER_PURCHASE,
+            balance: newBalance,
+            description: `Additional assessment purchase (€299)`,
+            metadata: {
+              stripePriceId,
+              creditsAdded: CREDITS_PER_PURCHASE,
+              purchasedAt: new Date().toISOString(),
+              purchasedBy: context.userId,
+            },
+          },
+        });
+
+        // Update subscription balance
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            creditsBalance: newBalance,
+            creditsPurchased: subscription.creditsPurchased + CREDITS_PER_PURCHASE,
+          },
+        });
+      });
+
+      // Log audit event
+      await this.logAudit(
+        {
+          action: 'ASSESSMENT_PURCHASED',
+          entity: 'Subscription',
+          entityId: subscription.id,
+          metadata: {
+            creditsAdded: CREDITS_PER_PURCHASE,
+            newBalance,
+            stripePriceId,
+          },
+        },
+        context
+      );
+
+      this.logger.info(
+        `User ${userId} purchased additional assessment. Credits added: ${CREDITS_PER_PURCHASE}. New balance: ${newBalance}`
+      );
+
+      return this.success({
+        success: true,
+        creditsAdded: CREDITS_PER_PURCHASE,
+      });
+    } catch (error) {
+      this.logger.error({ error, userId }, 'Failed to purchase additional assessment');
+      throw error;
+    }
+  }
 }
 
 export const subscriptionService = new SubscriptionService();

@@ -161,6 +161,62 @@ const UpgradeSubscriptionResponseSchema = {
   },
 };
 
+const PurchaseAssessmentParamsSchema = z.object({
+  userId: z.string().cuid('Invalid user ID format'),
+});
+
+const PurchaseAssessmentBodySchema = z.object({
+  stripePriceId: z.string().min(1, 'Stripe price ID is required'),
+});
+
+const PurchaseAssessmentResponseSchema = {
+  200: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      data: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          creditsAdded: { type: 'number' },
+        },
+      },
+    },
+  },
+  401: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  402: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  403: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  404: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+};
+
 // TypeScript interfaces based on JSON Schema definitions
 interface CreateCheckoutRequest {
   plan: 'FREE' | 'PREMIUM' | 'ENTERPRISE';
@@ -368,6 +424,121 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         userId,
         error: error.message,
       });
+
+      reply.status(500).send({
+        success: false,
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }));
+
+  // POST /:userId/purchase-assessment - Purchase Additional Assessment Credits
+  server.post('/:userId/purchase-assessment', {
+    schema: {
+      description: 'Purchase additional assessment credits (PREMIUM/ENTERPRISE only)',
+      tags: ['Subscriptions'],
+      security: [{ bearerAuth: [] }],
+      params: PurchaseAssessmentParamsSchema,
+      body: PurchaseAssessmentBodySchema,
+      response: PurchaseAssessmentResponseSchema,
+    },
+    preHandler: authenticationMiddleware,
+  }, asyncHandler(async (request, reply) => {
+    const { userId } = request.params;
+    const { stripePriceId } = request.body;
+    const user = request.currentUser!;
+
+    // Authorization check: user can only purchase for their own account (or admin)
+    if (user.id !== userId && user.role !== 'ADMIN') {
+      reply.status(403).send({
+        success: false,
+        message: 'You can only purchase credits for your own account',
+        code: 'FORBIDDEN',
+      });
+      return;
+    }
+
+    try {
+      // Get user's subscription
+      const subscriptionResult = await subscriptionService.getSubscriptionByUserId(userId, {
+        userId: user.id,
+        userRole: user.role,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+
+      if (!subscriptionResult.success || !subscriptionResult.data) {
+        reply.status(404).send({
+          success: false,
+          message: 'User subscription not found',
+          code: 'SUBSCRIPTION_NOT_FOUND',
+        });
+        return;
+      }
+
+      const subscription = subscriptionResult.data;
+
+      // Only PREMIUM and ENTERPRISE users can purchase additional credits
+      if (subscription.plan === 'FREE') {
+        reply.status(402).send({
+          success: false,
+          message: 'Upgrade to PREMIUM or ENTERPRISE to purchase additional assessments',
+          code: 'UPGRADE_REQUIRED',
+        });
+        return;
+      }
+
+      // Purchase additional assessment credits
+      const purchaseResult = await subscriptionService.purchaseAdditionalAssessment(
+        userId,
+        stripePriceId,
+        {
+          userId: user.id,
+          userRole: user.role,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        }
+      );
+
+      if (!purchaseResult.success || !purchaseResult.data) {
+        reply.status(400).send({
+          success: false,
+          message: purchaseResult.error || 'Failed to purchase additional assessment',
+          code: 'PURCHASE_FAILED',
+        });
+        return;
+      }
+
+      reply.status(200).send({
+        success: true,
+        data: purchaseResult.data,
+      });
+    } catch (error: any) {
+      logger.error('Error purchasing assessment', {
+        userId,
+        error: error.message,
+      });
+
+      if (error.code === 'SUBSCRIPTION_NOT_FOUND') {
+        reply.status(404).send({
+          success: false,
+          message: error.message || 'Subscription not found',
+          code: 'SUBSCRIPTION_NOT_FOUND',
+        });
+        return;
+      }
+
+      if (error.code === 'UPGRADE_REQUIRED') {
+        reply.status(402).send({
+          success: false,
+          message: error.message,
+          code: 'UPGRADE_REQUIRED',
+        });
+        return;
+      }
 
       reply.status(500).send({
         success: false,
