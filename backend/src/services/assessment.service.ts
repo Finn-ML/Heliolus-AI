@@ -703,33 +703,26 @@ export class AssessmentService extends BaseService {
         throw this.createError('Assessment already completed', 400, 'ASSESSMENT_COMPLETED');
       }
 
-      // Check freemium limits and credits using FreemiumService
-      const userSubscriptionStatus = await FreemiumService.getUserSubscriptionStatus(assessment.userId);
-      const limitations = FreemiumService.getLimitations(userSubscriptionStatus.subscriptionType);
-      const creditsRequired = limitations.creditsPerAssessment;
-      
-      const creditCheck = FreemiumService.checkCreditLimits(userSubscriptionStatus, creditsRequired);
-      if (!creditCheck.canProceed) {
-        throw this.createError(
-          creditCheck.reason || 'Insufficient credits to complete assessment',
-          402,
-          'INSUFFICIENT_CREDITS'
-        );
-      }
+      // Check freemium limits and credits - only needed if autoGenerate is requested
+      let canGenerateAI = true;
+      if (validatedData.autoGenerate) {
+        const userSubscriptionStatus = await FreemiumService.getUserSubscriptionStatus(assessment.userId);
+        const limitations = FreemiumService.getLimitations(userSubscriptionStatus.subscriptionType);
+        const creditsRequired = limitations.creditsPerAssessment;
 
-      // Legacy credit check for backwards compatibility
-      const hasCredits = await subscriptionService.checkCreditsAvailable(
-        assessment.userId,
-        creditsRequired,
-        context
-      );
-
-      if (!hasCredits.data) {
-        throw this.createError(
-          'Insufficient credits to complete assessment',
-          402,
-          'INSUFFICIENT_CREDITS'
-        );
+        const creditCheck = FreemiumService.checkCreditLimits(userSubscriptionStatus, creditsRequired);
+        if (!creditCheck.canProceed) {
+          // Free users can complete assessment but not generate AI analysis
+          canGenerateAI = false;
+        } else {
+          // Legacy credit check for backwards compatibility
+          const hasCredits = await subscriptionService.checkCreditsAvailable(
+            assessment.userId,
+            creditsRequired,
+            context
+          );
+          canGenerateAI = hasCredits.data;
+        }
       }
 
       // Execute assessment completion in transaction
@@ -750,7 +743,7 @@ export class AssessmentService extends BaseService {
         let recommendations = null;
         let strategyMatrix = null;
 
-        if (validatedData.autoGenerate) {
+        if (validatedData.autoGenerate && canGenerateAI) {
           try {
             // Enhanced AI-powered analysis
             const analysisResults = await this.performComprehensiveAnalysis({
