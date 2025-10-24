@@ -27,6 +27,7 @@ import AssessmentExecution from './pages/AssessmentExecution';
 import AssessmentResults from './pages/AssessmentResults';
 import AssessmentPriorities from './pages/AssessmentPriorities';
 import NotFound from './pages/NotFound';
+import Pricing from './pages/Pricing';
 import { AdminLogin } from '@/components/AdminLogin';
 
 // Admin Pages
@@ -103,6 +104,7 @@ const App = () => (
                   }
                 />
                 <Route path="/marketplace" element={<Marketplace />} />
+                <Route path="/pricing" element={<Pricing />} />
                 <Route
                   path="/reports"
                   element={
