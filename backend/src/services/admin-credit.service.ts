@@ -1,5 +1,5 @@
 import { BaseService, ServiceContext } from './base.service';
-import { CreditTransaction, TransactionType } from '@prisma/client';
+import { CreditTransaction, TransactionType } from '../generated/prisma/index.js';
 
 /**
  * AdminCreditService

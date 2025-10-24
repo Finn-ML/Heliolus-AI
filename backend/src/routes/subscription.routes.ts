@@ -4,15 +4,9 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
 import { subscriptionService } from '../services';
 import { SubscriptionPlan, SubscriptionStatus, InvoiceStatus } from '../types/database';
 import { asyncHandler, authenticationMiddleware } from '../middleware';
-
-// Request/Response schemas matching the contract tests
-const SubscriptionPlanSchema = z.enum(['FREE', 'PREMIUM', 'ENTERPRISE']);
-const SubscriptionStatusSchema = z.enum(['ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELED', 'UNPAID']);
-const InvoiceStatusSchema = z.enum(['DRAFT', 'OPEN', 'PAID', 'VOID', 'UNCOLLECTIBLE']);
 
 const CreateCheckoutRequestSchema = {
   type: 'object',
@@ -100,15 +94,23 @@ const InvoiceResponseSchema = {
 };
 
 // Subscription Upgrade Schemas (Story 7.4)
-const UpgradeSubscriptionParamsSchema = z.object({
-  userId: z.string().cuid('Invalid user ID format'),
-});
+const UpgradeSubscriptionParamsSchema = {
+  type: 'object',
+  required: ['userId'],
+  properties: {
+    userId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' }, // CUID format
+  },
+} as const;
 
-const UpgradeSubscriptionBodySchema = z.object({
-  plan: z.enum(['PREMIUM'], { errorMap: () => ({ message: 'Only PREMIUM plan upgrades supported' }) }),
-  billingCycle: z.enum(['MONTHLY', 'ANNUAL']),
-  stripePaymentMethodId: z.string().min(1, 'Payment method ID is required'),
-});
+const UpgradeSubscriptionBodySchema = {
+  type: 'object',
+  required: ['plan', 'billingCycle', 'stripePaymentMethodId'],
+  properties: {
+    plan: { type: 'string', enum: ['PREMIUM'] },
+    billingCycle: { type: 'string', enum: ['MONTHLY', 'ANNUAL'] },
+    stripePaymentMethodId: { type: 'string', minLength: 1 },
+  },
+} as const;
 
 const UpgradeSubscriptionResponseSchema = {
   200: {
@@ -161,13 +163,21 @@ const UpgradeSubscriptionResponseSchema = {
   },
 };
 
-const PurchaseAssessmentParamsSchema = z.object({
-  userId: z.string().cuid('Invalid user ID format'),
-});
+const PurchaseAssessmentParamsSchema = {
+  type: 'object',
+  required: ['userId'],
+  properties: {
+    userId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' }, // CUID format
+  },
+} as const;
 
-const PurchaseAssessmentBodySchema = z.object({
-  stripePriceId: z.string().min(1, 'Stripe price ID is required'),
-});
+const PurchaseAssessmentBodySchema = {
+  type: 'object',
+  required: ['stripePriceId'],
+  properties: {
+    stripePriceId: { type: 'string', minLength: 1 },
+  },
+} as const;
 
 const PurchaseAssessmentResponseSchema = {
   200: {
@@ -217,9 +227,13 @@ const PurchaseAssessmentResponseSchema = {
   },
 };
 
-const GetBillingInfoParamsSchema = z.object({
-  userId: z.string().cuid('Invalid user ID format'),
-});
+const GetBillingInfoParamsSchema = {
+  type: 'object',
+  required: ['userId'],
+  properties: {
+    userId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' }, // CUID format
+  },
+} as const;
 
 const GetBillingInfoResponseSchema = {
   200: {

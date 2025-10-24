@@ -4,7 +4,6 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
 import Papa from 'papaparse';
 import { parse as csvParse } from 'csv-parse/sync';
 import { UserRole, VendorCategory, VendorStatus } from '../types/database';
@@ -72,19 +71,31 @@ const AdminDashboardSchema = {
 };
 
 // Admin Credit Grant Schemas
-const GrantCreditsParamsSchema = z.object({
-  userId: z.string().cuid('Invalid user ID format'),
-});
+const GrantCreditsParamsSchema = {
+  type: 'object',
+  required: ['userId'],
+  properties: {
+    userId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' }, // CUID format
+  },
+} as const;
 
-const GrantCreditsBodySchema = z.object({
-  amount: z.number().int().min(1, 'Amount must be at least 1'),
-  reason: z.string().min(1, 'Reason is required'),
-});
+const GrantCreditsBodySchema = {
+  type: 'object',
+  required: ['amount', 'reason'],
+  properties: {
+    amount: { type: 'integer', minimum: 1 },
+    reason: { type: 'string', minLength: 1 },
+  },
+} as const;
 
 // Admin Credit History Schemas
-const GetCreditHistoryParamsSchema = z.object({
-  userId: z.string().cuid('Invalid user ID format'),
-});
+const GetCreditHistoryParamsSchema = {
+  type: 'object',
+  required: ['userId'],
+  properties: {
+    userId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' }, // CUID format
+  },
+} as const;
 
 const GetCreditHistoryResponseSchema = {
   200: {
@@ -606,8 +617,8 @@ export default async function adminRoutes(server: FastifyInstance) {
     },
     preHandler: requireRole(UserRole.ADMIN),
   }, asyncHandler(async (request: FastifyRequest<{
-    Params: z.infer<typeof GrantCreditsParamsSchema>;
-    Body: z.infer<typeof GrantCreditsBodySchema>;
+    Params: { userId: string };
+    Body: { amount: number; reason: string };
   }>, reply: FastifyReply) => {
     const { userId } = request.params;
     const { amount, reason } = request.body;
@@ -675,7 +686,7 @@ export default async function adminRoutes(server: FastifyInstance) {
     },
     preHandler: requireRole(UserRole.ADMIN),
   }, asyncHandler(async (request: FastifyRequest<{
-    Params: z.infer<typeof GetCreditHistoryParamsSchema>;
+    Params: { userId: string };
   }>, reply: FastifyReply) => {
     const { userId } = request.params;
 

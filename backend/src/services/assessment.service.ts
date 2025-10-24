@@ -119,10 +119,16 @@ export interface RiskScoreBreakdown {
 
 export class AssessmentService extends BaseService {
   private templateService: TemplateService;
+  private documentParser: DocumentParserService;
+  private aiAnalysis: AIAnalysisService;
+  private preprocessingService: DocumentPreprocessingService;
 
   constructor() {
     super();
     this.templateService = new TemplateService();
+    this.documentParser = new DocumentParserService();
+    this.aiAnalysis = new AIAnalysisService();
+    this.preprocessingService = new DocumentPreprocessingService();
   }
   /**
    * Create a new assessment
@@ -168,7 +174,10 @@ export class AssessmentService extends BaseService {
       // Query user subscription plan to check quota
       const user = await this.prisma.user.findUnique({
         where: { id: context?.userId! },
-        include: { subscription: true },
+        include: {
+          subscription: true,
+          organization: true,
+        },
       });
 
       const plan = user?.subscription?.plan || SubscriptionPlan.FREE;
@@ -201,6 +210,36 @@ export class AssessmentService extends BaseService {
             creditsUsed: 0,
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
           },
+        });
+
+        // Create default AssessmentPriorities (required for vendor matching)
+        await tx.assessmentPriorities.create({
+          data: {
+            assessmentId: newAssessment.id,
+            // Step 1: Organizational Context
+            companySize: user?.organization?.size || 'SMB',
+            annualRevenue: user?.organization?.annualRevenue || 'FROM_1M_10M',
+            complianceTeamSize: user?.organization?.complianceTeamSize || 'ONE_TWO',
+            jurisdictions: ['US', 'EU'],
+            existingSystems: [],
+            // Step 2: Goals & Timeline
+            primaryGoal: 'Regulatory compliance',
+            implementationUrgency: 'MEDIUM',
+            // Step 3: Use Case Prioritization
+            selectedUseCases: [],
+            rankedPriorities: [],
+            // Step 4: Solution Requirements
+            budgetRange: 'RANGE_10K_50K',
+            deploymentPreference: 'CLOUD',
+            mustHaveFeatures: [],
+            criticalIntegrations: [],
+            // Step 5: Vendor Preferences
+            vendorMaturity: 'ESTABLISHED',
+            geographicRequirements: 'GLOBAL',
+            supportModel: 'STANDARD',
+            // Step 6: Decision Factors
+            decisionFactorRanking: [],
+          }
         });
 
         // Increment quota for FREE users only
@@ -1150,9 +1189,6 @@ export class AssessmentService extends BaseService {
     creditsUsed: number;
   }>> {
     try {
-      const documentParser = new DocumentParserService();
-      const aiAnalysis = new AIAnalysisService();
-      
       // Load assessment with all related data
       const assessment = await this.prisma.assessment.findUnique({
         where: { id: assessmentId },
@@ -1217,7 +1253,7 @@ export class AssessmentService extends BaseService {
       for (const doc of selectedDocuments) {
         try {
           if (!doc.parsedContent) {
-            const parseResult = await documentParser.parseDocument(
+            const parseResult = await this.documentParser.parseDocument(
               doc.id,
               false,
               context
@@ -1263,58 +1299,34 @@ export class AssessmentService extends BaseService {
         failedAnalyses: 0,
       };
 
-      // Check if preprocessing optimization is enabled
-      const usePreprocessing = process.env.AI_ENABLE_PREPROCESSING === 'true';
-      let preprocessedDocs: Map<string, any> | null = null;
+      // Documents are now preprocessed at UPLOAD time, not here!
+      // Load preprocessing data from database if available
+      const preprocessedDocs = new Map<string, any>();
 
-      // NEW: Document Preprocessing Phase (Story 1.26)
-      if (usePreprocessing && parsedDocuments.length > 0) {
-        try {
-          const preprocessingService = new DocumentPreprocessingService();
-          const preprocessingStart = performance.now();
-
-          this.logger.info('Starting document preprocessing optimization', {
-            assessmentId,
-            documentCount: parsedDocuments.length,
-            questionCount: allQuestions.length,
-            estimatedApiCalls: usePreprocessing
-              ? parsedDocuments.length + allQuestions.length
-              : parsedDocuments.length * allQuestions.length,
+      for (const doc of parsedDocuments) {
+        if (doc.extractedData?.preprocessing) {
+          preprocessedDocs.set(doc.id, {
+            documentId: doc.id,
+            filename: doc.filename,
+            summary: doc.extractedData.preprocessing.summary || '',
+            keyTopics: doc.extractedData.preprocessing.keyTopics || [],
+            embedding: doc.extractedData.preprocessing.embedding || [],
+            confidence: doc.extractedData.preprocessing.confidence || 0,
           });
-
-          const preprocessingResult = await preprocessingService.preprocessDocumentsForAssessment(
-            parsedDocuments,
-            {
-              maxConcurrent: parseInt(process.env.AI_MAX_CONCURRENT_CALLS || '10'),
-              model: process.env.AI_PREPROCESSING_MODEL || 'gpt-4',
-            },
-            context
-          );
-
-          const preprocessingEnd = performance.now();
-
-          if (preprocessingResult.success && preprocessingResult.data) {
-            preprocessedDocs = preprocessingResult.data;
-
-            this.logger.info('Document preprocessing completed', {
-              assessmentId,
-              documentsPreprocessed: preprocessedDocs.size,
-              timeMs: Math.round(preprocessingEnd - preprocessingStart),
-              avgTimePerDoc: Math.round((preprocessingEnd - preprocessingStart) / preprocessedDocs.size),
-            });
-          } else {
-            this.logger.warn('Document preprocessing returned no results, falling back to legacy', {
-              assessmentId,
-            });
-          }
-        } catch (preprocessingError) {
-          this.logger.warn('Document preprocessing failed, falling back to legacy implementation', {
-            assessmentId,
-            error: preprocessingError.message,
-          });
-          // Continue with legacy implementation
-          preprocessedDocs = null;
         }
+      }
+
+      if (preprocessedDocs.size > 0) {
+        this.logger.info('Using preprocessed document data from database', {
+          assessmentId,
+          preprocessedCount: preprocessedDocs.size,
+          totalDocuments: parsedDocuments.length,
+        });
+      } else {
+        this.logger.info('No preprocessed data available, using standard document processing', {
+          assessmentId,
+          documentCount: parsedDocuments.length,
+        });
       }
 
       // Process each question with AI analysis
@@ -1340,14 +1352,14 @@ export class AssessmentService extends BaseService {
             // Perform AI analysis with organization context
             // Use optimized preprocessing method if available, otherwise use legacy
             const analysisResult = preprocessedDocs
-              ? await aiAnalysis.analyzeQuestionWithPreprocessedDocs(
+              ? await this.aiAnalysis.analyzeQuestionWithPreprocessedDocs(
                   question,
                   preprocessedDocs,
                   websiteContent,
                   assessment.organization,
                   context
                 )
-              : await aiAnalysis.analyzeQuestion(
+              : await this.aiAnalysis.analyzeQuestion(
                   question,
                   parsedDocuments,
                   websiteContent,
@@ -1397,8 +1409,8 @@ export class AssessmentService extends BaseService {
         });
       }
 
-      // Log optimization performance summary
-      if (usePreprocessing && preprocessedDocs) {
+      // Log optimization performance summary if preprocessing was used
+      if (preprocessedDocs.size > 0) {
         const actualApiCalls = parsedDocuments.length + progress.successfulAnalyses;
         const legacyApiCalls = parsedDocuments.length * progress.totalQuestions;
         const apiCallReduction = Math.round(((legacyApiCalls - actualApiCalls) / legacyApiCalls) * 100);
@@ -1412,6 +1424,7 @@ export class AssessmentService extends BaseService {
           legacyApiCalls,
           apiCallReduction: `${apiCallReduction}%`,
           estimatedCostSavings: `${apiCallReduction}%`,
+          note: 'Documents preprocessed once at upload time, reused for all assessments',
         });
       }
 
@@ -1563,25 +1576,51 @@ export class AssessmentService extends BaseService {
         },
       });
 
-      // Update subscription credits (skip if no subscription exists)
+      // Update subscription credits
+      // FREE users within their quota (2 assessments) don't get charged
       if (creditsUsed > 0) {
-        try {
-          await subscriptionService.deductCredits(
-            assessment.organization.userId,
-            creditsUsed,
-            {
-              type: TransactionType.ASSESSMENT,
-              description: `Assessment execution credits`,
-              assessmentId,
-            },
-            context
-          );
-        } catch (error) {
-          // Log warning but don't fail - user may not have subscription yet
-          this.logger.warn('Failed to deduct credits - user may not have subscription', {
+        // Check if user is FREE and within quota
+        const userSubscription = await this.prisma.subscription.findUnique({
+          where: { userId: assessment.organization.userId },
+          include: {
+            user: {
+              include: {
+                assessmentQuota: true,
+              }
+            }
+          }
+        });
+
+        const isFreeWithinQuota =
+          userSubscription?.plan === 'FREE' &&
+          (userSubscription.user.assessmentQuota?.totalAssessmentsCreated || 0) <= 2;
+
+        if (isFreeWithinQuota) {
+          this.logger.info('Skipping credit deduction for FREE user within quota', {
             userId: assessment.organization.userId,
-            error: error.message,
+            totalAssessments: userSubscription.user.assessmentQuota?.totalAssessmentsCreated || 0,
+            creditsUsed,
           });
+        } else {
+          // Only charge Premium users or FREE users beyond quota
+          try {
+            await subscriptionService.deductCredits(
+              assessment.organization.userId,
+              creditsUsed,
+              {
+                type: TransactionType.ASSESSMENT,
+                description: `Assessment execution credits`,
+                assessmentId,
+              },
+              context
+            );
+          } catch (error) {
+            // Log warning but don't fail - allow assessment to complete
+            this.logger.warn('Failed to deduct credits', {
+              userId: assessment.organization.userId,
+              error: error.message,
+            });
+          }
         }
       }
 

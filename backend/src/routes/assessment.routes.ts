@@ -112,10 +112,12 @@ const GapResponseSchema = {
     description: { type: 'string' },
     severity: { type: 'string', enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] },
     priority: { type: 'string', enum: ['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM'] },
-    estimatedCost: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'] },
-    estimatedEffort: { type: 'string', enum: ['DAYS', 'WEEKS', 'MONTHS', 'QUARTERS'] }
+    priorityScore: { type: 'number', nullable: true },
+    estimatedCost: { type: 'string', enum: ['UNDER_10K', 'RANGE_10K_50K', 'RANGE_50K_100K', 'RANGE_100K_250K', 'OVER_250K'], nullable: true },
+    estimatedEffort: { type: 'string', enum: ['SMALL', 'MEDIUM', 'LARGE'], nullable: true },
+    suggestedVendors: { type: 'array', items: { type: 'string' } }
   },
-  required: ['id', 'category', 'title', 'description', 'severity', 'priority', 'estimatedCost', 'estimatedEffort']
+  required: ['id', 'category', 'title', 'description', 'severity', 'priority']
 };
 
 const RiskResponseSchema = {
@@ -877,6 +879,7 @@ export default async function assessmentRoutes(server: FastifyInstance) {
                 estimatedEffort: { type: 'string' },
                 priority: { type: 'string', enum: ['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM'] },
               },
+              required: ['totalGaps', 'criticalGaps', 'highRisks', 'estimatedCost', 'estimatedEffort', 'priority']
             },
             recommendations: {
               type: 'array',
@@ -1030,8 +1033,63 @@ export default async function assessmentRoutes(server: FastifyInstance) {
         lowConfidenceAnswers,
       };
 
+      // Debug logging to identify the issue
+      request.log.info({
+        assessmentId: params.id,
+        hasSummary: !!responseData.summary,
+        summaryKeys: responseData.summary ? Object.keys(responseData.summary) : [],
+        summaryPriority: responseData.summary?.priority,
+        summaryData: JSON.stringify(responseData.summary, null, 2),
+        gapsCount: responseData.gaps?.length,
+        firstGap: responseData.gaps?.[0],
+      }, 'Debug: Assessment results data structure');
+
+      // Validate summary object has all required fields
+      if (responseData.summary) {
+        const requiredSummaryFields = ['totalGaps', 'criticalGaps', 'highRisks', 'estimatedCost', 'estimatedEffort', 'priority'];
+        const missingSummaryFields = requiredSummaryFields.filter(field =>
+          !(field in responseData.summary) || responseData.summary[field] === undefined
+        );
+
+        if (missingSummaryFields.length > 0) {
+          request.log.error({
+            missingSummaryFields,
+            summary: responseData.summary
+          }, 'Missing required summary fields');
+        }
+      }
+
       request.log.info({ assessmentId: params.id, responseData }, 'Sending assessment results');
-      reply.status(200).send(responseData);
+
+      // Additional validation before sending
+      try {
+        // Check each gap has priority
+        if (responseData.gaps && Array.isArray(responseData.gaps)) {
+          const gapsWithoutPriority = responseData.gaps.filter((gap: any) =>
+            !gap.priority || gap.priority === undefined
+          );
+          if (gapsWithoutPriority.length > 0) {
+            request.log.error({
+              gapsWithoutPriority: gapsWithoutPriority.map((g: any) => ({
+                id: g.id,
+                priority: g.priority,
+                hasPriority: 'priority' in g
+              }))
+            }, 'Found gaps without priority field!');
+          }
+        }
+
+        reply.status(200).send(responseData);
+      } catch (sendError: any) {
+        request.log.error({
+          error: sendError.message,
+          stack: sendError.stack,
+          responseDataKeys: Object.keys(responseData),
+          gapsCount: responseData.gaps?.length,
+          firstGap: responseData.gaps?.[0],
+        }, 'Failed to send response - likely schema validation error');
+        throw sendError;
+      }
 
     } catch (error: any) {
       request.log.error({ 

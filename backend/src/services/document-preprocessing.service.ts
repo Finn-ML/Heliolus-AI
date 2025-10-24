@@ -198,7 +198,7 @@ export class DocumentPreprocessingService extends BaseService {
   ): Promise<PreprocessingResult> {
     const startTime = performance.now();
 
-    const model = options.model || process.env.AI_PREPROCESSING_MODEL || 'gpt-4';
+    const model = options.model || process.env.AI_PREPROCESSING_MODEL || 'gpt-4o-mini';
     const embeddingModel = options.embeddingModel || 'text-embedding-ada-002';
     const maxTokens = options.maxTokensPerDocument || 1000;
 
@@ -216,10 +216,21 @@ export class DocumentPreprocessingService extends BaseService {
       model,
       messages: [{
         role: 'system',
-        content: 'You are a compliance document analyzer. Extract key compliance information, policies, procedures, controls, and evidence from documents. Provide a comprehensive but concise summary that captures all relevant compliance details.'
+        content: `You are a compliance document analyzer specializing in financial crime, AML, sanctions, and trade compliance.
+
+Extract and preserve ALL specific compliance information including:
+1. FRAMEWORKS & REGULATIONS: Specific references (OFAC, EU, UN, FATF, GDPR, etc.)
+2. CONTROLS & PROCEDURES: Detailed processes, automation level, frequency, coverage
+3. QUANTITATIVE DATA: Percentages, timelines, thresholds, volumes, ratios
+4. IMPLEMENTATION DETAILS: How controls work in practice, not just policy statements
+5. EVIDENCE: Proof of actual implementation (system screenshots, audit results, metrics)
+6. VENDORS & SYSTEMS: Specific tools, platforms, or third-party solutions used
+7. ORGANIZATIONAL STRUCTURE: Roles, responsibilities, reporting lines
+
+Be extremely detailed. Preserve specific compliance terminology, numerical values, and concrete examples. Only extract what is explicitly stated in the document - do not infer gaps or make assumptions. This summary will be used to answer detailed compliance assessment questions.`
       }, {
         role: 'user',
-        content: `Analyze this compliance document and extract key information:\n\n${truncatedContent}`
+        content: `Analyze this compliance document and extract ALL compliance-relevant information with maximum detail:\n\n${truncatedContent}`
       }],
       temperature: 0.3,
       max_tokens: maxTokens,

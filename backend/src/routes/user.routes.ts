@@ -5,10 +5,8 @@
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { asyncHandler } from '../middleware/async-handler.middleware';
-import { authenticationMiddleware } from '../middleware/auth.middleware';
+import { asyncHandler, authenticationMiddleware } from '../middleware';
 import { PrismaClient } from '../generated/prisma';
-import { logger } from '../lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -163,7 +161,7 @@ export default async function userRoutes(server: FastifyInstance) {
         },
       });
     } catch (error: any) {
-      logger.error('Error getting assessment quota', {
+      console.error('Error getting assessment quota', {
         userId,
         error: error.message,
       });

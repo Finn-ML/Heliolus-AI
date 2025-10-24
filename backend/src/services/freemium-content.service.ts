@@ -1,5 +1,5 @@
 import { BaseService } from './base.service';
-import { SubscriptionPlan, Severity, Priority } from '@prisma/client';
+import { SubscriptionPlan, Severity, Priority } from '../generated/prisma/index.js';
 
 interface MockedGap {
   id: string;
@@ -68,7 +68,7 @@ export class FreemiumContentService extends BaseService {
         title: mockTitles[i % mockTitles.length],
         description: '[UNLOCK PREMIUM TO SEE DETAILS]',
         severity: severities[i % severities.length],
-        priority: Priority.MEDIUM,
+        priority: Priority.MEDIUM_TERM,
         priorityScore: null,
         estimatedCost: null,
         estimatedEffort: null,
