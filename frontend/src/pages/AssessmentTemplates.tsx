@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QuotaWarning } from '@/components/QuotaWarning';
+import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { toast } from '@/hooks/use-toast';
 import { templateApi, queryKeys, getCurrentUserId } from '@/lib/api';
 import { AssessmentTemplate, TemplateCategory } from '@/types/assessment';
@@ -53,6 +54,7 @@ const AssessmentTemplates = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'ALL'>('ALL');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Fetch templates from API (only active templates)
   const {
@@ -104,11 +106,8 @@ const AssessmentTemplates = () => {
   const handleStartAssessment = (templateId: string) => {
     // Check if quota is exceeded for FREE users
     if (quotaExceeded) {
-      toast({
-        title: 'Assessment Limit Reached',
-        description: 'You have used all your free assessments. Please upgrade to Premium.',
-        variant: 'destructive',
-      });
+      // Show upgrade modal instead of toast
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -381,6 +380,16 @@ const AssessmentTemplates = () => {
           </Card>
         )}
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradePrompt
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        title="Assessment Limit Reached"
+        message="Free users can create maximum 2 assessments. Upgrade to Premium for unlimited assessments and access to all features."
+        plan="Premium"
+        price="€599/month"
+      />
     </div>
   );
 };
