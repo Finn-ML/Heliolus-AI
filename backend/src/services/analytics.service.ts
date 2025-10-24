@@ -199,11 +199,11 @@ export class AnalyticsService extends BaseService {
 
       // Calculate average completion time using raw SQL
       const avgTimeResult = await this.prisma.$queryRaw<Array<{ avg_minutes: number | null }>>`
-        SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60) as avg_minutes
+        SELECT AVG(EXTRACT(EPOCH FROM ("updatedAt" - "createdAt")) / 60) as avg_minutes
         FROM "Assessment"
-        WHERE status = ${AssessmentStatus.COMPLETED}
-          AND created_at >= ${startDate}
-          AND created_at <= ${endDate}
+        WHERE status = CAST(${AssessmentStatus.COMPLETED}::text AS "AssessmentStatus")
+          AND "createdAt" >= ${startDate}
+          AND "createdAt" <= ${endDate}
       `;
       const avgCompletionTime = Math.round(avgTimeResult[0]?.avg_minutes || 0);
 
@@ -321,7 +321,7 @@ export class AnalyticsService extends BaseService {
       // Active vendors (vendors with at least one match)
       const activeVendorsResult = await this.prisma.vendor.findMany({
         where: {
-          vendorMatches: {
+          matches: {
             some: {}
           }
         },
@@ -337,15 +337,17 @@ export class AnalyticsService extends BaseService {
         }
       });
 
-      // Unique visitors (distinct userIds from VendorMatch)
-      const uniqueVisitorsResult = await this.prisma.vendorMatch.groupBy({
-        by: ['userId'],
-        where: {
-          viewed: true,
-          ...dateFilter
-        }
-      });
-      const uniqueVisitors = uniqueVisitorsResult.length;
+      // Unique visitors (distinct userIds from VendorMatch through Gap and Assessment)
+      const uniqueVisitorsRaw = await this.prisma.$queryRaw<Array<{ distinct_users: bigint }>>`
+        SELECT COUNT(DISTINCT a."userId") as distinct_users
+        FROM "VendorMatch" vm
+        JOIN "Gap" g ON vm."gapId" = g.id
+        JOIN "Assessment" a ON g."assessmentId" = a.id
+        WHERE vm.viewed = true
+          AND vm."createdAt" >= ${dateFilter.createdAt.gte}
+          AND vm."createdAt" <= ${dateFilter.createdAt.lte}
+      `;
+      const uniqueVisitors = Number(uniqueVisitorsRaw[0]?.distinct_users || 0);
 
       // Total contacts
       const totalContacts = await this.prisma.vendorContact.count({
@@ -633,7 +635,7 @@ export class AnalyticsService extends BaseService {
         }),
         this.prisma.user.count({
           where: {
-            organizationId: { not: null },
+            organization: { isNot: null },
             status: { not: 'DELETED' }
           }
         }),
@@ -689,13 +691,13 @@ export class AnalyticsService extends BaseService {
         verifications: bigint;
       }>>`
         SELECT
-          DATE_TRUNC('day', created_at)::date as date,
+          DATE_TRUNC('day', "createdAt")::date as date,
           COUNT(*) as signups,
-          COUNT(*) FILTER (WHERE email_verified = true) as verifications
+          COUNT(*) FILTER (WHERE "emailVerified" = true) as verifications
         FROM "User"
-        WHERE created_at >= ${thirtyDaysAgo}
+        WHERE "createdAt" >= ${thirtyDaysAgo}
           AND status != 'DELETED'
-        GROUP BY DATE_TRUNC('day', created_at)
+        GROUP BY DATE_TRUNC('day', "createdAt")
         ORDER BY date ASC
       `;
 
