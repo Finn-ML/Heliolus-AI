@@ -383,10 +383,13 @@ export default async function assessmentRoutes(server: FastifyInstance) {
         402: {
           type: 'object',
           properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' },
             message: { type: 'string' },
             code: { type: 'string' },
             statusCode: { type: 'number' },
             timestamp: { type: 'string' },
+            upgradeUrl: { type: 'string' },  // Optional upgrade URL for quota errors
           },
         },
         403: {
@@ -499,7 +502,31 @@ export default async function assessmentRoutes(server: FastifyInstance) {
 
     } catch (error: any) {
       request.log.error({ error, userId: user.id }, 'Failed to create assessment');
-      
+
+      /**
+       * Handle Freemium quota exceeded error
+       *
+       * When a FREE tier user attempts to create a 3rd assessment,
+       * AssessmentService throws FREEMIUM_QUOTA_EXCEEDED error.
+       *
+       * Response includes upgradeUrl to streamline upgrade flow.
+       *
+       * @see Story 5.6 - AssessmentService quota checks
+       * @see Story 8.2 - Frontend quota warning UI
+       */
+      if (error.code === 'FREEMIUM_QUOTA_EXCEEDED') {
+        reply.status(402).send({
+          success: false,
+          error: error.message || 'Free users can create maximum 2 assessments. Upgrade to Premium for unlimited access.',
+          code: 'FREEMIUM_QUOTA_EXCEEDED',
+          upgradeUrl: '/pricing?upgrade=premium',
+          statusCode: 402,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Handle other 402 errors (insufficient credits)
       if (error.statusCode === 402) {
         reply.status(402).send({
           message: error.message || 'Insufficient credits',

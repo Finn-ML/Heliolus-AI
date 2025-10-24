@@ -27,6 +27,8 @@ import AssessmentExecution from './pages/AssessmentExecution';
 import AssessmentResults from './pages/AssessmentResults';
 import AssessmentPriorities from './pages/AssessmentPriorities';
 import NotFound from './pages/NotFound';
+import Pricing from './pages/Pricing';
+import Checkout from './pages/Checkout';
 import { AdminLogin } from '@/components/AdminLogin';
 
 // Admin Pages
@@ -103,6 +105,15 @@ const App = () => (
                   }
                 />
                 <Route path="/marketplace" element={<Marketplace />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route
+                  path="/checkout"
+                  element={
+                    <ProtectedRoute>
+                      <Checkout />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/reports"
                   element={

@@ -29,9 +29,11 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import VendorProfile from './VendorProfile';
 import VendorComparison from './VendorComparison';
-import { assessmentApi, queryKeys } from '@/lib/api';
+import { assessmentApi, queryKeys, getCurrentUserId } from '@/lib/api';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { VendorMatchScore } from '@/types/vendor-matching.types';
 import { getMatchQuality, getMatchQualityColor } from '@/types/vendor-matching.types';
 
@@ -52,10 +54,34 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
   onNavigateToCompare,
   assessmentId,
 }) => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [assessmentFilter, setAssessmentFilter] = useState(assessmentId || 'all');
   const [selectedVendorProfile, setSelectedVendorProfile] = useState<any>(null);
   const [showComparison, setShowComparison] = useState(false);
+
+  // Fetch user's billing info to check plan
+  const { data: billingInfo } = useQuery({
+    queryKey: ['subscription', 'billing-info'],
+    queryFn: async () => {
+      const userId = getCurrentUserId();
+      if (!userId) return null;
+
+      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
+
+  const currentPlan = billingInfo?.data?.plan || 'FREE';
+  const isFreePlan = currentPlan === 'FREE';
 
   // Fetch user's completed assessments for filter dropdown
   const { data: assessments } = useQuery({
@@ -286,15 +312,15 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Assessment Match Banner (Story 1.27) */}
-      {assessmentId && vendorMatchScores.size > 0 && (
+      {/* Assessment Match Banner (Story 1.27) - Hidden for FREE users */}
+      {assessmentId && !isFreePlan && vendorMatchScores.size > 0 && (
         <Card className="bg-gradient-to-r from-cyan-900/30 to-purple-900/30 border-cyan-800/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <Target className="h-6 w-6 text-cyan-400 flex-shrink-0" />
               <div>
                 <h3 className="text-lg font-semibold text-white mb-1">
-                  Viewing Matched Vendors for Your Assessment
+                  Viewing AI-Matched Vendors for Your Assessment
                 </h3>
                 <p className="text-gray-300 text-sm">
                   Found {vendorMatchScores.size} vendors matched to your compliance gaps. Vendors
@@ -304,6 +330,27 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Upgrade Message for FREE users */}
+      {assessmentId && isFreePlan && (
+        <Alert className="border-cyan-800/50 bg-gradient-to-r from-cyan-900/20 to-purple-900/20">
+          <Shield className="h-5 w-5 text-cyan-400" />
+          <AlertTitle className="text-white">AI Vendor Matching - Premium Feature</AlertTitle>
+          <AlertDescription className="text-gray-300 mt-2">
+            <p className="mb-3">
+              Upgrade to Premium to see AI-matched vendors personalized to your assessment gaps
+              and compliance priorities.
+            </p>
+            <Button
+              onClick={() => navigate('/pricing?upgrade=premium')}
+              className="bg-gradient-to-r from-cyan-600 to-pink-600 hover:from-cyan-700 hover:to-pink-700"
+              size="sm"
+            >
+              Upgrade to Premium
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Error loading matches */}
@@ -458,7 +505,8 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredVendors.map((vendor, index) => {
             const isSelected = selectedVendors.some(v => v.id === vendor.id);
-            const hasMatchScore = vendor.matchScore !== undefined;
+            // Hide match scores for FREE users
+            const hasMatchScore = vendor.matchScore !== undefined && !isFreePlan;
             const isTopMatch = hasMatchScore && index < 3 && selectedAssessmentId && selectedAssessmentId !== 'all'; // Top 3 matches for selected assessment
 
             return (
