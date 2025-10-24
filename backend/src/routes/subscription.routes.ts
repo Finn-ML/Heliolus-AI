@@ -217,6 +217,55 @@ const PurchaseAssessmentResponseSchema = {
   },
 };
 
+const GetBillingInfoParamsSchema = z.object({
+  userId: z.string().cuid('Invalid user ID format'),
+});
+
+const GetBillingInfoResponseSchema = {
+  200: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      data: {
+        type: 'object',
+        properties: {
+          plan: { type: 'string', enum: ['FREE', 'PREMIUM', 'ENTERPRISE'] },
+          billingCycle: { type: 'string', enum: ['MONTHLY', 'ANNUAL'], nullable: true },
+          currentPeriodStart: { type: 'string', format: 'date-time' },
+          currentPeriodEnd: { type: 'string', format: 'date-time', nullable: true },
+          creditsBalance: { type: 'number' },
+          stripeSubscriptionId: { type: 'string', nullable: true },
+        },
+        required: ['plan', 'currentPeriodStart', 'creditsBalance'],
+      },
+    },
+  },
+  401: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  403: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  404: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+};
+
 // TypeScript interfaces based on JSON Schema definitions
 interface CreateCheckoutRequest {
   plan: 'FREE' | 'PREMIUM' | 'ENTERPRISE';
@@ -539,6 +588,81 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         });
         return;
       }
+
+      reply.status(500).send({
+        success: false,
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }));
+
+  // GET /:userId/billing-info - Get Subscription Billing Information
+  server.get('/:userId/billing-info', {
+    schema: {
+      description: 'Get subscription and billing information for user',
+      tags: ['Subscriptions'],
+      security: [{ bearerAuth: [] }],
+      params: GetBillingInfoParamsSchema,
+      response: GetBillingInfoResponseSchema,
+    },
+    preHandler: authenticationMiddleware,
+  }, asyncHandler(async (request, reply) => {
+    const { userId } = request.params;
+    const user = request.currentUser!;
+
+    // Authorization check: user can only view their own billing info (unless admin)
+    if (user.id !== userId && user.role !== 'ADMIN') {
+      reply.status(403).send({
+        success: false,
+        message: 'You can only view your own billing information',
+        code: 'FORBIDDEN',
+      });
+      return;
+    }
+
+    try {
+      // Query subscription with selective fields (security + performance)
+      const subscription = await prisma.subscription.findUnique({
+        where: { userId },
+        select: {
+          plan: true,
+          billingCycle: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          creditsBalance: true,
+          stripeSubscriptionId: true,
+        },
+      });
+
+      if (!subscription) {
+        reply.status(404).send({
+          success: false,
+          message: 'User subscription not found',
+          code: 'SUBSCRIPTION_NOT_FOUND',
+        });
+        return;
+      }
+
+      // Return billing info (sensitive fields excluded via select)
+      reply.status(200).send({
+        success: true,
+        data: {
+          plan: subscription.plan,
+          billingCycle: subscription.billingCycle,
+          currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+          currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() || null,
+          creditsBalance: subscription.creditsBalance,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+        },
+      });
+    } catch (error: any) {
+      logger.error('Error getting billing info', {
+        userId,
+        error: error.message,
+      });
 
       reply.status(500).send({
         success: false,
