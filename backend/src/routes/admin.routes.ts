@@ -10,6 +10,7 @@ import { parse as csvParse } from 'csv-parse/sync';
 import { UserRole, VendorCategory, VendorStatus } from '../types/database';
 import { requireRole, requireFeature, asyncHandler, authenticationMiddleware } from '../middleware';
 import { VendorService } from '../services/vendor.service';
+import { AdminCreditService } from '../services/admin-credit.service';
 
 // Request/Response schemas
 const AdminDashboardSchema = {
@@ -66,6 +67,54 @@ const AdminDashboardSchema = {
         reportToVendor: { type: 'number' },
         vendorToContact: { type: 'number' },
       },
+    },
+  },
+};
+
+// Admin Credit Grant Schemas
+const GrantCreditsParamsSchema = z.object({
+  userId: z.string().cuid('Invalid user ID format'),
+});
+
+const GrantCreditsBodySchema = z.object({
+  amount: z.number().int().min(1, 'Amount must be at least 1'),
+  reason: z.string().min(1, 'Reason is required'),
+});
+
+const GrantCreditsResponseSchema = {
+  200: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      data: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          subscriptionId: { type: 'string' },
+          type: { type: 'string' },
+          amount: { type: 'number' },
+          balance: { type: 'number' },
+          description: { type: 'string' },
+          metadata: { type: 'object' },
+          createdAt: { type: 'string' },
+        },
+      },
+    },
+  },
+  403: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  404: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
     },
   },
 };
@@ -499,46 +548,74 @@ export default async function adminRoutes(server: FastifyInstance) {
   }));
 
   // POST /admin/credits/:userId - Adjust user credits
-  server.post('/credits/:userId', {
+  // POST /admin/users/:userId/credits - Grant credits to user (Story 7.2)
+  server.post('/users/:userId/credits', {
     schema: {
-      description: 'Manually adjust user credits',
+      description: 'Grant credits to a user (admin only)',
       tags: ['Admin'],
-      params: {
-        type: 'object',
-        required: ['userId'],
-        properties: {
-          userId: { type: 'string' },
-        },
-      },
-      body: {
-        type: 'object',
-        required: ['amount', 'reason'],
-        properties: {
-          amount: { type: 'number' },
-          reason: { type: 'string' },
-        },
-      },
+      params: GrantCreditsParamsSchema,
+      body: GrantCreditsBodySchema,
+      response: GrantCreditsResponseSchema,
     },
-    // preHandler: requireFeature('MANAGE_CREDITS'), // Temporarily disabled to fix compilation
+    preHandler: requireRole(UserRole.ADMIN),
   }, asyncHandler(async (request: FastifyRequest<{
-    Params: { userId: string };
-    Body: { amount: number; reason: string };
+    Params: z.infer<typeof GrantCreditsParamsSchema>;
+    Body: z.infer<typeof GrantCreditsBodySchema>;
   }>, reply: FastifyReply) => {
     const { userId } = request.params;
     const { amount, reason } = request.body;
+    const user = (request as any).currentUser;
 
-    // Mock credit adjustment
-    reply.code(200).send({
-      success: true,
-      message: `Credits adjusted for user ${userId}`,
-      data: {
+    try {
+      // Create service context
+      const context = {
+        userId: user.id,
+        userRole: user.role,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      };
+
+      // Call AdminCreditService to grant credits
+      const adminCreditService = new AdminCreditService();
+      const transaction = await adminCreditService.addCreditsToUser(
         userId,
-        adjustment: amount,
+        amount,
         reason,
-        newBalance: 250 + amount,
-        timestamp: new Date().toISOString(),
-      },
-    });
+        context
+      );
+
+      reply.status(200).send({
+        success: true,
+        data: transaction,
+      });
+    } catch (error: any) {
+      request.log.error({ error, userId }, 'Failed to grant credits');
+
+      if (error.statusCode === 404) {
+        reply.status(404).send({
+          success: false,
+          message: error.message || 'Subscription not found',
+          code: error.code || 'SUBSCRIPTION_NOT_FOUND',
+        });
+        return;
+      }
+
+      if (error.statusCode === 403) {
+        reply.status(403).send({
+          success: false,
+          message: error.message || 'Admin access required',
+          code: error.code || 'FORBIDDEN',
+        });
+        return;
+      }
+
+      // Default error
+      reply.status(500).send({
+        success: false,
+        message: 'Failed to grant credits',
+        code: 'INTERNAL_ERROR',
+      });
+    }
   }));
 
   // GET /admin/vendors - List all vendors for admin management (all statuses)
