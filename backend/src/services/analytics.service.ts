@@ -257,7 +257,7 @@ export class AnalyticsService extends BaseService {
         FROM "Assessment"
         WHERE "createdAt" >= ${startDate}
           AND "createdAt" <= ${endDate}
-        GROUP BY DATE_TRUNC(${truncType}, "createdAt")::date
+        GROUP BY 1
         ORDER BY date ASC
       `;
 
