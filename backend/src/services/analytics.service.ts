@@ -201,7 +201,7 @@ export class AnalyticsService extends BaseService {
       const avgTimeResult = await this.prisma.$queryRaw<Array<{ avg_minutes: number | null }>>`
         SELECT AVG(EXTRACT(EPOCH FROM ("updatedAt" - "createdAt")) / 60) as avg_minutes
         FROM "Assessment"
-        WHERE status = CAST(${AssessmentStatus.COMPLETED}::text AS "AssessmentStatus")
+        WHERE status::text = ${AssessmentStatus.COMPLETED}
           AND "createdAt" >= ${startDate}
           AND "createdAt" <= ${endDate}
       `;
@@ -248,10 +248,10 @@ export class AnalyticsService extends BaseService {
       }>>`
         SELECT
           DATE_TRUNC(${truncType}, "createdAt")::date as date,
-          COUNT(*) FILTER (WHERE status IN (${AssessmentStatus.IN_PROGRESS}, ${AssessmentStatus.COMPLETED})) as started,
-          COUNT(*) FILTER (WHERE status = ${AssessmentStatus.COMPLETED}) as completed,
+          COUNT(*) FILTER (WHERE status::text IN (${AssessmentStatus.IN_PROGRESS}, ${AssessmentStatus.COMPLETED})) as started,
+          COUNT(*) FILTER (WHERE status::text = ${AssessmentStatus.COMPLETED}) as completed,
           COUNT(*) FILTER (
-            WHERE status = ${AssessmentStatus.IN_PROGRESS}
+            WHERE status::text = ${AssessmentStatus.IN_PROGRESS}
             AND "updatedAt" < NOW() - INTERVAL '7 days'
           ) as abandoned
         FROM "Assessment"
