@@ -247,17 +247,17 @@ export class AnalyticsService extends BaseService {
         abandoned: bigint;
       }>>`
         SELECT
-          DATE_TRUNC(${truncType}, created_at)::date as date,
+          DATE_TRUNC(${truncType}, "createdAt")::date as date,
           COUNT(*) FILTER (WHERE status IN (${AssessmentStatus.IN_PROGRESS}, ${AssessmentStatus.COMPLETED})) as started,
           COUNT(*) FILTER (WHERE status = ${AssessmentStatus.COMPLETED}) as completed,
           COUNT(*) FILTER (
             WHERE status = ${AssessmentStatus.IN_PROGRESS}
-            AND updated_at < NOW() - INTERVAL '7 days'
+            AND "updatedAt" < NOW() - INTERVAL '7 days'
           ) as abandoned
         FROM "Assessment"
-        WHERE created_at >= ${startDate}
-          AND created_at <= ${endDate}
-        GROUP BY DATE_TRUNC(${truncType}, created_at)
+        WHERE "createdAt" >= ${startDate}
+          AND "createdAt" <= ${endDate}
+        GROUP BY DATE_TRUNC(${truncType}, "createdAt")
         ORDER BY date ASC
       `;
 
@@ -501,7 +501,7 @@ export class AnalyticsService extends BaseService {
         .map(([category, data]) => ({ category, ...data }))
         .sort((a, b) => b.clicks - a.clicks);
 
-      // Trend data
+      // Trend data - Note: VendorMatch doesn't have userId, need to join through Gap -> Assessment
       const trend = await this.prisma.$queryRaw<Array<{
         date: Date;
         clicks: bigint;
@@ -509,26 +509,28 @@ export class AnalyticsService extends BaseService {
         unique_visitors: bigint;
       }>>`
         SELECT
-          DATE_TRUNC('day', vm.created_at)::date as date,
+          DATE_TRUNC('day', vm."createdAt")::date as date,
           COUNT(DISTINCT vm.id) FILTER (WHERE vm.viewed = true) as clicks,
           0 as contacts,
-          COUNT(DISTINCT vm.user_id) FILTER (WHERE vm.viewed = true) as unique_visitors
+          COUNT(DISTINCT a."userId") FILTER (WHERE vm.viewed = true) as unique_visitors
         FROM "VendorMatch" vm
-        WHERE vm.created_at >= ${startDate}
-          AND vm.created_at <= ${endDate}
-        GROUP BY DATE_TRUNC('day', vm.created_at)
+        LEFT JOIN "Gap" g ON vm."gapId" = g.id
+        LEFT JOIN "Assessment" a ON g."assessmentId" = a.id
+        WHERE vm."createdAt" >= ${startDate}
+          AND vm."createdAt" <= ${endDate}
+        GROUP BY DATE_TRUNC('day', vm."createdAt")
 
         UNION ALL
 
         SELECT
-          DATE_TRUNC('day', vc.created_at)::date as date,
+          DATE_TRUNC('day', vc."createdAt")::date as date,
           0 as clicks,
           COUNT(DISTINCT vc.id) as contacts,
           0 as unique_visitors
         FROM "VendorContact" vc
-        WHERE vc.created_at >= ${startDate}
-          AND vc.created_at <= ${endDate}
-        GROUP BY DATE_TRUNC('day', vc.created_at)
+        WHERE vc."createdAt" >= ${startDate}
+          AND vc."createdAt" <= ${endDate}
+        GROUP BY DATE_TRUNC('day', vc."createdAt")
 
         ORDER BY date ASC
       `;

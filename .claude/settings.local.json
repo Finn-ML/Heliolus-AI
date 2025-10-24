@@ -52,7 +52,9 @@
       "Bash(node check-specific-assessment.mjs:*)",
       "Bash(node check-assessment-status.mjs:*)",
       "Bash(node:*)",
-      "Bash(pgrep:*)"
+      "Bash(pgrep:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
