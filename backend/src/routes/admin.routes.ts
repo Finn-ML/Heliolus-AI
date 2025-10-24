@@ -81,6 +81,53 @@ const GrantCreditsBodySchema = z.object({
   reason: z.string().min(1, 'Reason is required'),
 });
 
+// Admin Credit History Schemas
+const GetCreditHistoryParamsSchema = z.object({
+  userId: z.string().cuid('Invalid user ID format'),
+});
+
+const GetCreditHistoryResponseSchema = {
+  200: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      data: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            subscriptionId: { type: 'string' },
+            type: { type: 'string' },
+            amount: { type: 'number' },
+            balance: { type: 'number' },
+            description: { type: 'string' },
+            metadata: { type: 'object' },
+            assessmentId: { type: 'string', nullable: true },
+            createdAt: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+  403: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+  404: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      code: { type: 'string' },
+    },
+  },
+};
+
 const GrantCreditsResponseSchema = {
   200: {
     type: 'object',
@@ -613,6 +660,59 @@ export default async function adminRoutes(server: FastifyInstance) {
       reply.status(500).send({
         success: false,
         message: 'Failed to grant credits',
+        code: 'INTERNAL_ERROR',
+      });
+    }
+  }));
+
+  // GET /admin/users/:userId/credits - Get credit transaction history (Story 7.3)
+  server.get('/users/:userId/credits', {
+    schema: {
+      description: 'Get credit transaction history for user (admin only)',
+      tags: ['Admin'],
+      params: GetCreditHistoryParamsSchema,
+      response: GetCreditHistoryResponseSchema,
+    },
+    preHandler: requireRole(UserRole.ADMIN),
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: z.infer<typeof GetCreditHistoryParamsSchema>;
+  }>, reply: FastifyReply) => {
+    const { userId } = request.params;
+
+    try {
+      // Call AdminCreditService to get credit history
+      const adminCreditService = new AdminCreditService();
+      const transactions = await adminCreditService.getUserCreditHistory(userId);
+
+      reply.status(200).send({
+        success: true,
+        data: transactions,
+      });
+    } catch (error: any) {
+      request.log.error({ error, userId }, 'Failed to get credit history');
+
+      if (error.code === 'SUBSCRIPTION_NOT_FOUND') {
+        reply.status(404).send({
+          success: false,
+          message: error.message || 'User subscription not found',
+          code: 'SUBSCRIPTION_NOT_FOUND',
+        });
+        return;
+      }
+
+      if (error.statusCode === 404) {
+        reply.status(404).send({
+          success: false,
+          message: error.message || 'Resource not found',
+          code: error.code || 'NOT_FOUND',
+        });
+        return;
+      }
+
+      // Default error
+      reply.status(500).send({
+        success: false,
+        message: 'Failed to retrieve credit history',
         code: 'INTERNAL_ERROR',
       });
     }
