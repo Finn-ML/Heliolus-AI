@@ -773,6 +773,131 @@ export const createMutations = (queryClient: QueryClient) => ({
   }),
 });
 
+// Admin Analytics API
+export const adminAnalyticsApi = {
+  // Get assessment analytics
+  getAssessmentAnalytics: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    groupBy?: 'day' | 'week' | 'month';
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+    if (params?.groupBy) searchParams.set('groupBy', params.groupBy);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/analytics/assessments?${queryString}` : '/admin/analytics/assessments';
+
+    const response = await apiRequest<ApiResponse<any>>(endpoint);
+    return response.data;
+  },
+
+  // Get vendor analytics
+  getVendorAnalytics: async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/analytics/vendors?${queryString}` : '/admin/analytics/vendors';
+
+    const response = await apiRequest<ApiResponse<any>>(endpoint);
+    return response.data;
+  },
+
+  // Get user analytics
+  getUserAnalytics: async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/analytics/users?${queryString}` : '/admin/analytics/users';
+
+    const response = await apiRequest<ApiResponse<any>>(endpoint);
+    return response.data;
+  },
+
+  // Get activity feed
+  getActivityFeed: async (params?: {
+    limit?: number;
+    offset?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/analytics/activity-feed?${queryString}` : '/admin/analytics/activity-feed';
+
+    const response = await apiRequest<ApiResponse<any>>(endpoint);
+    return response.data;
+  },
+
+  // Export analytics
+  exportAnalytics: async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/analytics/export?${queryString}` : '/admin/analytics/export';
+
+    const token = localStorage.getItem('token');
+    const prefix = getApiPrefix();
+    const url = `${API_BASE_URL}${prefix}${endpoint}`;
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to export analytics: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `heliolus-analytics-export-${new Date().toISOString().split('T')[0]}.csv`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('[API] Error exporting analytics:', error);
+      throw error;
+    }
+  },
+};
+
 // Error handling utilities
 export class ApiError extends Error {
   constructor(
