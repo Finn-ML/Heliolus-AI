@@ -18,6 +18,7 @@ import {
   TransactionType,
   InvoiceStatus,
   UserRole,
+  BillingCycle,
 } from '../types/database';
 import {
   createStripeCustomer,
@@ -33,6 +34,8 @@ const CreateSubscriptionSchema = z.object({
   plan: z.nativeEnum(SubscriptionPlan),
   paymentMethodId: z.string().optional(),
   trialDays: z.number().min(0).max(90).optional(),
+  billingCycle: z.enum(['MONTHLY', 'ANNUAL']).optional(),
+  billingEmail: z.string().email().optional(),
 });
 
 const UpdateSubscriptionSchema = z.object({
@@ -52,6 +55,11 @@ const DeductCreditsSchema = z.object({
   description: z.string().max(200),
   assessmentId: z.string().cuid().optional(),
   metadata: z.record(z.any()).optional(),
+});
+
+const PurchaseAdditionalAssessmentSchema = z.object({
+  stripePriceId: z.string().min(1, 'Stripe price ID required'),
+  stripePaymentMethodId: z.string().optional(),
 });
 
 export interface SubscriptionWithDetails extends DatabaseSubscription {
@@ -95,6 +103,10 @@ export interface SubscriptionUsage {
 }
 
 // Plan configurations
+/**
+ * @deprecated Use PRICING constants for V4 Pay-Gating implementation
+ * This config remains for backward compatibility but will be removed
+ */
 export const PLAN_CONFIGS = {
   [SubscriptionPlan.FREE]: {
     price: 0,
@@ -145,6 +157,62 @@ export const PLAN_CONFIGS = {
   },
 };
 
+/**
+ * V4 Pay-Gating Pricing Configuration
+ *
+ * All prices in cents per Stripe convention.
+ *
+ * PREMIUM_MONTHLY: €599/month subscription
+ * PREMIUM_ANNUAL: €6,469.20/year subscription (10% discount)
+ * ADDITIONAL_ASSESSMENT: €299 per additional assessment
+ *
+ * @see docs/V4_REVISED_PAY_GATING_PLAN.md
+ */
+export const PRICING = {
+  PREMIUM_MONTHLY: {
+    price: 59900,           // €599.00 per month
+    currency: 'eur',
+    billingCycle: 'month',
+    creditsIncluded: 100,   // Enough for ~2 assessments
+  },
+  PREMIUM_ANNUAL: {
+    price: 646920,          // €6,469.20 per year (10% discount)
+    currency: 'eur',
+    billingCycle: 'year',
+    creditsIncluded: 1200,  // 100 credits per month × 12
+  },
+  ADDITIONAL_ASSESSMENT: {
+    price: 29900,           // €299.00 per assessment
+    currency: 'eur',
+    creditsGranted: 50,     // Credits granted per purchase
+  },
+} as const;
+
+/**
+ * Credit allocation per subscription plan
+ */
+export const CREDIT_ALLOCATION = {
+  FREE: 0,          // No initial credits
+  PREMIUM: 100,     // Enough for ~2 assessments
+  ENTERPRISE: 0,    // Admin grants manually
+} as const;
+
+/**
+ * Convert cents to euros for display
+ */
+export function getPriceInEuros(priceInCents: number): number {
+  return priceInCents / 100;
+}
+
+/**
+ * Get annual savings amount
+ */
+export function getAnnualSavings(): number {
+  const monthlyTotal = PRICING.PREMIUM_MONTHLY.price * 12;
+  const annualPrice = PRICING.PREMIUM_ANNUAL.price;
+  return (monthlyTotal - annualPrice) / 100; // In euros
+}
+
 export class SubscriptionService extends BaseService {
   /**
    * Create a subscription for a user
@@ -186,7 +254,7 @@ export class SubscriptionService extends BaseService {
       let stripeSubscriptionId = null;
       let stripePaymentMethodId = null;
 
-      const planConfig = PLAN_CONFIGS[validatedData.plan];
+      const planConfig = PLAN_CONFIGS[validatedData.plan]; // TODO: Deprecated, keep for Stripe integration
       
       // Create Stripe entities for paid plans
       if (validatedData.plan !== SubscriptionPlan.FREE) {
@@ -232,11 +300,28 @@ export class SubscriptionService extends BaseService {
         }
       }
 
-      // Calculate period dates
+      // Calculate period dates based on billing cycle
       const now = this.now();
       const currentPeriodStart = now;
-      const currentPeriodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
-      const trialEnd = validatedData.trialDays 
+
+      let currentPeriodEnd: Date | null = null;
+      let renewalDate: Date | null = null;
+
+      if (validatedData.billingCycle) {
+        if (validatedData.billingCycle === 'MONTHLY') {
+          // Add 1 month
+          currentPeriodEnd = new Date(now);
+          currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+        } else if (validatedData.billingCycle === 'ANNUAL') {
+          // Add 1 year
+          currentPeriodEnd = new Date(now);
+          currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+        }
+        renewalDate = currentPeriodEnd;
+      }
+      // FREE tier: currentPeriodEnd and renewalDate remain null
+
+      const trialEnd = validatedData.trialDays
         ? new Date(now.getTime() + validatedData.trialDays * 24 * 60 * 60 * 1000)
         : null;
 
@@ -248,9 +333,19 @@ export class SubscriptionService extends BaseService {
           stripeCustomerId,
           stripeSubscriptionId,
           stripePaymentMethodId,
-          creditsBalance: planConfig.creditsPerMonth > 0 ? planConfig.creditsPerMonth : 0,
+
+          // Billing cycle fields
+          billingCycle: validatedData.billingCycle || null,
+          billingEmail: validatedData.billingEmail || user.email,
+          renewalDate,
+
+          // Credit allocation using V4 constants
+          creditsBalance: CREDIT_ALLOCATION[validatedData.plan],
           creditsUsed: 0,
-          creditsPurchased: planConfig.creditsPerMonth > 0 ? planConfig.creditsPerMonth : 0,
+          creditsPurchased: validatedData.plan === SubscriptionPlan.PREMIUM
+            ? CREDIT_ALLOCATION.PREMIUM
+            : 0,
+
           currentPeriodStart,
           currentPeriodEnd,
           trialEnd,
@@ -258,17 +353,30 @@ export class SubscriptionService extends BaseService {
       });
 
       // Create initial credit transaction for paid plans
-      if (planConfig.creditsPerMonth > 0) {
+      const initialCredits = CREDIT_ALLOCATION[validatedData.plan];
+      if (initialCredits > 0) {
         await this.prisma.creditTransaction.create({
           data: {
             subscriptionId: subscription.id,
             type: TransactionType.SUBSCRIPTION_RENEWAL,
-            amount: planConfig.creditsPerMonth,
-            balance: planConfig.creditsPerMonth,
+            amount: initialCredits,
+            balance: initialCredits,
             description: `Initial credits for ${validatedData.plan} plan`,
           },
         });
       }
+
+      // Create/update UserAssessmentQuota record
+      await this.prisma.userAssessmentQuota.upsert({
+        where: { userId },
+        create: {
+          userId,
+          totalAssessmentsCreated: 0,
+          assessmentsThisMonth: 0,
+          assessmentsUsedThisMonth: 0,
+        },
+        update: {}, // No updates needed if already exists
+      });
 
       await this.logAudit(
         {
@@ -294,6 +402,132 @@ export class SubscriptionService extends BaseService {
     } catch (error) {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'createSubscription');
+    }
+  }
+
+  /**
+   * Purchase additional assessment credits
+   * @param userId - User ID
+   * @param data - Purchase data
+   * @param context - Service context
+   * @returns Purchase result with credits added
+   */
+  async purchaseAdditionalAssessment(
+    userId: string,
+    data: z.infer<typeof PurchaseAdditionalAssessmentSchema>,
+    context?: ServiceContext
+  ): Promise<ApiResponse<{ creditsAdded: number; newBalance: number }>> {
+    try {
+      const validatedData = await this.validateInput(
+        PurchaseAdditionalAssessmentSchema,
+        data
+      );
+
+      // Check permission
+      this.requirePermission(context, [UserRole.USER, UserRole.ADMIN], userId);
+
+      // Get subscription
+      const subscription = await this.prisma.subscription.findUnique({
+        where: { userId },
+        select: {
+          id: true,
+          plan: true,
+          creditsBalance: true,
+          creditsPurchased: true,
+        },
+      });
+
+      if (!subscription) {
+        throw this.createError(
+          'Subscription not found',
+          404,
+          'SUBSCRIPTION_NOT_FOUND'
+        );
+      }
+
+      // Validate subscription tier (PREMIUM or ENTERPRISE)
+      if (
+        subscription.plan !== SubscriptionPlan.PREMIUM &&
+        subscription.plan !== SubscriptionPlan.ENTERPRISE
+      ) {
+        throw this.createError(
+          'Additional assessments available for Premium and Enterprise users only',
+          403,
+          'TIER_RESTRICTION'
+        );
+      }
+
+      // TODO: Integrate with Stripe Payment Intents
+      // 1. Create PaymentIntent with amount: PRICING.ADDITIONAL_ASSESSMENT.price
+      // 2. Confirm payment with stripePaymentMethodId
+      // 3. Wait for payment success webhook
+      // 4. Then proceed with credit allocation
+      // For MVP: Assume payment succeeded (webhook will trigger this method)
+
+      const creditsToAdd = PRICING.ADDITIONAL_ASSESSMENT.creditsGranted; // 50 credits
+      const newBalance = subscription.creditsBalance + creditsToAdd;
+      const newCreditsPurchased = subscription.creditsPurchased + creditsToAdd;
+
+      // Atomic transaction: update credits + create transaction record
+      await this.prisma.$transaction(async (tx) => {
+        // Update subscription credits
+        await tx.subscription.update({
+          where: { userId },
+          data: {
+            creditsBalance: newBalance,
+            creditsPurchased: newCreditsPurchased,
+          },
+        });
+
+        // Create credit transaction
+        await tx.creditTransaction.create({
+          data: {
+            subscriptionId: subscription.id,
+            type: TransactionType.PURCHASE,
+            amount: creditsToAdd,
+            balance: newBalance,
+            description: 'Purchased additional assessment credits',
+            metadata: {
+              amount: PRICING.ADDITIONAL_ASSESSMENT.price,
+              currency: PRICING.ADDITIONAL_ASSESSMENT.currency,
+              stripePriceId: validatedData.stripePriceId,
+              purchaseDate: this.now().toISOString(),
+            },
+          },
+        });
+      });
+
+      await this.logAudit(
+        {
+          action: 'CREDITS_PURCHASED',
+          entity: 'Subscription',
+          entityId: subscription.id,
+          newValues: {
+            creditsAdded: creditsToAdd,
+            newBalance,
+            amount: PRICING.ADDITIONAL_ASSESSMENT.price / 100, // In euros
+          },
+        },
+        context
+      );
+
+      this.logger.info('Additional assessment credits purchased', {
+        userId,
+        creditsAdded: creditsToAdd,
+        newBalance,
+      });
+
+      return this.createResponse(
+        true,
+        {
+          creditsAdded: creditsToAdd,
+          newBalance,
+        },
+        `${creditsToAdd} credits added successfully`
+      );
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'purchaseAdditionalAssessment');
     }
   }
 
