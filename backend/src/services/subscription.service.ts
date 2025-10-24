@@ -339,11 +339,11 @@ export class SubscriptionService extends BaseService {
           billingEmail: validatedData.billingEmail || user.email,
           renewalDate,
 
-          // Credit allocation using V4 constants
-          creditsBalance: CREDIT_ALLOCATION[validatedData.plan],
+          // Credit allocation using helper method
+          creditsBalance: this.getInitialCredits(validatedData.plan),
           creditsUsed: 0,
           creditsPurchased: validatedData.plan === SubscriptionPlan.PREMIUM
-            ? CREDIT_ALLOCATION.PREMIUM
+            ? this.getInitialCredits(SubscriptionPlan.PREMIUM)
             : 0,
 
           currentPeriodStart,
@@ -353,7 +353,7 @@ export class SubscriptionService extends BaseService {
       });
 
       // Create initial credit transaction for paid plans
-      const initialCredits = CREDIT_ALLOCATION[validatedData.plan];
+      const initialCredits = this.getInitialCredits(validatedData.plan);
       if (initialCredits > 0) {
         await this.prisma.creditTransaction.create({
           data: {
@@ -529,6 +529,25 @@ export class SubscriptionService extends BaseService {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'purchaseAdditionalAssessment');
     }
+  }
+
+  /**
+   * Get initial credit allocation for a subscription plan
+   *
+   * Credit allocation strategy:
+   * - FREE: 0 credits (limited to 2 assessments total via quota)
+   * - PREMIUM: 100 credits (sufficient for ~2 assessments at 50 credits each)
+   * - ENTERPRISE: 0 credits (admin grants manually via AdminCreditService)
+   *
+   * @param plan - Subscription plan (FREE, PREMIUM, or ENTERPRISE)
+   * @returns Number of credits to allocate on subscription creation
+   *
+   * @see CREDIT_ALLOCATION for credit allocation constants
+   * @see Story 6.1 for pricing and credit definitions
+   * @see Story 5.5 for AdminCreditService (Enterprise credit grants)
+   */
+  private getInitialCredits(plan: SubscriptionPlan): number {
+    return CREDIT_ALLOCATION[plan];
   }
 
   /**
