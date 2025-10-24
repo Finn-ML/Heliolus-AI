@@ -28,8 +28,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { QuotaWarning } from '@/components/QuotaWarning';
 import { toast } from '@/hooks/use-toast';
-import { templateApi, queryKeys } from '@/lib/api';
+import { templateApi, queryKeys, getCurrentUserId } from '@/lib/api';
 import { AssessmentTemplate, TemplateCategory } from '@/types/assessment';
 
 const categoryIcons: Record<TemplateCategory, any> = {
@@ -69,6 +70,30 @@ const AssessmentTemplates = () => {
       ),
   });
 
+  // Fetch user's assessment quota (for quota warning)
+  const { data: quotaData } = useQuery({
+    queryKey: ['user', 'assessment-quota'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return null;
+
+      const response = await fetch('/v1/user/assessment-quota', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
+
+  const quota = quotaData?.data;
+  const showQuotaWarning = quota && quota.plan === 'FREE';
+  const quotaExceeded = quota && quota.quotaRemaining === 0;
+
   // Filter templates based on search
   const filteredTemplates = templates.filter(
     template =>
@@ -77,6 +102,16 @@ const AssessmentTemplates = () => {
   );
 
   const handleStartAssessment = (templateId: string) => {
+    // Check if quota is exceeded for FREE users
+    if (quotaExceeded) {
+      toast({
+        title: 'Assessment Limit Reached',
+        description: 'You have used all your free assessments. Please upgrade to Premium.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Navigate to execution page with template ID
     navigate(`/assessment/execute/${templateId}`);
   };
@@ -155,6 +190,14 @@ const AssessmentTemplates = () => {
           </p>
         </div>
 
+        {/* Quota Warning for FREE users */}
+        {showQuotaWarning && quota && (
+          <QuotaWarning
+            used={quota.totalAssessmentsCreated}
+            total={quota.quotaLimit}
+          />
+        )}
+
         {/* Filters */}
         <div className="mb-8 flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -222,9 +265,10 @@ const AssessmentTemplates = () => {
                 size="lg"
                 onClick={() => handleStartAssessment(filteredTemplates[0].id)}
                 className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                disabled={quotaExceeded}
                 data-testid={`button-start-featured-${filteredTemplates[0].id}`}
               >
-                Start Featured Assessment
+                {quotaExceeded ? 'Upgrade Required' : 'Start Featured Assessment'}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </CardContent>
@@ -304,9 +348,10 @@ const AssessmentTemplates = () => {
                       <Button
                         className="w-full bg-gray-800 hover:bg-cyan-700 text-white group-hover:bg-cyan-600 transition-colors"
                         onClick={() => handleStartAssessment(template.id)}
+                        disabled={quotaExceeded}
                         data-testid={`button-start-${template.id}`}
                       >
-                        Start Assessment
+                        {quotaExceeded ? 'Upgrade Required' : 'Start Assessment'}
                         <ChevronRight className="ml-2 h-4 w-4" />
                       </Button>
                     </CardContent>
