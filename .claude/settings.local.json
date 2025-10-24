@@ -51,7 +51,8 @@
       "Bash(node test-api-endpoints.mjs:*)",
       "Bash(node check-specific-assessment.mjs:*)",
       "Bash(node check-assessment-status.mjs:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(pgrep:*)"
     ],
     "deny": [],
     "ask": []

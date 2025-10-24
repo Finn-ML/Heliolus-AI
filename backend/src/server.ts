@@ -35,6 +35,7 @@ import vendorRoutes from './routes/vendor.routes';
 import subscriptionRoutes from './routes/subscription.routes';
 import webhookRoutes from './routes/webhook.routes';
 import adminRoutes from './routes/admin.routes';
+import userRoutes from './routes/user.routes';
 import templateRoutes from './routes/template.routes';
 import anonymousRoutes from './routes/anonymous.routes';
 import claimRoutes from './routes/claim.routes';
@@ -260,7 +261,8 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     await server.register(subscriptionRoutes, { prefix: '/subscriptions' });
     await server.register(webhookRoutes, { prefix: '/webhooks' });
     await server.register(adminRoutes, { prefix: '/admin' });
-    
+    await server.register(userRoutes, { prefix: '/user' });
+
     // Create single Prisma client instance for anonymous and claim routes
     const { PrismaClient } = await import('./generated/prisma/index.js');
     const prisma = new PrismaClient();

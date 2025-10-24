@@ -30,6 +30,21 @@ const isAuthenticated = (): boolean => {
   return !!localStorage.getItem('token');
 };
 
+// Get current user ID from JWT token
+export const getCurrentUserId = (): string | null => {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+
+  try {
+    // Decode JWT to get user ID
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.id || payload.sub || null;
+  } catch (error) {
+    console.error('[API] Failed to decode token:', error);
+    return null;
+  }
+};
+
 // Get the appropriate API path prefix based on auth state
 const getApiPrefix = (forceAnonymous = false): string => {
   // If explicitly marked as anonymous or no token exists, use /anon prefix

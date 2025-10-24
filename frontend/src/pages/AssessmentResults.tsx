@@ -26,7 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
-import { assessmentApi, queryKeys, apiRequest } from '@/lib/api';
+import { assessmentApi, queryKeys, apiRequest, getCurrentUserId } from '@/lib/api';
+import { BlurredSection } from '@/components/BlurredSection';
 import {
   AssessmentResults as AssessmentResultsType,
   Gap,
@@ -968,6 +969,29 @@ const AssessmentResults = () => {
     enabled: !!assessmentId,
   });
 
+  // Fetch user's billing info to check plan
+  const { data: billingInfo } = useQuery({
+    queryKey: ['subscription', 'billing-info'],
+    queryFn: async () => {
+      const userId = getCurrentUserId();
+      if (!userId) return null;
+
+      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
+
+  const currentPlan = billingInfo?.data?.plan || 'FREE';
+  const isRestricted = currentPlan === 'FREE';
+
   // Fetch AI-generated metrics
   const { data: aiAnalysis } = useQuery({
     queryKey: ['ai-analysis', assessmentId],
@@ -1217,16 +1241,20 @@ const AssessmentResults = () => {
 
           {/* Gap Analysis Tab */}
           <TabsContent value="gaps" className="space-y-6">
-            <RiskAreasAnalysis gaps={results.gaps} assessmentId={assessmentId!} />
+            <BlurredSection title="Gap Analysis" locked={isRestricted}>
+              <RiskAreasAnalysis gaps={results.gaps} assessmentId={assessmentId!} />
+            </BlurredSection>
           </TabsContent>
 
           {/* Strategy Tab */}
           <TabsContent value="strategy" className="space-y-6">
-            <RemediationStrategy
-              gaps={results.gaps}
-              risks={results.risks}
-              assessmentId={assessmentId}
-            />
+            <BlurredSection title="Strategy Matrix" locked={isRestricted}>
+              <RemediationStrategy
+                gaps={results.gaps}
+                risks={results.risks}
+                assessmentId={assessmentId}
+              />
+            </BlurredSection>
           </TabsContent>
         </Tabs>
       </div>

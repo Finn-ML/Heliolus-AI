@@ -18,6 +18,7 @@ import { ObjectStorageService, ObjectNotFoundError } from '../objectStorage';
 import { ObjectAclPolicy, ObjectPermission } from '../objectAcl';
 import { analyzeDocument, extractDocumentData } from '../lib/ai';
 import { DocumentParserService } from './document-parser.service';
+import { DocumentPreprocessingService } from './document-preprocessing.service';
 
 // Replit Object Storage Configuration
 const objectStorageService = new ObjectStorageService();
@@ -97,6 +98,13 @@ export interface UploadResult {
 }
 
 export class DocumentService extends BaseService {
+  private preprocessingService: DocumentPreprocessingService;
+
+  constructor() {
+    super();
+    this.preprocessingService = new DocumentPreprocessingService();
+  }
+
   /**
    * Generate presigned upload URL for direct S3 upload
    */
@@ -742,12 +750,63 @@ export class DocumentService extends BaseService {
           documentTier = 'TIER_0'; // Default to lowest tier on error
         }
 
-        // Update document with analysis results and evidence tier
+        // Preprocess document for future assessments (Story 1.26 Optimization)
+        // This happens ONCE at upload time, not during every assessment execution
+        let preprocessingResult = null;
+        if (process.env.AI_ENABLE_PREPROCESSING === 'true' && analysisResult.parsedContent.text) {
+          try {
+            const tempDoc = {
+              id: document.id,
+              filename: document.filename,
+              parsedContent: analysisResult.parsedContent,
+            } as any;
+
+            const preprocessResult = await this.preprocessingService.preprocessDocumentsForAssessment(
+              [tempDoc],
+              {
+                model: process.env.AI_PREPROCESSING_MODEL || 'gpt-4o-mini',
+              },
+              context
+            );
+
+            if (preprocessResult.success && preprocessResult.data) {
+              const docPreprocessing = preprocessResult.data.get(document.id);
+              if (docPreprocessing) {
+                preprocessingResult = {
+                  summary: docPreprocessing.summary,
+                  keyTopics: docPreprocessing.keyTopics,
+                  embedding: docPreprocessing.embedding,
+                  confidence: docPreprocessing.confidence,
+                  preprocessedAt: new Date().toISOString(),
+                };
+
+                this.logger.info('Document preprocessing completed', {
+                  documentId: id,
+                  keyTopics: docPreprocessing.keyTopics.length,
+                  confidence: docPreprocessing.confidence,
+                });
+              }
+            }
+          } catch (preprocessError) {
+            this.logger.warn('Document preprocessing failed, continuing without', {
+              documentId: id,
+              error: preprocessError.message,
+            });
+            // Don't fail the whole analysis if preprocessing fails
+          }
+        }
+
+        // Merge preprocessing results with extracted data
+        const finalExtractedData = preprocessingResult
+          ? { ...analysisResult.extractedData, preprocessing: preprocessingResult }
+          : analysisResult.extractedData;
+
+        // Update document with analysis results, preprocessing, and evidence tier
         await this.prisma.document.update({
           where: { id },
           data: {
             parsedContent: analysisResult.parsedContent,
-            extractedData: analysisResult.extractedData,
+            extractedData: finalExtractedData,
             evidenceTier: documentTier,
             updatedAt: this.now(),
           },

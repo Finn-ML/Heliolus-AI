@@ -125,6 +125,16 @@ export abstract class BaseService {
   }
 
   /**
+   * Require admin role for operation
+   * Throws 403 FORBIDDEN if user is not admin
+   */
+  protected requireAdmin(context: ServiceContext): void {
+    if (!context || context.userRole !== 'ADMIN') {
+      throw this.createError('Admin role required for this operation', 403, 'FORBIDDEN');
+    }
+  }
+
+  /**
    * Validate input data using Zod schema
    */
   protected async validateInput<T>(

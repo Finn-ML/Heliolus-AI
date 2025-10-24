@@ -112,10 +112,12 @@ const GapResponseSchema = {
     description: { type: 'string' },
     severity: { type: 'string', enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] },
     priority: { type: 'string', enum: ['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM'] },
-    estimatedCost: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'] },
-    estimatedEffort: { type: 'string', enum: ['DAYS', 'WEEKS', 'MONTHS', 'QUARTERS'] }
+    priorityScore: { type: 'number', nullable: true },
+    estimatedCost: { type: 'string', enum: ['UNDER_10K', 'RANGE_10K_50K', 'RANGE_50K_100K', 'RANGE_100K_250K', 'OVER_250K'], nullable: true },
+    estimatedEffort: { type: 'string', enum: ['SMALL', 'MEDIUM', 'LARGE'], nullable: true },
+    suggestedVendors: { type: 'array', items: { type: 'string' } }
   },
-  required: ['id', 'category', 'title', 'description', 'severity', 'priority', 'estimatedCost', 'estimatedEffort']
+  required: ['id', 'category', 'title', 'description', 'severity', 'priority']
 };
 
 const RiskResponseSchema = {
@@ -383,10 +385,13 @@ export default async function assessmentRoutes(server: FastifyInstance) {
         402: {
           type: 'object',
           properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' },
             message: { type: 'string' },
             code: { type: 'string' },
             statusCode: { type: 'number' },
             timestamp: { type: 'string' },
+            upgradeUrl: { type: 'string' },  // Optional upgrade URL for quota errors
           },
         },
         403: {
@@ -499,7 +504,31 @@ export default async function assessmentRoutes(server: FastifyInstance) {
 
     } catch (error: any) {
       request.log.error({ error, userId: user.id }, 'Failed to create assessment');
-      
+
+      /**
+       * Handle Freemium quota exceeded error
+       *
+       * When a FREE tier user attempts to create a 3rd assessment,
+       * AssessmentService throws FREEMIUM_QUOTA_EXCEEDED error.
+       *
+       * Response includes upgradeUrl to streamline upgrade flow.
+       *
+       * @see Story 5.6 - AssessmentService quota checks
+       * @see Story 8.2 - Frontend quota warning UI
+       */
+      if (error.code === 'FREEMIUM_QUOTA_EXCEEDED') {
+        reply.status(402).send({
+          success: false,
+          error: error.message || 'Free users can create maximum 2 assessments. Upgrade to Premium for unlimited access.',
+          code: 'FREEMIUM_QUOTA_EXCEEDED',
+          upgradeUrl: '/pricing?upgrade=premium',
+          statusCode: 402,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Handle other 402 errors (insufficient credits)
       if (error.statusCode === 402) {
         reply.status(402).send({
           message: error.message || 'Insufficient credits',
@@ -850,6 +879,7 @@ export default async function assessmentRoutes(server: FastifyInstance) {
                 estimatedEffort: { type: 'string' },
                 priority: { type: 'string', enum: ['IMMEDIATE', 'SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM'] },
               },
+              required: ['totalGaps', 'criticalGaps', 'highRisks', 'estimatedCost', 'estimatedEffort', 'priority']
             },
             recommendations: {
               type: 'array',
@@ -1003,8 +1033,63 @@ export default async function assessmentRoutes(server: FastifyInstance) {
         lowConfidenceAnswers,
       };
 
+      // Debug logging to identify the issue
+      request.log.info({
+        assessmentId: params.id,
+        hasSummary: !!responseData.summary,
+        summaryKeys: responseData.summary ? Object.keys(responseData.summary) : [],
+        summaryPriority: responseData.summary?.priority,
+        summaryData: JSON.stringify(responseData.summary, null, 2),
+        gapsCount: responseData.gaps?.length,
+        firstGap: responseData.gaps?.[0],
+      }, 'Debug: Assessment results data structure');
+
+      // Validate summary object has all required fields
+      if (responseData.summary) {
+        const requiredSummaryFields = ['totalGaps', 'criticalGaps', 'highRisks', 'estimatedCost', 'estimatedEffort', 'priority'];
+        const missingSummaryFields = requiredSummaryFields.filter(field =>
+          !(field in responseData.summary) || responseData.summary[field] === undefined
+        );
+
+        if (missingSummaryFields.length > 0) {
+          request.log.error({
+            missingSummaryFields,
+            summary: responseData.summary
+          }, 'Missing required summary fields');
+        }
+      }
+
       request.log.info({ assessmentId: params.id, responseData }, 'Sending assessment results');
-      reply.status(200).send(responseData);
+
+      // Additional validation before sending
+      try {
+        // Check each gap has priority
+        if (responseData.gaps && Array.isArray(responseData.gaps)) {
+          const gapsWithoutPriority = responseData.gaps.filter((gap: any) =>
+            !gap.priority || gap.priority === undefined
+          );
+          if (gapsWithoutPriority.length > 0) {
+            request.log.error({
+              gapsWithoutPriority: gapsWithoutPriority.map((g: any) => ({
+                id: g.id,
+                priority: g.priority,
+                hasPriority: 'priority' in g
+              }))
+            }, 'Found gaps without priority field!');
+          }
+        }
+
+        reply.status(200).send(responseData);
+      } catch (sendError: any) {
+        request.log.error({
+          error: sendError.message,
+          stack: sendError.stack,
+          responseDataKeys: Object.keys(responseData),
+          gapsCount: responseData.gaps?.length,
+          firstGap: responseData.gaps?.[0],
+        }, 'Failed to send response - likely schema validation error');
+        throw sendError;
+      }
 
     } catch (error: any) {
       request.log.error({ 

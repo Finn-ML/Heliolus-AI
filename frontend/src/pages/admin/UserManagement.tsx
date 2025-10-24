@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CreditManagementPanel } from '@/components/CreditManagementPanel';
 import {
   Search,
   MoreVertical,
@@ -48,6 +49,7 @@ import {
   Edit,
   Trash,
   Key,
+  Coins,
   Ban,
   CheckCircle,
   XCircle,
@@ -170,6 +172,7 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserAccount | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<UserAccount | null>(null);
+  const [creditManagementUser, setCreditManagementUser] = useState<UserAccount | null>(null);
 
   // Fetch users with filters
   const {
@@ -520,6 +523,10 @@ const UserManagement = () => {
                               <Edit className="h-4 w-4 mr-2" />
                               Edit User
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setCreditManagementUser(user)}>
+                              <Coins className="h-4 w-4 mr-2" />
+                              Manage Credits
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setResetPasswordUser(user)}>
                               <Key className="h-4 w-4 mr-2" />
                               Reset Password
@@ -741,6 +748,13 @@ const UserManagement = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Credit Management Panel */}
+        <CreditManagementPanel
+          user={creditManagementUser}
+          open={!!creditManagementUser}
+          onOpenChange={(open) => !open && setCreditManagementUser(null)}
+        />
       </div>
     </AdminLayout>
   );
