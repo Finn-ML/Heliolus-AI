@@ -11,6 +11,7 @@ export { SubscriptionService } from './subscription.service';
 export { UserService } from './user.service';
 export { DocumentService } from './document.service';
 export { EmailServiceImpl, emailService, type EmailService, type EmailTemplateData } from './email.service';
+export { AnalyticsService } from './analytics.service';
 
 // Create service instances
 import { SubscriptionService } from './subscription.service';
@@ -18,11 +19,13 @@ import { UserService } from './user.service';
 import { DocumentService } from './document.service';
 import { emailService } from './email.service';
 import { VendorService } from './vendor.service';
+import { AnalyticsService } from './analytics.service';
 
 export const subscriptionService = new SubscriptionService();
 export const userService = new UserService();
 export const documentService = new DocumentService();
 export const vendorService = new VendorService();
+export const analyticsService = new AnalyticsService();
 // export { OrganizationService, organizationService } from './organization.service';
 // export { AssessmentService, assessmentService } from './assessment.service';
 // export { ReportService, reportService } from './report.service';
@@ -42,6 +45,7 @@ export const services = {
   user: userService,
   document: documentService,
   email: emailService,
+  analytics: analyticsService,
   // organization: organizationService,
   // assessment: assessmentService,
   vendor: vendorService,
@@ -61,9 +65,10 @@ export async function initializeServices(): Promise<void> {
     services.user.healthCheck(),
     services.document.healthCheck(),
     services.email.healthCheck(),
+    services.analytics.healthCheck(),
   ]);
 
-  const serviceNames = ['subscription', 'user', 'document', 'email'];
+  const serviceNames = ['subscription', 'user', 'document', 'email', 'analytics'];
   
   healthChecks.forEach((result, index) => {
     const serviceName = serviceNames[index];
@@ -90,6 +95,7 @@ export async function cleanupServices(): Promise<void> {
     services.user.cleanup(),
     services.document.cleanup(),
     services.email.cleanup(),
+    services.analytics.cleanup(),
   ]);
 
   console.log('✅ Services cleaned up successfully!');

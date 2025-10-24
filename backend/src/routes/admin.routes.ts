@@ -900,6 +900,150 @@ export default async function adminRoutes(server: FastifyInstance) {
     });
   }));
 
+  // ============================================================================
+  // ANALYTICS ENDPOINTS
+  // ============================================================================
+
+  // GET /admin/analytics/assessments - Get assessment metrics
+  server.get('/analytics/assessments', {
+    schema: {
+      description: 'Get aggregated assessment metrics and analytics',
+      tags: ['Admin', 'Analytics'],
+      querystring: {
+        type: 'object',
+        properties: {
+          startDate: { type: 'string', format: 'date' },
+          endDate: { type: 'string', format: 'date' },
+          groupBy: { type: 'string', enum: ['day', 'week', 'month'], default: 'day' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                total: { type: 'number' },
+                started: { type: 'number' },
+                completed: { type: 'number' },
+                inProgress: { type: 'number' },
+                abandoned: { type: 'number' },
+                completionRate: { type: 'number' },
+                avgCompletionTime: { type: 'number' },
+                byStatus: { type: 'object' },
+                byTemplate: { type: 'array' },
+                trend: { type: 'array' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      startDate?: string;
+      endDate?: string;
+      groupBy?: 'day' | 'week' | 'month';
+    }
+  }>, reply: FastifyReply) => {
+    const { startDate, endDate, groupBy } = request.query;
+
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await analyticsService.getAssessmentMetrics(
+      { startDate, endDate, groupBy },
+      context
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // GET /admin/analytics/vendors - Get vendor engagement metrics
+  server.get('/analytics/vendors', {
+    schema: {
+      description: 'Get aggregated vendor engagement metrics and analytics',
+      tags: ['Admin', 'Analytics'],
+      querystring: {
+        type: 'object',
+        properties: {
+          startDate: { type: 'string', format: 'date' },
+          endDate: { type: 'string', format: 'date' },
+          limit: { type: 'number', default: 10 }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                totalVendors: { type: 'number' },
+                activeVendors: { type: 'number' },
+                totalClicks: { type: 'number' },
+                uniqueVisitors: { type: 'number' },
+                totalContacts: { type: 'number' },
+                conversionRate: { type: 'number' },
+                avgMatchScore: { type: 'number' },
+                topVendors: { type: 'array' },
+                clicksByCategory: { type: 'array' },
+                trend: { type: 'array' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      startDate?: string;
+      endDate?: string;
+      limit?: number;
+    }
+  }>, reply: FastifyReply) => {
+    const { startDate, endDate, limit } = request.query;
+
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await analyticsService.getVendorAnalytics(
+      { startDate, endDate, limit },
+      context
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
+  // ============================================================================
+  // VENDOR MANAGEMENT ENDPOINTS
+  // ============================================================================
+
   // GET /admin/vendors - List all vendors for admin management (all statuses)
   server.get('/vendors', {
     schema: {

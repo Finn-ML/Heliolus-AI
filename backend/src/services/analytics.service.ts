@@ -1,0 +1,517 @@
+/**
+ * Analytics Service
+ * Handles admin analytics and metrics aggregation
+ */
+
+import { Prisma } from '../generated/prisma';
+import { BaseService, ServiceContext } from './base.service';
+import { ApiResponse, AssessmentStatus, UserRole } from '../types/database';
+
+// Type definitions
+interface AssessmentMetrics {
+  total: number;
+  started: number;
+  completed: number;
+  inProgress: number;
+  abandoned: number;
+  completionRate: number;
+  avgCompletionTime: number;
+  byStatus: {
+    DRAFT: number;
+    IN_PROGRESS: number;
+    COMPLETED: number;
+    FAILED: number;
+  };
+  byTemplate: Array<{
+    templateId: string;
+    templateName: string;
+    count: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: string;
+    started: number;
+    completed: number;
+    abandoned: number;
+  }>;
+}
+
+interface AnalyticsParams {
+  startDate?: string;
+  endDate?: string;
+  groupBy?: 'day' | 'week' | 'month';
+}
+
+interface VendorAnalytics {
+  totalVendors: number;
+  activeVendors: number;
+  totalClicks: number;
+  uniqueVisitors: number;
+  totalContacts: number;
+  conversionRate: number;
+  avgMatchScore: number;
+  topVendors: Array<{
+    vendorId: string;
+    companyName: string;
+    clicks: number;
+    contacts: number;
+    conversionRate: number;
+    trend: 'up' | 'down' | 'stable';
+  }>;
+  clicksByCategory: Array<{
+    category: string;
+    clicks: number;
+    contacts: number;
+  }>;
+  trend: Array<{
+    date: string;
+    clicks: number;
+    contacts: number;
+    uniqueVisitors: number;
+  }>;
+}
+
+interface VendorAnalyticsParams {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}
+
+/**
+ * Analytics Service
+ * Provides aggregated metrics for admin dashboard
+ */
+export class AnalyticsService extends BaseService {
+  /**
+   * Get assessment metrics
+   */
+  async getAssessmentMetrics(
+    params: AnalyticsParams = {},
+    context?: ServiceContext
+  ): Promise<ApiResponse<AssessmentMetrics>> {
+    try {
+      // Only admins can view analytics
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Set defaults
+      const endDate = params.endDate ? new Date(params.endDate) : new Date();
+      const startDate = params.startDate
+        ? new Date(params.startDate)
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: last 30 days
+      const groupBy = params.groupBy || 'day';
+
+      // Validate date range (max 1 year)
+      const daysDiff = Math.abs(endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 365) {
+        throw this.createError('Date range cannot exceed 1 year', 400, 'INVALID_DATE_RANGE');
+      }
+
+      // Build date filter
+      const dateFilter = {
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      };
+
+      // Get status counts using groupBy
+      const statusCounts = await this.prisma.assessment.groupBy({
+        by: ['status'],
+        where: dateFilter,
+        _count: true
+      });
+
+      const byStatus = {
+        DRAFT: statusCounts.find(s => s.status === AssessmentStatus.DRAFT)?._count || 0,
+        IN_PROGRESS: statusCounts.find(s => s.status === AssessmentStatus.IN_PROGRESS)?._count || 0,
+        COMPLETED: statusCounts.find(s => s.status === AssessmentStatus.COMPLETED)?._count || 0,
+        FAILED: statusCounts.find(s => s.status === AssessmentStatus.FAILED)?._count || 0
+      };
+
+      const total = Object.values(byStatus).reduce((sum, count) => sum + count, 0);
+      const started = byStatus.IN_PROGRESS + byStatus.COMPLETED;
+      const completed = byStatus.COMPLETED;
+      const inProgress = byStatus.IN_PROGRESS;
+      const completionRate = started > 0 ? Math.round((completed / started) * 100 * 100) / 100 : 0;
+
+      // Calculate abandoned assessments (IN_PROGRESS + updatedAt > 7 days ago)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const abandoned = await this.prisma.assessment.count({
+        where: {
+          status: AssessmentStatus.IN_PROGRESS,
+          updatedAt: { lt: sevenDaysAgo },
+          ...dateFilter
+        }
+      });
+
+      // Calculate average completion time using raw SQL
+      const avgTimeResult = await this.prisma.$queryRaw<Array<{ avg_minutes: number | null }>>`
+        SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60) as avg_minutes
+        FROM "Assessment"
+        WHERE status = ${AssessmentStatus.COMPLETED}
+          AND created_at >= ${startDate}
+          AND created_at <= ${endDate}
+      `;
+      const avgCompletionTime = Math.round(avgTimeResult[0]?.avg_minutes || 0);
+
+      // Get template distribution
+      const byTemplateRaw = await this.prisma.assessment.groupBy({
+        by: ['templateId'],
+        where: dateFilter,
+        _count: true
+      });
+
+      // Fetch template names
+      const templateIds = byTemplateRaw.map(t => t.templateId);
+      const templates = await this.prisma.assessmentTemplate.findMany({
+        where: { id: { in: templateIds } },
+        select: { id: true, name: true }
+      });
+
+      const totalByTemplate = byTemplateRaw.reduce((sum, t) => sum + t._count, 0);
+      const byTemplate = byTemplateRaw.map(t => {
+        const template = templates.find(tpl => tpl.id === t.templateId);
+        return {
+          templateId: t.templateId,
+          templateName: template?.name || 'Unknown',
+          count: t._count,
+          percentage: totalByTemplate > 0 ? Math.round((t._count / totalByTemplate) * 100 * 100) / 100 : 0
+        };
+      });
+
+      // Generate trend data using raw SQL with date_trunc
+      const groupByMapping = {
+        day: 'day',
+        week: 'week',
+        month: 'month'
+      };
+      const truncType = groupByMapping[groupBy];
+
+      const trend = await this.prisma.$queryRaw<Array<{
+        date: Date;
+        started: bigint;
+        completed: bigint;
+        abandoned: bigint;
+      }>>`
+        SELECT
+          DATE_TRUNC(${truncType}, created_at)::date as date,
+          COUNT(*) FILTER (WHERE status IN (${AssessmentStatus.IN_PROGRESS}, ${AssessmentStatus.COMPLETED})) as started,
+          COUNT(*) FILTER (WHERE status = ${AssessmentStatus.COMPLETED}) as completed,
+          COUNT(*) FILTER (
+            WHERE status = ${AssessmentStatus.IN_PROGRESS}
+            AND updated_at < NOW() - INTERVAL '7 days'
+          ) as abandoned
+        FROM "Assessment"
+        WHERE created_at >= ${startDate}
+          AND created_at <= ${endDate}
+        GROUP BY DATE_TRUNC(${truncType}, created_at)
+        ORDER BY date ASC
+      `;
+
+      // Format trend data
+      const formattedTrend = trend.map(t => ({
+        date: t.date instanceof Date ? t.date.toISOString().split('T')[0] : String(t.date).split('T')[0],
+        started: Number(t.started),
+        completed: Number(t.completed),
+        abandoned: Number(t.abandoned)
+      }));
+
+      const metrics: AssessmentMetrics = {
+        total,
+        started,
+        completed,
+        inProgress,
+        abandoned,
+        completionRate,
+        avgCompletionTime,
+        byStatus,
+        byTemplate,
+        trend: formattedTrend
+      };
+
+      return this.createResponse(true, metrics);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getAssessmentMetrics');
+    }
+  }
+
+  /**
+   * Get vendor analytics
+   */
+  async getVendorAnalytics(
+    params: VendorAnalyticsParams = {},
+    context?: ServiceContext
+  ): Promise<ApiResponse<VendorAnalytics>> {
+    try {
+      // Only admins can view analytics
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Set defaults
+      const endDate = params.endDate ? new Date(params.endDate) : new Date();
+      const startDate = params.startDate
+        ? new Date(params.startDate)
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: last 30 days
+      const limit = params.limit || 10;
+
+      // Build date filter
+      const dateFilter = {
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      };
+
+      // Total vendors count
+      const totalVendors = await this.prisma.vendor.count();
+
+      // Active vendors (vendors with at least one match)
+      const activeVendorsResult = await this.prisma.vendor.findMany({
+        where: {
+          vendorMatches: {
+            some: {}
+          }
+        },
+        select: { id: true }
+      });
+      const activeVendors = activeVendorsResult.length;
+
+      // Total clicks (VendorMatch where viewed = true)
+      const totalClicks = await this.prisma.vendorMatch.count({
+        where: {
+          viewed: true,
+          ...dateFilter
+        }
+      });
+
+      // Unique visitors (distinct userIds from VendorMatch)
+      const uniqueVisitorsResult = await this.prisma.vendorMatch.groupBy({
+        by: ['userId'],
+        where: {
+          viewed: true,
+          ...dateFilter
+        }
+      });
+      const uniqueVisitors = uniqueVisitorsResult.length;
+
+      // Total contacts
+      const totalContacts = await this.prisma.vendorContact.count({
+        where: dateFilter
+      });
+
+      // Conversion rate
+      const conversionRate = totalClicks > 0 ? Math.round((totalContacts / totalClicks) * 100 * 100) / 100 : 0;
+
+      // Average match score
+      const avgScoreResult = await this.prisma.vendorMatch.aggregate({
+        where: dateFilter,
+        _avg: {
+          matchScore: true
+        }
+      });
+      const avgMatchScore = Math.round((avgScoreResult._avg.matchScore || 0) * 100) / 100;
+
+      // Top vendors by engagement
+      const vendorEngagement = await this.prisma.vendor.findMany({
+        include: {
+          _count: {
+            select: {
+              vendorMatches: {
+                where: {
+                  viewed: true,
+                  ...dateFilter
+                }
+              },
+              vendorContacts: {
+                where: dateFilter
+              }
+            }
+          }
+        },
+        take: limit * 2 // Get more to ensure we have enough after filtering
+      });
+
+      // Calculate engagement scores and trends
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+      const topVendorsWithTrend = await Promise.all(
+        vendorEngagement.map(async (vendor) => {
+          const clicks = vendor._count.vendorMatches;
+          const contacts = vendor._count.vendorContacts;
+          const engagementScore = clicks * 1 + contacts * 5;
+
+          // Get clicks for last 7 days vs previous 7 days
+          const [recentClicks, previousClicks] = await Promise.all([
+            this.prisma.vendorMatch.count({
+              where: {
+                vendorId: vendor.id,
+                viewed: true,
+                createdAt: { gte: sevenDaysAgo, lte: endDate }
+              }
+            }),
+            this.prisma.vendorMatch.count({
+              where: {
+                vendorId: vendor.id,
+                viewed: true,
+                createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo }
+              }
+            })
+          ]);
+
+          // Calculate trend
+          let trend: 'up' | 'down' | 'stable' = 'stable';
+          if (previousClicks > 0) {
+            const changePercent = ((recentClicks - previousClicks) / previousClicks) * 100;
+            if (changePercent > 10) trend = 'up';
+            else if (changePercent < -10) trend = 'down';
+          } else if (recentClicks > 0) {
+            trend = 'up';
+          }
+
+          return {
+            vendorId: vendor.id,
+            companyName: vendor.companyName,
+            clicks,
+            contacts,
+            conversionRate: clicks > 0 ? Math.round((contacts / clicks) * 100 * 100) / 100 : 0,
+            trend,
+            engagementScore
+          };
+        })
+      );
+
+      // Sort by engagement and take top N
+      const topVendors = topVendorsWithTrend
+        .sort((a, b) => b.engagementScore - a.engagementScore)
+        .slice(0, limit)
+        .map(({ engagementScore, ...vendor }) => vendor);
+
+      // Clicks by category
+      const clicksByCategoryRaw = await this.prisma.vendorMatch.groupBy({
+        by: ['vendorId'],
+        where: {
+          viewed: true,
+          ...dateFilter
+        },
+        _count: true
+      });
+
+      // Get vendor categories and aggregate by category
+      const vendorCategories = await this.prisma.vendor.findMany({
+        where: {
+          id: { in: clicksByCategoryRaw.map(c => c.vendorId) }
+        },
+        select: { id: true, categories: true }
+      });
+
+      const categoryMap = new Map<string, { clicks: number; contacts: number }>();
+
+      for (const click of clicksByCategoryRaw) {
+        const vendor = vendorCategories.find(v => v.id === click.vendorId);
+        if (vendor && vendor.categories) {
+          const categories = Array.isArray(vendor.categories) ? vendor.categories : [vendor.categories];
+          for (const category of categories) {
+            const existing = categoryMap.get(category) || { clicks: 0, contacts: 0 };
+            categoryMap.set(category, {
+              clicks: existing.clicks + click._count,
+              contacts: existing.contacts
+            });
+          }
+        }
+      }
+
+      // Get contacts by category
+      const contactsByVendor = await this.prisma.vendorContact.groupBy({
+        by: ['vendorId'],
+        where: dateFilter,
+        _count: true
+      });
+
+      for (const contact of contactsByVendor) {
+        const vendor = vendorCategories.find(v => v.id === contact.vendorId);
+        if (vendor && vendor.categories) {
+          const categories = Array.isArray(vendor.categories) ? vendor.categories : [vendor.categories];
+          for (const category of categories) {
+            const existing = categoryMap.get(category) || { clicks: 0, contacts: 0 };
+            categoryMap.set(category, {
+              clicks: existing.clicks,
+              contacts: existing.contacts + contact._count
+            });
+          }
+        }
+      }
+
+      const clicksByCategory = Array.from(categoryMap.entries())
+        .map(([category, data]) => ({ category, ...data }))
+        .sort((a, b) => b.clicks - a.clicks);
+
+      // Trend data
+      const trend = await this.prisma.$queryRaw<Array<{
+        date: Date;
+        clicks: bigint;
+        contacts: bigint;
+        unique_visitors: bigint;
+      }>>`
+        SELECT
+          DATE_TRUNC('day', vm.created_at)::date as date,
+          COUNT(DISTINCT vm.id) FILTER (WHERE vm.viewed = true) as clicks,
+          0 as contacts,
+          COUNT(DISTINCT vm.user_id) FILTER (WHERE vm.viewed = true) as unique_visitors
+        FROM "VendorMatch" vm
+        WHERE vm.created_at >= ${startDate}
+          AND vm.created_at <= ${endDate}
+        GROUP BY DATE_TRUNC('day', vm.created_at)
+
+        UNION ALL
+
+        SELECT
+          DATE_TRUNC('day', vc.created_at)::date as date,
+          0 as clicks,
+          COUNT(DISTINCT vc.id) as contacts,
+          0 as unique_visitors
+        FROM "VendorContact" vc
+        WHERE vc.created_at >= ${startDate}
+          AND vc.created_at <= ${endDate}
+        GROUP BY DATE_TRUNC('day', vc.created_at)
+
+        ORDER BY date ASC
+      `;
+
+      // Aggregate trend data by date
+      const trendMap = new Map<string, { clicks: number; contacts: number; uniqueVisitors: number }>();
+
+      for (const row of trend) {
+        const dateKey = row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0];
+        const existing = trendMap.get(dateKey) || { clicks: 0, contacts: 0, uniqueVisitors: 0 };
+        trendMap.set(dateKey, {
+          clicks: existing.clicks + Number(row.clicks),
+          contacts: existing.contacts + Number(row.contacts),
+          uniqueVisitors: Math.max(existing.uniqueVisitors, Number(row.unique_visitors))
+        });
+      }
+
+      const formattedTrend = Array.from(trendMap.entries())
+        .map(([date, data]) => ({ date, ...data }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const analytics: VendorAnalytics = {
+        totalVendors,
+        activeVendors,
+        totalClicks,
+        uniqueVisitors,
+        totalContacts,
+        conversionRate,
+        avgMatchScore,
+        topVendors,
+        clicksByCategory,
+        trend: formattedTrend
+      };
+
+      return this.createResponse(true, analytics);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getVendorAnalytics');
+    }
+  }
+}
