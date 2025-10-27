@@ -913,6 +913,130 @@ export const adminAnalyticsApi = {
   },
 };
 
+// TypeScript interfaces for Admin Template API
+export interface CreateTemplateData {
+  name: string;
+  slug: string;
+  category: 'FINANCIAL_CRIME' | 'TRADE_COMPLIANCE' | 'DATA_PRIVACY' | 'CYBERSECURITY' | 'ESG';
+  description: string;
+  version?: string;
+  isActive?: boolean;
+  creditCost?: number;
+}
+
+export interface CreateSectionData {
+  title: string;
+  description?: string;
+  order: number;
+  weight?: number;
+}
+
+export interface CreateQuestionData {
+  text: string;
+  type: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'SELECT' | 'MULTISELECT' | 'FILE' | 'DATE' | 'RATING';
+  order: number;
+  required?: boolean;
+  options?: string[];
+  helpText?: string;
+  aiPromptHint?: string;
+  weight?: number;
+  categoryTag?: string;
+  scoringRules?: any;
+  validation?: any;
+}
+
+export interface TemplateStats {
+  totalTemplates: number;
+  activeTemplates: number;
+  categoryCounts: Record<string, number>;
+  averageQuestions: number;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  code?: string;
+  metadata?: any;
+}
+
+// Admin Template API (requires ADMIN role)
+export const adminTemplateApi = {
+  // Templates
+  createTemplate: async (data: CreateTemplateData): Promise<ApiResponse<AssessmentTemplate>> => {
+    return await apiRequest<ApiResponse<AssessmentTemplate>>('/admin/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateTemplate: async (id: string, data: Partial<CreateTemplateData>): Promise<ApiResponse<AssessmentTemplate>> => {
+    return await apiRequest<ApiResponse<AssessmentTemplate>>(`/admin/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteTemplate: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getTemplateStats: async (): Promise<ApiResponse<TemplateStats>> => {
+    return await apiRequest<ApiResponse<TemplateStats>>('/admin/templates/stats');
+  },
+
+  // Sections
+  createSection: async (templateId: string, data: CreateSectionData): Promise<ApiResponse<any>> => {
+    return await apiRequest<ApiResponse<any>>(`/admin/templates/${templateId}/sections`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateSection: async (id: string, data: Partial<CreateSectionData>): Promise<ApiResponse<any>> => {
+    return await apiRequest<ApiResponse<any>>(`/admin/sections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteSection: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/sections/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Questions
+  createQuestion: async (sectionId: string, data: CreateQuestionData): Promise<ApiResponse<any>> => {
+    return await apiRequest<ApiResponse<any>>(`/admin/sections/${sectionId}/questions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateQuestion: async (id: string, data: Partial<CreateQuestionData>): Promise<ApiResponse<any>> => {
+    return await apiRequest<ApiResponse<any>>(`/admin/questions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteQuestion: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/questions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  bulkCreateQuestions: async (sectionId: string, questions: CreateQuestionData[]): Promise<ApiResponse<any[]>> => {
+    return await apiRequest<ApiResponse<any[]>>(`/admin/sections/${sectionId}/questions/bulk`, {
+      method: 'POST',
+      body: JSON.stringify({ questions }),
+    });
+  },
+};
+
 // Error handling utilities
 export class ApiError extends Error {
   constructor(
