@@ -928,24 +928,42 @@ const TemplateManagement = () => {
                 </div>
 
                 <div className="space-y-2 p-4 bg-purple-500/10 rounded-lg">
-                  <Label className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-500" />
-                    AI Analysis Prompt
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      AI Analysis Prompt (Optional)
+                    </Label>
+                    <span
+                      className={`text-xs ${
+                        (editingQuestion.aiPrompt?.length || 0) > 900
+                          ? 'text-red-500 font-medium'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {editingQuestion.aiPrompt?.length || 0} / 1000
+                    </span>
+                  </div>
                   <Textarea
-                    value={editingQuestion.aiPrompt}
+                    value={editingQuestion.aiPrompt || ''}
                     onChange={e =>
                       setEditingQuestion({
                         ...editingQuestion,
                         aiPrompt: e.target.value,
                       })
                     }
+                    maxLength={1000}
                     placeholder="Describe what the AI should analyze about this response..."
                     rows={3}
                   />
                   <p className="text-xs text-muted-foreground">
                     This prompt will guide the AI in analyzing user responses
                   </p>
+                  {(editingQuestion.aiPrompt?.length || 0) > 900 && (
+                    <p className="text-xs text-red-500">
+                      Approaching character limit ({1000 - (editingQuestion.aiPrompt?.length || 0)}{' '}
+                      remaining)
+                    </p>
+                  )}
                 </div>
               </div>
             )}
