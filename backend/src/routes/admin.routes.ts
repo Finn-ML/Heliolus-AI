@@ -3142,6 +3142,239 @@ export default async function adminRoutes(server: FastifyInstance) {
 
     reply.code(201).send({ success: true, data: result.data, message: result.message });
   }));
+
+  // ==================== LIBRARY MANAGEMENT ROUTES ====================
+
+  // PUT /admin/sections/:id/library - Toggle section library flag
+  server.put('/sections/:id/library', {
+    schema: {
+      description: 'Toggle section library flag (add to/remove from library)',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: { type: 'object' },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.toggleLibraryFlag('section', request.params.id, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // PUT /admin/questions/:id/library - Toggle question library flag
+  server.put('/questions/:id/library', {
+    schema: {
+      description: 'Toggle question library flag (add to/remove from library)',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: { type: 'object' },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.toggleLibraryFlag('question', request.params.id, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // GET /admin/library/sections - Get all library sections
+  server.get('/library/sections', {
+    schema: {
+      description: 'Get all sections marked as library items',
+      tags: ['Admin'],
+      querystring: {
+        type: 'object',
+        properties: {
+          search: { type: 'string' },
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: { type: 'array', items: { type: 'object' } },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: { search?: string; page?: number; limit?: number };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.getLibrarySections(request.query, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // GET /admin/library/questions - Get all library questions
+  server.get('/library/questions', {
+    schema: {
+      description: 'Get all questions marked as library items',
+      tags: ['Admin'],
+      querystring: {
+        type: 'object',
+        properties: {
+          search: { type: 'string' },
+          categoryTag: { type: 'string' },
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: { type: 'array', items: { type: 'object' } },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: { search?: string; categoryTag?: string; page?: number; limit?: number };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.getLibraryQuestions(request.query, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // POST /admin/library/copy - Copy section or question from library
+  server.post('/library/copy', {
+    schema: {
+      description: 'Copy a section or question from library to template',
+      tags: ['Admin'],
+      body: {
+        type: 'object',
+        required: ['type', 'sourceId', 'targetId'],
+        properties: {
+          type: { type: 'string', enum: ['section', 'question'] },
+          sourceId: { type: 'string' },
+          targetId: { type: 'string' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: { type: 'object' },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Body: { type: 'section' | 'question'; sourceId: string; targetId: string };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const { type, sourceId, targetId } = request.body;
+    const result = await templateService.copyFromLibrary(type, sourceId, targetId, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(201).send({ success: true, data: result.data, message: result.message });
+  }));
 }
 
 // Helper function to map CSV row to vendor data with perfect mapping

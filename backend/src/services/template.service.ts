@@ -1063,4 +1063,307 @@ export class TemplateService extends BaseService {
       this.handleDatabaseError(error, 'searchQuestions');
     }
   }
+
+  /**
+   * Toggle library flag for section or question
+   */
+  async toggleLibraryFlag(
+    type: 'section' | 'question',
+    id: string,
+    context?: ServiceContext
+  ): Promise<ApiResponse<any>> {
+    try {
+      // Only admins can manage library
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      if (type === 'section') {
+        const section = await this.prisma.section.findUnique({
+          where: { id },
+        });
+
+        if (!section) {
+          throw this.createError('Section not found', 404, 'SECTION_NOT_FOUND');
+        }
+
+        const updated = await this.prisma.section.update({
+          where: { id },
+          data: { isLibrary: !(section as any).isLibrary },
+        });
+
+        await this.logAudit(
+          {
+            action: (section as any).isLibrary ? 'SECTION_REMOVED_FROM_LIBRARY' : 'SECTION_MARKED_LIBRARY',
+            entity: 'Section',
+            entityId: id,
+          },
+          context
+        );
+
+        return this.createResponse(
+          true,
+          updated,
+          `Section ${(updated as any).isLibrary ? 'added to' : 'removed from'} library`
+        );
+      } else {
+        const question = await this.prisma.question.findUnique({
+          where: { id },
+        });
+
+        if (!question) {
+          throw this.createError('Question not found', 404, 'QUESTION_NOT_FOUND');
+        }
+
+        const updated = await this.prisma.question.update({
+          where: { id },
+          data: { isLibrary: !(question as any).isLibrary },
+        });
+
+        await this.logAudit(
+          {
+            action: (question as any).isLibrary ? 'QUESTION_REMOVED_FROM_LIBRARY' : 'QUESTION_MARKED_LIBRARY',
+            entity: 'Question',
+            entityId: id,
+          },
+          context
+        );
+
+        return this.createResponse(
+          true,
+          updated,
+          `Question ${(updated as any).isLibrary ? 'added to' : 'removed from'} library`
+        );
+      }
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'toggleLibraryFlag');
+    }
+  }
+
+  /**
+   * Get library sections with pagination
+   */
+  async getLibrarySections(
+    filters?: { search?: string; page?: number; limit?: number },
+    context?: ServiceContext
+  ): Promise<ApiResponse<any[]>> {
+    try {
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      const page = filters?.page || 1;
+      const limit = Math.min(filters?.limit || 50, 100);
+      const skip = (page - 1) * limit;
+
+      const where: any = { isLibrary: true };
+
+      if (filters?.search) {
+        where.OR = [
+          { title: { contains: filters.search, mode: 'insensitive' } },
+          { description: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const sections = await this.prisma.section.findMany({
+        where,
+        include: {
+          template: {
+            select: { id: true, name: true, category: true },
+          },
+          _count: { select: { questions: true } },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return this.createResponse(true, sections, `Found ${sections.length} library sections`);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getLibrarySections');
+    }
+  }
+
+  /**
+   * Get library questions with pagination
+   */
+  async getLibraryQuestions(
+    filters?: { search?: string; categoryTag?: string; page?: number; limit?: number },
+    context?: ServiceContext
+  ): Promise<ApiResponse<any[]>> {
+    try {
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      const page = filters?.page || 1;
+      const limit = Math.min(filters?.limit || 50, 100);
+      const skip = (page - 1) * limit;
+
+      const where: any = { isLibrary: true };
+
+      if (filters?.search) {
+        where.OR = [
+          { text: { contains: filters.search, mode: 'insensitive' } },
+          { helpText: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
+
+      if (filters?.categoryTag) {
+        where.categoryTag = filters.categoryTag;
+      }
+
+      const questions = await this.prisma.question.findMany({
+        where,
+        include: {
+          section: {
+            include: {
+              template: {
+                select: { id: true, name: true, category: true },
+              },
+            },
+          },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return this.createResponse(true, questions, `Found ${questions.length} library questions`);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getLibraryQuestions');
+    }
+  }
+
+  /**
+   * Copy section or question from library
+   */
+  async copyFromLibrary(
+    type: 'section' | 'question',
+    sourceId: string,
+    targetId: string,
+    context?: ServiceContext
+  ): Promise<ApiResponse<any>> {
+    try {
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      if (type === 'section') {
+        const source = await this.prisma.section.findUnique({
+          where: { id: sourceId },
+          include: { questions: true },
+        });
+
+        if (!source) {
+          throw this.createError('Source section not found', 404, 'SECTION_NOT_FOUND');
+        }
+
+        if (!(source as any).isLibrary) {
+          throw this.createError('Section is not in library', 400, 'NOT_LIBRARY_ITEM');
+        }
+
+        // Get next order
+        const maxOrder = await this.prisma.section.findFirst({
+          where: { templateId: targetId },
+          orderBy: { order: 'desc' },
+        });
+
+        const newSection = await this.prisma.section.create({
+          data: {
+            templateId: targetId,
+            title: source.title,
+            description: source.description,
+            weight: source.weight,
+            regulatoryPriority: source.regulatoryPriority,
+            order: (maxOrder?.order || 0) + 1,
+            isRequired: source.isRequired,
+            isLibrary: false,
+          },
+        });
+
+        // Copy questions
+        if (source.questions.length > 0) {
+          await this.prisma.question.createMany({
+            data: source.questions.map((q, idx) => ({
+              sectionId: newSection.id,
+              text: q.text,
+              type: q.type,
+              required: q.required,
+              options: q.options,
+              validation: q.validation,
+              helpText: q.helpText,
+              order: idx + 1,
+              categoryTag: q.categoryTag,
+              tags: q.tags,
+              weight: q.weight,
+              isFoundational: q.isFoundational,
+              aiPromptHint: q.aiPromptHint,
+              scoringRules: q.scoringRules,
+              isLibrary: false,
+            })),
+          });
+        }
+
+        await this.logAudit(
+          {
+            action: 'SECTION_COPIED_FROM_LIBRARY',
+            entity: 'Section',
+            entityId: newSection.id,
+            metadata: { sourceId, targetTemplateId: targetId },
+          },
+          context
+        );
+
+        return this.createResponse(true, newSection, 'Section copied from library');
+      } else {
+        const source = await this.prisma.question.findUnique({
+          where: { id: sourceId },
+        });
+
+        if (!source) {
+          throw this.createError('Source question not found', 404, 'QUESTION_NOT_FOUND');
+        }
+
+        if (!(source as any).isLibrary) {
+          throw this.createError('Question is not in library', 400, 'NOT_LIBRARY_ITEM');
+        }
+
+        const maxOrder = await this.prisma.question.findFirst({
+          where: { sectionId: targetId },
+          orderBy: { order: 'desc' },
+        });
+
+        const newQuestion = await this.prisma.question.create({
+          data: {
+            sectionId: targetId,
+            text: source.text,
+            type: source.type,
+            required: source.required,
+            options: source.options,
+            validation: source.validation,
+            helpText: source.helpText,
+            order: (maxOrder?.order || 0) + 1,
+            categoryTag: source.categoryTag,
+            tags: source.tags,
+            weight: source.weight,
+            isFoundational: source.isFoundational,
+            aiPromptHint: source.aiPromptHint,
+            scoringRules: source.scoringRules,
+            isLibrary: false,
+          },
+        });
+
+        await this.logAudit(
+          {
+            action: 'QUESTION_COPIED_FROM_LIBRARY',
+            entity: 'Question',
+            entityId: newQuestion.id,
+            metadata: { sourceId, targetSectionId: targetId },
+          },
+          context
+        );
+
+        return this.createResponse(true, newQuestion, 'Question copied from library');
+      }
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'copyFromLibrary');
+    }
+  }
 }

@@ -585,6 +585,7 @@ model Section {
   regulatoryPriority String? // FFIEC, FATF reference
   order       Int
   isRequired  Boolean @default(true) // Whether section is required for assessment completion
+  isLibrary   Boolean @default(false) // Whether section is available in reusable library
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -595,6 +596,7 @@ model Section {
 
   @@index([templateId])
   @@index([order])
+  @@index([isLibrary])
 }
 
 model Question {
@@ -615,6 +617,7 @@ model Question {
   isFoundational Boolean @default(false) // Critical question for compliance
   aiPromptHint  String? // Specific AI prompt guidance for this question
   scoringRules  Json?   // Rules for how to score responses
+  isLibrary    Boolean @default(false) // Whether question is available in reusable library
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -627,6 +630,7 @@ model Question {
   @@index([order])
   @@index([type])
   @@index([categoryTag])
+  @@index([isLibrary])
 }
 
 // ==================== VENDOR MODELS ====================
