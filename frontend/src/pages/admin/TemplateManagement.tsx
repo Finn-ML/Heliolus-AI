@@ -156,7 +156,8 @@ const TemplateManagement = () => {
       description: '',
       order: template.sections.length + 1,
       questions: [],
-    });
+      weight: 1.0,
+    } as any);
     setIsSectionDialogOpen(true);
   };
 
@@ -170,7 +171,8 @@ const TemplateManagement = () => {
       required: true,
       aiPrompt: '',
       order: section.questions.length + 1,
-    });
+      weight: 1.0,
+    } as any);
     setIsQuestionDialogOpen(true);
   };
 
@@ -759,6 +761,30 @@ const TemplateManagement = () => {
                     rows={3}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="section-weight">Weight (0-100)</Label>
+                  <Input
+                    id="section-weight"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={(editingSection as any).weight || 1.0}
+                    onChange={e => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0 && value <= 100) {
+                        setEditingSection({
+                          ...editingSection,
+                          weight: value,
+                        } as any);
+                      }
+                    }}
+                    placeholder="1.0"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Importance weight for scoring (higher = more important). Sections should sum to 100.
+                  </p>
+                </div>
               </div>
             )}
             <DialogFooter>
@@ -777,6 +803,7 @@ const TemplateManagement = () => {
                         title: editingSection.name,
                         description: editingSection.description,
                         order: editingSection.order,
+                        weight: (editingSection as any).weight || 1.0,
                       },
                     },
                     {
@@ -875,6 +902,31 @@ const TemplateManagement = () => {
                   </div>
                 )}
 
+                <div className="space-y-2">
+                  <Label htmlFor="question-weight">Weight (0-100)</Label>
+                  <Input
+                    id="question-weight"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={(editingQuestion as any).weight || 1.0}
+                    onChange={e => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0 && value <= 100) {
+                        setEditingQuestion({
+                          ...editingQuestion,
+                          weight: value,
+                        } as any);
+                      }
+                    }}
+                    placeholder="1.0"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Importance weight for scoring (higher = more important). Questions should sum to 100.
+                  </p>
+                </div>
+
                 <div className="space-y-2 p-4 bg-purple-500/10 rounded-lg">
                   <Label className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-purple-500" />
@@ -916,6 +968,7 @@ const TemplateManagement = () => {
                         required: editingQuestion.required,
                         options: editingQuestion.options,
                         aiPromptHint: editingQuestion.aiPrompt,
+                        weight: (editingQuestion as any).weight || 1.0,
                       },
                     },
                     {
