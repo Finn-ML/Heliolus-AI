@@ -39,6 +39,7 @@ import userRoutes from './routes/user.routes';
 import templateRoutes from './routes/template.routes';
 import anonymousRoutes from './routes/anonymous.routes';
 import claimRoutes from './routes/claim.routes';
+import rfpRoutes from './routes/rfp.routes';
 
 export interface AppConfig {
   port: number;
@@ -262,6 +263,7 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     await server.register(webhookRoutes, { prefix: '/webhooks' });
     await server.register(adminRoutes, { prefix: '/admin' });
     await server.register(userRoutes, { prefix: '/user' });
+    await server.register(rfpRoutes);
 
     // Create single Prisma client instance for anonymous and claim routes
     const { PrismaClient } = await import('./generated/prisma/index.js');

@@ -234,6 +234,23 @@ enum ContactStatus {
   REJECTED
 }
 
+enum RFPStatus {
+  DRAFT      // User creating RFP
+  SENT       // RFP delivered to vendors
+  FAILED     // Email delivery failed (all vendors)
+  ACTIVE     // RFP is active (future use)
+  CLOSED     // RFP closed (future use)
+  ARCHIVED   // User archived RFP
+}
+
+enum LeadStatus {
+  NEW           // Lead just created (from SENT RFP)
+  IN_PROGRESS   // Admin actively working lead
+  QUALIFIED     // Lead meets criteria
+  CONVERTED     // Lead became customer
+  LOST          // Lead not converted
+}
+
 enum TransactionType {
   PURCHASE
   BONUS
@@ -298,6 +315,7 @@ model User {
   auditLogs         AuditLog[]
   vendorContacts    VendorContact[]
   claimedSessions   AnonymousSession[]
+  rfps              RFP[]
 
   @@index([email])
   @@index([emailVerificationToken])
@@ -354,6 +372,7 @@ model Organization {
   documents      Document[]
   assessments    Assessment[]
   vendorContacts VendorContact[]
+  rfps           RFP[]
 
   @@index([userId])
   @@index([name])
@@ -909,6 +928,7 @@ model VendorContact {
   vendorId       String
   userId         String
   organizationId String
+  rfpId          String? // Link to RFP if contact created from RFP
 
   // Contact details
   type         ContactType
@@ -926,14 +946,58 @@ model VendorContact {
 
   // Relations
   vendor       Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id])
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rfp          RFP?         @relation(fields: [rfpId], references: [id], onDelete: Cascade)
 
   @@index([vendorId])
   @@index([userId])
   @@index([organizationId])
+  @@index([rfpId])
   @@index([type])
   @@index([status])
+  @@index([createdAt])
+}
+
+model RFP {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+
+  // RFP Content
+  title          String
+  objectives     String   @db.Text
+  requirements   String   @db.Text
+  timeline       String?
+  budget         String?
+
+  // Documents
+  documents      String[] // Replit Object Storage URLs
+
+  // Vendors
+  vendorIds      String[] // Vendors this RFP will be sent to
+
+  // Status
+  status         RFPStatus @default(DRAFT)
+  leadStatus     LeadStatus? // Admin sales funnel status (nullable - only for SENT RFPs)
+  sentAt         DateTime?
+
+  // Metadata
+  metadata       Json? // For storing email send results, failures, etc.
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts       VendorContact[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([leadStatus])
+  @@index([sentAt])
   @@index([createdAt])
 }
 
