@@ -42,6 +42,7 @@ import claimRoutes from './routes/claim.routes';
 import planRoutes from './routes/plan.routes';
 import couponRoutes from './routes/coupon.routes';
 import publicPlansRoutes from './routes/public-plans.routes';
+import legalDocumentRoutes from './routes/legal-document.routes';
 
 export interface AppConfig {
   port: number;
@@ -268,6 +269,7 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     await server.register(planRoutes, { prefix: '/admin/plans' });
     await server.register(couponRoutes, { prefix: '/admin/coupons' });
     await server.register(publicPlansRoutes, { prefix: '/public/plans' });
+    await server.register(legalDocumentRoutes, { prefix: '/legal-documents' });
 
     // Create single Prisma client instance for anonymous and claim routes
     const { PrismaClient } = await import('./generated/prisma/index.js');

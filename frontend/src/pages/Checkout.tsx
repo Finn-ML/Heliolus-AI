@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Check, ArrowLeft, CreditCard, Lock, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getCurrentUserId } from '@/lib/api';
+import { LegalDocumentLink } from '@/components/LegalDocumentDialog';
 
 type BillingCycle = 'MONTHLY' | 'ANNUAL';
 
@@ -265,7 +266,16 @@ export default function Checkout() {
                   </Button>
 
                   <p className="text-xs text-center text-gray-400">
-                    By continuing, you agree to our Terms of Service and Privacy Policy
+                    By continuing, you agree to our{' '}
+                    <LegalDocumentLink
+                      type="TERMS_OF_SERVICE"
+                      className="text-primary hover:underline"
+                    />{' '}
+                    and{' '}
+                    <LegalDocumentLink
+                      type="PRIVACY_POLICY"
+                      className="text-primary hover:underline"
+                    />
                   </p>
                 </div>
               </CardContent>
