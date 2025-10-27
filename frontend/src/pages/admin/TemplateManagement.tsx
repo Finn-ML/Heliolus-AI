@@ -8,6 +8,19 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
+  useTemplates,
+  useTemplateStats,
+  useCreateTemplate,
+  useUpdateTemplate,
+  useDeleteTemplate,
+  useCreateSection,
+  useUpdateSection,
+  useDeleteSection,
+  useCreateQuestion,
+  useUpdateQuestion,
+  useDeleteQuestion,
+} from '@/hooks/useAdminTemplates';
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -86,110 +99,21 @@ interface Template {
   usageCount: number;
 }
 
-// Mock data
-const mockTemplates: Template[] = [
-  {
-    id: '1',
-    name: 'SOC 2 Type II Readiness Assessment',
-    description: 'Comprehensive assessment for SOC 2 Type II compliance readiness',
-    framework: 'SOC 2',
-    status: 'active',
-    aiEnabled: true,
-    creditCost: 50,
-    createdDate: '2024-01-15',
-    lastModified: '2024-03-15',
-    usageCount: 145,
-    sections: [
-      {
-        id: 's1',
-        name: 'Security Controls',
-        description: 'Evaluate security policies and controls',
-        order: 1,
-        questions: [
-          {
-            id: 'q1',
-            question: 'Do you have a written information security policy?',
-            type: 'boolean',
-            required: true,
-            aiPrompt:
-              'Analyze the response and provide recommendations for information security policy improvements',
-            order: 1,
-          },
-          {
-            id: 'q2',
-            question: 'How often do you review and update security policies?',
-            type: 'select',
-            required: true,
-            options: ['Monthly', 'Quarterly', 'Annually', 'Ad-hoc'],
-            aiPrompt: 'Evaluate the frequency and suggest best practices',
-            order: 2,
-          },
-        ],
-      },
-      {
-        id: 's2',
-        name: 'Access Management',
-        description: 'Review access control procedures',
-        order: 2,
-        questions: [
-          {
-            id: 'q3',
-            question: 'Describe your user access provisioning process',
-            type: 'text',
-            required: true,
-            aiPrompt: 'Analyze the access provisioning process for security gaps',
-            order: 1,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: '2',
-    name: 'ISO 27001 Compliance Check',
-    description: 'Assessment for ISO 27001 certification readiness',
-    framework: 'ISO 27001',
-    status: 'active',
-    aiEnabled: true,
-    creditCost: 75,
-    createdDate: '2024-01-20',
-    lastModified: '2024-03-10',
-    usageCount: 89,
-    sections: [
-      {
-        id: 's3',
-        name: 'Information Security Management',
-        description: 'ISMS establishment and implementation',
-        order: 1,
-        questions: [
-          {
-            id: 'q4',
-            question: 'Is your ISMS documented and maintained?',
-            type: 'boolean',
-            required: true,
-            order: 1,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: '3',
-    name: 'GDPR Data Protection Assessment',
-    description: 'Evaluate GDPR compliance for data protection',
-    framework: 'GDPR',
-    status: 'draft',
-    aiEnabled: false,
-    creditCost: 45,
-    createdDate: '2024-02-15',
-    lastModified: '2024-03-18',
-    usageCount: 0,
-    sections: [],
-  },
-];
-
 const TemplateManagement = () => {
-  const [templates, setTemplates] = useState<Template[]>(mockTemplates);
+  // Fetch templates and stats using TanStack Query hooks
+  const { data: templates = [], isLoading, error } = useTemplates();
+  const { data: stats, isLoading: isStatsLoading } = useTemplateStats();
+
+  // Mutation hooks
+  const createTemplate = useCreateTemplate();
+  const updateTemplate = useUpdateTemplate();
+  const deleteTemplate = useDeleteTemplate();
+  const createSection = useCreateSection();
+  const updateSection = useUpdateSection();
+  const deleteSection = useDeleteSection();
+  const createQuestion = useCreateQuestion();
+  const updateQuestion = useUpdateQuestion();
+  const deleteQuestion = useDeleteQuestion();
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
@@ -232,7 +156,8 @@ const TemplateManagement = () => {
       description: '',
       order: template.sections.length + 1,
       questions: [],
-    });
+      weight: 1.0,
+    } as any);
     setIsSectionDialogOpen(true);
   };
 
@@ -246,37 +171,27 @@ const TemplateManagement = () => {
       required: true,
       aiPrompt: '',
       order: section.questions.length + 1,
-    });
+      weight: 1.0,
+    } as any);
     setIsQuestionDialogOpen(true);
   };
 
   const handleDeleteTemplate = (templateId: string) => {
-    setTemplates(templates.filter(t => t.id !== templateId));
+    if (confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+      deleteTemplate.mutate(templateId);
+    }
   };
 
   const handleDeleteSection = (templateId: string, sectionId: string) => {
-    setTemplates(
-      templates.map(t =>
-        t.id === templateId ? { ...t, sections: t.sections.filter(s => s.id !== sectionId) } : t
-      )
-    );
+    if (confirm('Are you sure you want to delete this section and all its questions?')) {
+      deleteSection.mutate(sectionId);
+    }
   };
 
   const handleDeleteQuestion = (templateId: string, sectionId: string, questionId: string) => {
-    setTemplates(
-      templates.map(t =>
-        t.id === templateId
-          ? {
-              ...t,
-              sections: t.sections.map(s =>
-                s.id === sectionId
-                  ? { ...s, questions: s.questions.filter(q => q.id !== questionId) }
-                  : s
-              ),
-            }
-          : t
-      )
-    );
+    if (confirm('Are you sure you want to delete this question?')) {
+      deleteQuestion.mutate(questionId);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -303,63 +218,104 @@ const TemplateManagement = () => {
               Create and manage assessment templates with AI-powered questions
             </p>
           </div>
-          <Button className="bg-primary hover:bg-primary/90" onClick={handleAddTemplate}>
+          <Button
+            className="bg-primary hover:bg-primary/90"
+            onClick={handleAddTemplate}
+            disabled={isLoading}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Create Template
           </Button>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Templates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{templates.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {templates.filter(t => t.status === 'active').length} active
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Questions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {templates.reduce(
-                  (sum, t) => sum + t.sections.reduce((sSum, s) => sSum + s.questions.length, 0),
-                  0
-                )}
+        {/* Error State */}
+        {error && (
+          <Card className="border-red-500/50 bg-red-500/10">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-500" />
+                <CardTitle className="text-red-500">Error Loading Templates</CardTitle>
               </div>
-              <p className="text-xs text-muted-foreground">Across all templates</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">AI-Enabled</CardTitle>
+              <CardDescription className="text-red-400">
+                Failed to load templates. Please try refreshing the page.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{templates.filter(t => t.aiEnabled).length}</div>
-              <p className="text-xs text-muted-foreground">Templates with AI prompts</p>
-            </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Usage</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {templates.reduce((sum, t) => sum + t.usageCount, 0)}
-              </div>
-              <p className="text-xs text-muted-foreground">Assessments completed</p>
-            </CardContent>
-          </Card>
-        </div>
+        )}
 
-        {/* Templates List */}
-        <div className="space-y-4">
+        {/* Loading State */}
+        {isLoading && (
+          <Card>
+            <CardContent className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading templates...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Stats */}
+        {!isLoading && !error && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Total Templates</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isStatsLoading ? '...' : stats?.totalTemplates || templates.length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats?.activeTemplates || templates.filter(t => t.status === 'active').length}{' '}
+                    active
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Total Questions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isStatsLoading
+                      ? '...'
+                      : templates.reduce(
+                          (sum, t) =>
+                            sum + t.sections.reduce((sSum, s) => sSum + s.questions.length, 0),
+                          0
+                        )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Across all templates</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">AI-Enabled</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isStatsLoading ? '...' : templates.filter(t => t.aiEnabled).length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Templates with AI prompts</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Total Usage</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isStatsLoading ? '...' : templates.reduce((sum, t) => sum + t.usageCount, 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Assessments completed</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Templates List */}
+            <div className="space-y-4">
           {templates.map(template => {
             const isExpanded = expandedTemplates.includes(template.id);
 
@@ -577,7 +533,9 @@ const TemplateManagement = () => {
               </Card>
             );
           })}
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Template Dialog */}
         <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
@@ -709,12 +667,57 @@ const TemplateManagement = () => {
                 Cancel
               </Button>
               <Button
+                disabled={createTemplate.isPending || updateTemplate.isPending}
                 onClick={() => {
-                  // Save template logic here
-                  setIsTemplateDialogOpen(false);
+                  if (!editingTemplate) return;
+
+                  if (editingTemplate.usageCount > 0) {
+                    // Update existing template
+                    updateTemplate.mutate(
+                      {
+                        id: editingTemplate.id,
+                        data: {
+                          name: editingTemplate.name,
+                          description: editingTemplate.description,
+                          category: editingTemplate.framework as any,
+                          creditCost: editingTemplate.creditCost,
+                          isActive: editingTemplate.status === 'active',
+                        },
+                      },
+                      {
+                        onSuccess: () => {
+                          setIsTemplateDialogOpen(false);
+                          setEditingTemplate(null);
+                        },
+                      }
+                    );
+                  } else {
+                    // Create new template
+                    createTemplate.mutate(
+                      {
+                        name: editingTemplate.name,
+                        slug: editingTemplate.name.toLowerCase().replace(/\s+/g, '-'),
+                        description: editingTemplate.description,
+                        category: editingTemplate.framework as any,
+                        creditCost: editingTemplate.creditCost,
+                        isActive: editingTemplate.status === 'active',
+                      },
+                      {
+                        onSuccess: () => {
+                          setIsTemplateDialogOpen(false);
+                          setEditingTemplate(null);
+                        },
+                      }
+                    );
+                  }
                 }}
               >
-                {editingTemplate?.usageCount ? 'Update' : 'Create'} Template
+                {createTemplate.isPending || updateTemplate.isPending
+                  ? 'Saving...'
+                  : editingTemplate?.usageCount
+                    ? 'Update'
+                    : 'Create'}{' '}
+                Template
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -758,6 +761,30 @@ const TemplateManagement = () => {
                     rows={3}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="section-weight">Weight (0-100)</Label>
+                  <Input
+                    id="section-weight"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={(editingSection as any).weight || 1.0}
+                    onChange={e => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0 && value <= 100) {
+                        setEditingSection({
+                          ...editingSection,
+                          weight: value,
+                        } as any);
+                      }
+                    }}
+                    placeholder="1.0"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Importance weight for scoring (higher = more important). Sections should sum to 100.
+                  </p>
+                </div>
               </div>
             )}
             <DialogFooter>
@@ -765,12 +792,31 @@ const TemplateManagement = () => {
                 Cancel
               </Button>
               <Button
+                disabled={createSection.isPending}
                 onClick={() => {
-                  // Save section logic here
-                  setIsSectionDialogOpen(false);
+                  if (!editingSection || !selectedTemplate) return;
+
+                  createSection.mutate(
+                    {
+                      templateId: selectedTemplate.id,
+                      data: {
+                        title: editingSection.name,
+                        description: editingSection.description,
+                        order: editingSection.order,
+                        weight: (editingSection as any).weight || 1.0,
+                      },
+                    },
+                    {
+                      onSuccess: () => {
+                        setIsSectionDialogOpen(false);
+                        setEditingSection(null);
+                        setSelectedTemplate(null);
+                      },
+                    }
+                  );
                 }}
               >
-                Add Section
+                {createSection.isPending ? 'Adding...' : 'Add Section'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -856,25 +902,68 @@ const TemplateManagement = () => {
                   </div>
                 )}
 
+                <div className="space-y-2">
+                  <Label htmlFor="question-weight">Weight (0-100)</Label>
+                  <Input
+                    id="question-weight"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={(editingQuestion as any).weight || 1.0}
+                    onChange={e => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0 && value <= 100) {
+                        setEditingQuestion({
+                          ...editingQuestion,
+                          weight: value,
+                        } as any);
+                      }
+                    }}
+                    placeholder="1.0"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Importance weight for scoring (higher = more important). Questions should sum to 100.
+                  </p>
+                </div>
+
                 <div className="space-y-2 p-4 bg-purple-500/10 rounded-lg">
-                  <Label className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-500" />
-                    AI Analysis Prompt
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      AI Analysis Prompt (Optional)
+                    </Label>
+                    <span
+                      className={`text-xs ${
+                        (editingQuestion.aiPrompt?.length || 0) > 900
+                          ? 'text-red-500 font-medium'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {editingQuestion.aiPrompt?.length || 0} / 1000
+                    </span>
+                  </div>
                   <Textarea
-                    value={editingQuestion.aiPrompt}
+                    value={editingQuestion.aiPrompt || ''}
                     onChange={e =>
                       setEditingQuestion({
                         ...editingQuestion,
                         aiPrompt: e.target.value,
                       })
                     }
+                    maxLength={1000}
                     placeholder="Describe what the AI should analyze about this response..."
                     rows={3}
                   />
                   <p className="text-xs text-muted-foreground">
                     This prompt will guide the AI in analyzing user responses
                   </p>
+                  {(editingQuestion.aiPrompt?.length || 0) > 900 && (
+                    <p className="text-xs text-red-500">
+                      Approaching character limit ({1000 - (editingQuestion.aiPrompt?.length || 0)}{' '}
+                      remaining)
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -883,12 +972,34 @@ const TemplateManagement = () => {
                 Cancel
               </Button>
               <Button
+                disabled={createQuestion.isPending}
                 onClick={() => {
-                  // Save question logic here
-                  setIsQuestionDialogOpen(false);
+                  if (!editingQuestion || !editingSection) return;
+
+                  createQuestion.mutate(
+                    {
+                      sectionId: editingSection.id,
+                      data: {
+                        text: editingQuestion.question,
+                        type: editingQuestion.type.toUpperCase() as any,
+                        order: editingQuestion.order,
+                        required: editingQuestion.required,
+                        options: editingQuestion.options,
+                        aiPromptHint: editingQuestion.aiPrompt,
+                        weight: (editingQuestion as any).weight || 1.0,
+                      },
+                    },
+                    {
+                      onSuccess: () => {
+                        setIsQuestionDialogOpen(false);
+                        setEditingQuestion(null);
+                        setEditingSection(null);
+                      },
+                    }
+                  );
                 }}
               >
-                Add Question
+                {createQuestion.isPending ? 'Adding...' : 'Add Question'}
               </Button>
             </DialogFooter>
           </DialogContent>
