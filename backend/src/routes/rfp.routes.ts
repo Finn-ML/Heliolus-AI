@@ -459,6 +459,93 @@ export default async function rfpRoutes(server: FastifyInstance) {
   );
 
   /**
+   * POST /v1/rfps/:id/send
+   * Send RFP to vendors with 3-phase transaction
+   *
+   * @requires Authentication
+   * @requires Ownership
+   */
+  server.post<GetRFPRequest>(
+    '/rfps/:id/send',
+    {
+      preHandler: [server.authenticate],
+      schema: {
+        description: 'Send RFP to selected vendors',
+        tags: ['RFPs'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        response: {
+          200: {
+            description: 'RFP sent successfully',
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean' },
+                  sentCount: { type: 'number' },
+                  failedCount: { type: 'number' },
+                  failures: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        vendorId: { type: 'string' },
+                        vendorName: { type: 'string' },
+                        error: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: 'Invalid request',
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+              code: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { id } = request.params;
+
+        const result = await rfpService.sendRFP(id, userId, {
+          userId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        });
+
+        return reply.send({
+          success: true,
+          data: result,
+        });
+      } catch (error: any) {
+        const statusCode = error.statusCode || 500;
+        return reply.code(statusCode).send({
+          success: false,
+          message: error.message || 'Failed to send RFP',
+          code: error.code,
+        });
+      }
+    }
+  );
+
+  /**
    * GET /v1/organizations/:id/strategic-roadmap
    * Get strategic roadmap for RFP auto-population
    *

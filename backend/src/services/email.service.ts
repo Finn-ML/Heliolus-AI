@@ -13,6 +13,18 @@ export interface EmailTemplateData {
   [key: string]: any;
 }
 
+export interface RFPEmailData {
+  organizationName: string;
+  rfpTitle: string;
+  objectives: string;
+  requirements: string;
+  timeline?: string;
+  budget?: string;
+  documentUrls: string[];
+  contactEmail: string;
+  contactName: string;
+}
+
 export interface EmailService {
   sendVerificationEmail(email: string, token: string, name?: string): Promise<void>;
   sendWelcomeEmail(email: string, name: string): Promise<void>;
@@ -21,6 +33,7 @@ export interface EmailService {
   sendNotification(email: string, subject: string, template: string, data: EmailTemplateData): Promise<void>;
   sendAssessmentCompletionEmail(email: string, name: string, assessmentTitle: string): Promise<void>;
   sendAccountStatusChangeEmail(email: string, name: string, status: string): Promise<void>;
+  sendRFPToVendor(vendorEmail: string, vendorName: string, rfpData: RFPEmailData): Promise<void>;
 }
 
 interface PostmarkError {
@@ -176,8 +189,19 @@ export class EmailServiceImpl extends BaseService implements EmailService {
           );
         }
 
-        // Wait before retry (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+        // Wait before retry (exponential backoff with jitter)
+        // Formula: 2^attempt * 1000ms + random 0-1000ms
+        // Results: attempt 1: 2-3s, attempt 2: 4-5s
+        const baseDelay = Math.pow(2, attempt) * 1000;
+        const jitter = Math.random() * 1000; // 0-1000ms random delay
+        const delay = baseDelay + jitter;
+
+        this.logger.warn(
+          `Email send attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms...`,
+          { to, subject }
+        );
+
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
@@ -407,6 +431,58 @@ export class EmailServiceImpl extends BaseService implements EmailService {
       this.logger.info('Account status change email sent', { email, name, status });
     } catch (error) {
       this.logger.error('Failed to send account status change email', { email, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Send RFP to vendor
+   */
+  async sendRFPToVendor(vendorEmail: string, vendorName: string, rfpData: RFPEmailData): Promise<void> {
+    try {
+      const templateData = {
+        vendorName,
+        organizationName: rfpData.organizationName,
+        rfpTitle: rfpData.rfpTitle,
+        objectives: rfpData.objectives,
+        requirements: rfpData.requirements,
+        timeline: rfpData.timeline || 'Not specified',
+        budget: rfpData.budget || 'Not specified',
+        documentCount: rfpData.documentUrls.length,
+        documentUrls: rfpData.documentUrls,
+        contactEmail: rfpData.contactEmail,
+        contactName: rfpData.contactName,
+        supportEmail: 'support@heliolus.com',
+        companyName: 'Heliolus',
+      };
+
+      const htmlTemplate = this.loadTemplate('rfp-vendor-notification', 'html');
+      const textTemplate = this.loadTemplate('rfp-vendor-notification', 'text');
+
+      const htmlBody = this.renderTemplate(htmlTemplate, templateData);
+      const textBody = this.renderTemplate(textTemplate, templateData);
+
+      // Use exponential backoff retry logic from sendEmailWithRetry
+      await this.sendEmailWithRetry(
+        vendorEmail,
+        `RFP: ${rfpData.rfpTitle} - ${rfpData.organizationName}`,
+        htmlBody,
+        textBody
+      );
+
+      this.logger.info('RFP email sent to vendor', {
+        vendorEmail,
+        vendorName,
+        rfpTitle: rfpData.rfpTitle,
+        organizationName: rfpData.organizationName
+      });
+    } catch (error) {
+      this.logger.error('Failed to send RFP to vendor', {
+        vendorEmail,
+        vendorName,
+        rfpTitle: rfpData.rfpTitle,
+        error
+      });
       throw error;
     }
   }

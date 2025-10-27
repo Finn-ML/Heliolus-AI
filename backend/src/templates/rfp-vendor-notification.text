@@ -1,0 +1,49 @@
+{{companyName}} - New RFP Opportunity
+
+Hello {{vendorName}},
+
+You've received a new Request for Proposal (RFP) through Heliolus from an organization seeking compliance solutions. This is an opportunity to connect with a qualified prospect who has identified specific compliance needs.
+
+📋 RFP DETAILS
+─────────────────────────────
+Title: {{rfpTitle}}
+Organization: {{organizationName}}
+Timeline: {{timeline}}
+Budget: {{budget}}
+
+🎯 OBJECTIVES
+─────────────────────────────
+{{objectives}}
+
+📋 REQUIREMENTS
+─────────────────────────────
+{{requirements}}
+
+📎 SUPPORTING DOCUMENTS
+─────────────────────────────
+The organization has provided {{documentCount}} document(s) for your review. Document links will be shared upon request or are available through direct contact.
+
+📞 CONTACT INFORMATION
+─────────────────────────────
+Contact: {{contactName}}
+Email: {{contactEmail}}
+
+NEXT STEPS
+─────────────────────────────
+Review the RFP details and supporting documents. If this opportunity aligns with your solutions, respond directly to the contact email above to begin the conversation.
+
+Reply to RFP: mailto:{{contactEmail}}?subject=Re: {{rfpTitle}}
+
+WHY HELIOLUS RFPS?
+─────────────────────────────
+Organizations using Heliolus have completed comprehensive compliance assessments, identified specific gaps, and are actively seeking solutions. These are qualified leads with documented needs and budget allocation.
+
+If you have any questions about this RFP or need assistance, please contact us at {{supportEmail}}.
+
+Best regards,
+The {{companyName}} Team
+
+───────────────────────────────────────────────────────────
+You're receiving this email because {{organizationName}} selected your organization as a potential vendor for their compliance needs.
+
+© 2024 {{companyName}}. All rights reserved.

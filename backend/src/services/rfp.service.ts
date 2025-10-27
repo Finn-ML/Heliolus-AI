@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { BaseService, ServiceContext } from './base.service.js';
 import { RFP, RFPStatus, LeadStatus, Prisma } from '../generated/prisma/index.js';
+import { emailService, RFPEmailData } from './email.service.js';
 
 // ==================== VALIDATION SCHEMAS ====================
 
@@ -463,6 +464,209 @@ export class RFPService extends BaseService {
         throw error;
       }
       return this.handleDatabaseError(error, 'deleteRFP');
+    }
+  }
+
+  /**
+   * Send RFP to vendors with 3-phase transaction strategy:
+   * Phase 1: Create VendorContact records
+   * Phase 2: Send emails (with partial failure tolerance)
+   * Phase 3: Update RFP status
+   *
+   * @param rfpId - RFP ID to send
+   * @param userId - Requesting user ID
+   * @param context - Service context for audit logging
+   * @returns Result with success status and failure details
+   */
+  async sendRFP(
+    rfpId: string,
+    userId: string,
+    context?: ServiceContext
+  ): Promise<{
+    success: boolean;
+    sentCount: number;
+    failedCount: number;
+    failures: Array<{ vendorId: string; vendorName: string; error: string }>;
+  }> {
+    try {
+      // Authorize access and get RFP with organization and user
+      const rfp = await this.authorizeRFPAccess(rfpId, userId, {
+        organization: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      });
+
+      // Validate RFP can be sent (must be DRAFT)
+      if (rfp.status !== RFPStatus.DRAFT) {
+        throw this.createError(
+          `Cannot send RFP with status: ${rfp.status}. Only DRAFT RFPs can be sent.`,
+          400,
+          'INVALID_STATUS'
+        );
+      }
+
+      // Validate vendor list not empty
+      if (!rfp.vendorIds || rfp.vendorIds.length === 0) {
+        throw this.createError(
+          'Cannot send RFP without vendors. At least one vendor must be selected.',
+          400,
+          'NO_VENDORS'
+        );
+      }
+
+      // Fetch vendor details
+      const vendors = await this.prisma.vendor.findMany({
+        where: {
+          id: { in: rfp.vendorIds },
+        },
+        select: {
+          id: true,
+          companyName: true,
+          contactEmail: true,
+        },
+      });
+
+      if (vendors.length !== rfp.vendorIds.length) {
+        throw this.createError(
+          'One or more vendors not found',
+          400,
+          'INVALID_VENDORS'
+        );
+      }
+
+      // ===== PHASE 1: Create VendorContact records =====
+      const contactPromises = vendors.map((vendor) =>
+        this.prisma.vendorContact.create({
+          data: {
+            vendorId: vendor.id,
+            userId,
+            organizationId: rfp.organizationId,
+            rfpId: rfp.id,
+            status: 'PENDING',
+            metadata: {
+              rfpTitle: rfp.title,
+              sentAt: new Date().toISOString(),
+            },
+          },
+        })
+      );
+
+      await Promise.all(contactPromises);
+
+      this.logger.info('VendorContact records created', {
+        rfpId,
+        vendorCount: vendors.length,
+      });
+
+      // ===== PHASE 2: Send emails with partial failure tolerance =====
+      const contactName = `${rfp.user.firstName} ${rfp.user.lastName}`.trim() || 'User';
+      const failures: Array<{ vendorId: string; vendorName: string; error: string }> = [];
+      let sentCount = 0;
+
+      // Prepare RFP data for email
+      const rfpEmailData: RFPEmailData = {
+        organizationName: rfp.organization.name,
+        rfpTitle: rfp.title,
+        objectives: rfp.objectives || 'See requirements',
+        requirements: rfp.requirements || 'Contact for details',
+        timeline: rfp.timeline,
+        budget: rfp.budget,
+        documentUrls: rfp.documents || [],
+        contactEmail: rfp.user.email,
+        contactName,
+      };
+
+      // Send emails with exponential backoff (handled by emailService)
+      for (const vendor of vendors) {
+        try {
+          await emailService.sendRFPToVendor(
+            vendor.contactEmail,
+            vendor.companyName,
+            rfpEmailData
+          );
+          sentCount++;
+          this.logger.info('RFP email sent successfully', {
+            rfpId,
+            vendorId: vendor.id,
+            vendorEmail: vendor.contactEmail,
+          });
+        } catch (error) {
+          // Log failure but continue with other vendors
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          failures.push({
+            vendorId: vendor.id,
+            vendorName: vendor.companyName,
+            error: errorMessage,
+          });
+          this.logger.error('Failed to send RFP email', {
+            rfpId,
+            vendorId: vendor.id,
+            vendorEmail: vendor.contactEmail,
+            error: errorMessage,
+          });
+        }
+      }
+
+      // ===== PHASE 3: Update RFP status =====
+      const newStatus =
+        sentCount === 0 ? RFPStatus.FAILED : RFPStatus.SENT;
+
+      const updatedRFP = await this.prisma.rFP.update({
+        where: { id: rfpId },
+        data: {
+          status: newStatus,
+          sentAt: new Date(),
+          metadata: {
+            sentCount,
+            failedCount: failures.length,
+            failures: failures.map((f) => ({
+              vendorId: f.vendorId,
+              vendorName: f.vendorName,
+            })),
+          },
+        },
+      });
+
+      // Log audit event
+      await this.logAudit(
+        {
+          action: 'RFP_SENT',
+          entity: 'RFP',
+          entityId: rfpId,
+          newValues: {
+            status: newStatus,
+            sentCount,
+            failedCount: failures.length,
+            vendorCount: vendors.length,
+          },
+        },
+        { userId, ...context }
+      );
+
+      this.logger.info('RFP send operation completed', {
+        rfpId,
+        status: newStatus,
+        sentCount,
+        failedCount: failures.length,
+      });
+
+      return {
+        success: sentCount > 0,
+        sentCount,
+        failedCount: failures.length,
+        failures,
+      };
+    } catch (error) {
+      if ((error as any).statusCode) {
+        throw error;
+      }
+      return this.handleDatabaseError(error, 'sendRFP');
     }
   }
 
