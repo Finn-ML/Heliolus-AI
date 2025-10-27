@@ -25,6 +25,15 @@ export interface RFPEmailData {
   contactName: string;
 }
 
+export interface VendorInquiryData {
+  companyName: string;
+  userName: string;
+  userEmail: string;
+  message: string;
+  budget?: string;
+  timeline?: string;
+}
+
 export interface EmailService {
   sendVerificationEmail(email: string, token: string, name?: string): Promise<void>;
   sendWelcomeEmail(email: string, name: string): Promise<void>;
@@ -34,6 +43,7 @@ export interface EmailService {
   sendAssessmentCompletionEmail(email: string, name: string, assessmentTitle: string): Promise<void>;
   sendAccountStatusChangeEmail(email: string, name: string, status: string): Promise<void>;
   sendRFPToVendor(vendorEmail: string, vendorName: string, rfpData: RFPEmailData): Promise<void>;
+  sendVendorInquiry(vendorEmail: string, vendorName: string, inquiryData: VendorInquiryData): Promise<void>;
 }
 
 interface PostmarkError {
@@ -481,6 +491,53 @@ export class EmailServiceImpl extends BaseService implements EmailService {
         vendorEmail,
         vendorName,
         rfpTitle: rfpData.rfpTitle,
+        error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Send vendor inquiry email when user contacts a vendor
+   */
+  async sendVendorInquiry(vendorEmail: string, vendorName: string, inquiryData: VendorInquiryData): Promise<void> {
+    try {
+      const templateData = {
+        vendorName,
+        companyName: inquiryData.companyName,
+        userName: inquiryData.userName,
+        userEmail: inquiryData.userEmail,
+        message: inquiryData.message,
+        budget: inquiryData.budget || 'Not specified',
+        timeline: inquiryData.timeline || 'Not specified',
+        supportEmail: 'support@heliolus.com',
+      };
+
+      const htmlTemplate = this.loadTemplate('vendor-inquiry', 'html');
+      const textTemplate = this.loadTemplate('vendor-inquiry', 'text');
+
+      const htmlBody = this.renderTemplate(htmlTemplate, templateData);
+      const textBody = this.renderTemplate(textTemplate, templateData);
+
+      // Use exponential backoff retry logic from sendEmailWithRetry
+      await this.sendEmailWithRetry(
+        vendorEmail,
+        `New inquiry from ${inquiryData.companyName}`,
+        htmlBody,
+        textBody
+      );
+
+      this.logger.info('Vendor inquiry email sent', {
+        vendorEmail,
+        vendorName,
+        companyName: inquiryData.companyName,
+        userEmail: inquiryData.userEmail
+      });
+    } catch (error) {
+      this.logger.error('Failed to send vendor inquiry email', {
+        vendorEmail,
+        vendorName,
+        companyName: inquiryData.companyName,
         error
       });
       throw error;

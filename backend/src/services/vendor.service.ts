@@ -27,6 +27,7 @@ import {
   rankVendorMatches,
   analyzeVendorFit,
 } from '../lib/vendor';
+import { emailService, VendorInquiryData } from './email.service.js';
 
 // Validation schemas
 const CreateVendorSchema = z.object({
@@ -715,10 +716,15 @@ export class VendorService extends BaseService {
     try {
       const validatedData = await this.validateInput(VendorContactSchema, data);
 
-      // Verify vendor exists and is approved
+      // Verify vendor exists and is approved, fetch contact details for email
       const vendor = await this.prisma.vendor.findUnique({
         where: { id: validatedData.vendorId },
-        select: { id: true, status: true },
+        select: {
+          id: true,
+          status: true,
+          companyName: true,
+          contactEmail: true
+        },
       });
 
       if (!vendor || vendor.status !== VendorStatus.APPROVED) {
@@ -748,6 +754,45 @@ export class VendorService extends BaseService {
           status: ContactStatus.PENDING,
         },
       });
+
+      // Send vendor inquiry email notification
+      if (vendor.contactEmail) {
+        try {
+          const inquiryData: VendorInquiryData = {
+            companyName: user.organization.name,
+            userName: `${user.firstName} ${user.lastName}`.trim(),
+            userEmail: user.email,
+            message: validatedData.message || 'Customer is interested in your compliance solutions.',
+            budget: validatedData.budget,
+            timeline: validatedData.timeline,
+          };
+
+          await emailService.sendVendorInquiry(
+            vendor.contactEmail,
+            vendor.companyName,
+            inquiryData
+          );
+
+          this.logger.info('Vendor inquiry email sent', {
+            vendorId: vendor.id,
+            vendorEmail: vendor.contactEmail,
+            contactId: contact.id,
+          });
+        } catch (emailError) {
+          // Log email failure but don't fail the API call
+          this.logger.error('Failed to send vendor inquiry email', {
+            vendorId: vendor.id,
+            vendorEmail: vendor.contactEmail,
+            contactId: contact.id,
+            error: emailError,
+          });
+        }
+      } else {
+        this.logger.warn('Vendor has no contact email, skipping inquiry email', {
+          vendorId: vendor.id,
+          contactId: contact.id,
+        });
+      }
 
       // Mark any relevant vendor matches as contacted
       await this.prisma.vendorMatch.updateMany({

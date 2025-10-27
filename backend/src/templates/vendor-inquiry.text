@@ -1,0 +1,44 @@
+{{companyName}} - New Customer Inquiry
+
+Hello {{vendorName}} Team,
+
+You've received a new inquiry through Heliolus from a potential customer seeking compliance solutions.
+
+ORGANIZATION
+─────────────────────────────
+{{companyName}}
+
+CUSTOMER MESSAGE
+─────────────────────────────
+{{message}}
+
+PROJECT DETAILS
+─────────────────────────────
+Budget Range: {{budget}}
+Timeline: {{timeline}}
+
+CONTACT INFORMATION
+─────────────────────────────
+Contact Name: {{userName}}
+Company: {{companyName}}
+Email: {{userEmail}}
+
+NEXT STEPS
+─────────────────────────────
+Review the inquiry details and respond directly to the contact email above to start a conversation with this potential customer.
+
+Reply to Inquiry: mailto:{{userEmail}}?subject=Re: Compliance Solutions Inquiry from {{companyName}}
+
+WHY HELIOLUS LEADS?
+─────────────────────────────
+Organizations contacting you through Heliolus have identified specific compliance needs and are actively seeking solutions. These are qualified leads ready for engagement.
+
+If you have any questions about this inquiry, please contact us at {{supportEmail}}.
+
+Best regards,
+The {{companyName}} Team
+
+───────────────────────────────────────────────────────────
+You're receiving this email because {{companyName}} expressed interest in your compliance solutions.
+
+© 2024 {{companyName}}. All rights reserved.
