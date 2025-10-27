@@ -2117,6 +2117,1031 @@ export default async function adminRoutes(server: FastifyInstance) {
       });
     }
   }));
+
+  // ============================================================================
+  // TEMPLATE MANAGEMENT ROUTES
+  // ============================================================================
+
+  // POST /admin/templates - Create new template
+  server.post('/templates', {
+    schema: {
+      description: 'Create a new assessment template',
+      tags: ['Admin'],
+      body: {
+        type: 'object',
+        required: ['name', 'slug', 'category', 'description'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 200 },
+          slug: { type: 'string', pattern: '^[a-z0-9-]+$', minLength: 1, maxLength: 100 },
+          category: {
+            type: 'string',
+            enum: ['FINANCIAL_CRIME', 'TRADE_COMPLIANCE', 'DATA_PRIVACY', 'CYBERSECURITY', 'ESG']
+          },
+          description: { type: 'string', minLength: 1, maxLength: 1000 },
+          version: { type: 'string', default: '1.0' },
+          isActive: { type: 'boolean', default: true },
+          creditCost: { type: 'integer', minimum: 0 },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                slug: { type: 'string' },
+                category: { type: 'string' },
+                description: { type: 'string' },
+                version: { type: 'string' },
+                isActive: { type: 'boolean' },
+                creditCost: { type: 'integer', nullable: true },
+                createdAt: { type: 'string' },
+                updatedAt: { type: 'string' },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        409: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Body: {
+      name: string;
+      slug: string;
+      category: string;
+      description: string;
+      version?: string;
+      isActive?: boolean;
+      creditCost?: number;
+    }
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.createTemplate(request.body, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(201).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // PUT /admin/templates/:id - Update template
+  server.put('/templates/:id', {
+    schema: {
+      description: 'Update an assessment template',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 200 },
+          description: { type: 'string', minLength: 1, maxLength: 1000 },
+          version: { type: 'string' },
+          isActive: { type: 'boolean' },
+          creditCost: { type: 'integer', minimum: 0 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                slug: { type: 'string' },
+                category: { type: 'string' },
+                description: { type: 'string' },
+                version: { type: 'string' },
+                isActive: { type: 'boolean' },
+                creditCost: { type: 'integer', nullable: true },
+                createdAt: { type: 'string' },
+                updatedAt: { type: 'string' },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+    Body: {
+      name?: string;
+      description?: string;
+      version?: string;
+      isActive?: boolean;
+      creditCost?: number;
+    }
+  }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.updateTemplate(id, request.body, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // DELETE /admin/templates/:id - Delete template (soft delete)
+  server.delete('/templates/:id', {
+    schema: {
+      description: 'Delete an assessment template (soft delete)',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+            metadata: { type: 'object' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+  }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.deleteTemplate(id, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, message: result.message });
+  }));
+
+  // GET /admin/templates/stats - Get template statistics
+  server.get('/templates/stats', {
+    schema: {
+      description: 'Get template usage statistics',
+      tags: ['Admin'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                totalTemplates: { type: 'number' },
+                activeTemplates: { type: 'number' },
+                categoryCounts: { type: 'object' },
+                averageQuestions: { type: 'number' },
+                averageMinutes: { type: 'number' },
+              },
+            },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.getTemplateStats(context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data });
+  }));
+
+  // ==================== ADMIN SECTION ROUTES ====================
+
+  // POST /admin/templates/:templateId/sections - Create section in template
+  server.post('/templates/:templateId/sections', {
+    schema: {
+      description: 'Create a new section in an assessment template',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['templateId'],
+        properties: {
+          templateId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['title', 'order'],
+        properties: {
+          title: { type: 'string', minLength: 1, maxLength: 200 },
+          description: { type: 'string' },
+          order: { type: 'integer', minimum: 0 },
+          weight: { type: 'number', minimum: 0, maximum: 100, default: 1.0 },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                templateId: { type: 'string' },
+                title: { type: 'string' },
+                description: { type: 'string', nullable: true },
+                order: { type: 'integer' },
+                weight: { type: 'number' },
+                createdAt: { type: 'string' },
+                updatedAt: { type: 'string' },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { templateId: string };
+    Body: {
+      title: string;
+      description?: string;
+      order: number;
+      weight?: number;
+    };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.createSection(
+      {
+        templateId: request.params.templateId,
+        ...request.body,
+      },
+      context
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(201).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // PUT /admin/sections/:id - Update section
+  server.put('/sections/:id', {
+    schema: {
+      description: 'Update an existing template section',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', minLength: 1, maxLength: 200 },
+          description: { type: 'string' },
+          order: { type: 'integer', minimum: 0 },
+          weight: { type: 'number', minimum: 0, maximum: 100 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                templateId: { type: 'string' },
+                title: { type: 'string' },
+                description: { type: 'string', nullable: true },
+                order: { type: 'integer' },
+                weight: { type: 'number' },
+                updatedAt: { type: 'string' },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+    Body: {
+      title?: string;
+      description?: string;
+      order?: number;
+      weight?: number;
+    };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.updateSection(request.params.id, request.body, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // DELETE /admin/sections/:id - Delete section
+  server.delete('/sections/:id', {
+    schema: {
+      description: 'Delete a template section (cascades to questions)',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.deleteSection(request.params.id, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, message: result.message });
+  }));
+
+  // ==================== ADMIN QUESTION ROUTES ====================
+
+  // POST /admin/sections/:sectionId/questions - Create question in section
+  server.post('/sections/:sectionId/questions', {
+    schema: {
+      description: 'Create a new question in a template section',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['sectionId'],
+        properties: {
+          sectionId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['text', 'type', 'order'],
+        properties: {
+          text: { type: 'string', minLength: 1, maxLength: 1000 },
+          type: {
+            type: 'string',
+            enum: ['TEXT', 'NUMBER', 'BOOLEAN', 'SELECT', 'MULTISELECT', 'FILE', 'DATE', 'RATING'],
+          },
+          order: { type: 'integer', minimum: 0 },
+          required: { type: 'boolean', default: false },
+          options: { type: 'array', items: { type: 'string' } },
+          helpText: { type: 'string' },
+          aiPromptHint: { type: 'string', maxLength: 1000 },
+          weight: { type: 'number', minimum: 0, maximum: 100, default: 1.0 },
+          categoryTag: { type: 'string' },
+          scoringRules: { type: 'object' },
+          validation: { type: 'object' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                sectionId: { type: 'string' },
+                text: { type: 'string' },
+                type: { type: 'string' },
+                order: { type: 'integer' },
+                required: { type: 'boolean' },
+                weight: { type: 'number' },
+                createdAt: { type: 'string' },
+                updatedAt: { type: 'string' },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { sectionId: string };
+    Body: {
+      text: string;
+      type: string;
+      order: number;
+      required?: boolean;
+      options?: string[];
+      helpText?: string;
+      aiPromptHint?: string;
+      weight?: number;
+      categoryTag?: string;
+      scoringRules?: any;
+      validation?: any;
+    };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.createQuestion(
+      {
+        sectionId: request.params.sectionId,
+        ...request.body,
+      },
+      context
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(201).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // PUT /admin/questions/:id - Update question
+  server.put('/questions/:id', {
+    schema: {
+      description: 'Update an existing template question',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', minLength: 1, maxLength: 1000 },
+          type: {
+            type: 'string',
+            enum: ['TEXT', 'NUMBER', 'BOOLEAN', 'SELECT', 'MULTISELECT', 'FILE', 'DATE', 'RATING'],
+          },
+          required: { type: 'boolean' },
+          options: { type: 'array', items: { type: 'string' } },
+          helpText: { type: 'string' },
+          aiPromptHint: { type: 'string', maxLength: 1000 },
+          weight: { type: 'number', minimum: 0, maximum: 100 },
+          order: { type: 'integer', minimum: 0 },
+          categoryTag: { type: 'string' },
+          scoringRules: { type: 'object' },
+          validation: { type: 'object' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                sectionId: { type: 'string' },
+                text: { type: 'string' },
+                type: { type: 'string' },
+                order: { type: 'integer' },
+                required: { type: 'boolean' },
+                weight: { type: 'number' },
+                updatedAt: { type: 'string' },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+    Body: {
+      text?: string;
+      type?: string;
+      required?: boolean;
+      options?: string[];
+      helpText?: string;
+      aiPromptHint?: string;
+      weight?: number;
+      order?: number;
+      categoryTag?: string;
+      scoringRules?: any;
+      validation?: any;
+    };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.updateQuestion(request.params.id, request.body, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, data: result.data, message: result.message });
+  }));
+
+  // DELETE /admin/questions/:id - Delete question
+  server.delete('/questions/:id', {
+    schema: {
+      description: 'Delete a template question',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { id: string };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    const result = await templateService.deleteQuestion(request.params.id, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send({ success: true, message: result.message });
+  }));
+
+  // POST /admin/sections/:sectionId/questions/bulk - Bulk create questions
+  server.post('/sections/:sectionId/questions/bulk', {
+    schema: {
+      description: 'Bulk create multiple questions in a template section',
+      tags: ['Admin'],
+      params: {
+        type: 'object',
+        required: ['sectionId'],
+        properties: {
+          sectionId: { type: 'string', pattern: '^[c-z][a-z0-9]{24}$' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['questions'],
+        properties: {
+          questions: {
+            type: 'array',
+            minItems: 1,
+            items: {
+              type: 'object',
+              required: ['text', 'type', 'order'],
+              properties: {
+                text: { type: 'string', minLength: 1, maxLength: 1000 },
+                type: {
+                  type: 'string',
+                  enum: ['TEXT', 'NUMBER', 'BOOLEAN', 'SELECT', 'MULTISELECT', 'FILE', 'DATE', 'RATING'],
+                },
+                order: { type: 'integer', minimum: 0 },
+                required: { type: 'boolean', default: false },
+                options: { type: 'array', items: { type: 'string' } },
+                helpText: { type: 'string' },
+                aiPromptHint: { type: 'string', maxLength: 1000 },
+                weight: { type: 'number', minimum: 0, maximum: 100, default: 1.0 },
+                categoryTag: { type: 'string' },
+                scoringRules: { type: 'object' },
+                validation: { type: 'object' },
+              },
+            },
+          },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  sectionId: { type: 'string' },
+                  text: { type: 'string' },
+                  type: { type: 'string' },
+                  order: { type: 'integer' },
+                  weight: { type: 'number' },
+                },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            code: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Params: { sectionId: string };
+    Body: {
+      questions: Array<{
+        text: string;
+        type: string;
+        order: number;
+        required?: boolean;
+        options?: string[];
+        helpText?: string;
+        aiPromptHint?: string;
+        weight?: number;
+        categoryTag?: string;
+        scoringRules?: any;
+        validation?: any;
+      }>;
+    };
+  }>, reply: FastifyReply) => {
+    const { TemplateService } = await import('../services');
+    const templateService = new TemplateService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    // Map questions to include sectionId
+    const questions = request.body.questions.map(q => ({
+      ...q,
+      sectionId: request.params.sectionId,
+    }));
+
+    const result = await templateService.bulkCreateQuestions({ questions }, context);
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(201).send({ success: true, data: result.data, message: result.message });
+  }));
 }
 
 // Helper function to map CSV row to vendor data with perfect mapping

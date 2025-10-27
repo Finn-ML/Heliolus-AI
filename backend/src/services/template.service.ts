@@ -26,6 +26,7 @@ const CreateTemplateSchema = z.object({
   description: z.string().min(1, 'Description is required').max(1000),
   version: z.string().default('1.0'),
   isActive: z.boolean().default(true),
+  creditCost: z.number().int().min(0).optional(),
   scoringCriteria: z.any().optional(), // JSON field
   aiPrompts: z.any().optional(), // JSON field
 });
@@ -35,6 +36,7 @@ const UpdateTemplateSchema = z.object({
   description: z.string().min(1).max(1000).optional(),
   version: z.string().optional(),
   isActive: z.boolean().optional(),
+  creditCost: z.number().int().min(0).optional(),
   scoringCriteria: z.any().optional(), // JSON field
   aiPrompts: z.any().optional(), // JSON field
 });
@@ -64,6 +66,27 @@ const CreateQuestionSchema = z.object({
 
 const BulkCreateQuestionsSchema = z.object({
   questions: z.array(CreateQuestionSchema),
+});
+
+const UpdateSectionSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().optional(),
+  order: z.number().min(0).optional(),
+  weight: z.number().min(0).max(100).optional(),
+});
+
+const UpdateQuestionSchema = z.object({
+  text: z.string().min(1).max(1000).optional(),
+  type: z.nativeEnum(QuestionType).optional(),
+  required: z.boolean().optional(),
+  options: z.array(z.string()).optional(),
+  helpText: z.string().optional(),
+  aiPromptHint: z.string().max(1000).optional(),
+  weight: z.number().min(0).max(100).optional(),
+  order: z.number().min(0).optional(),
+  categoryTag: z.string().optional(),
+  scoringRules: z.any().optional(),
+  validation: z.any().optional(),
 });
 
 export interface TemplateWithStructure extends DatabaseTemplate {
@@ -126,6 +149,7 @@ export class TemplateService extends BaseService {
           description: validatedData.description,
           version: validatedData.version,
           isActive: validatedData.isActive,
+          creditCost: validatedData.creditCost,
           scoringCriteria: validatedData.scoringCriteria || undefined,
           aiPrompts: validatedData.aiPrompts || undefined,
           createdBy: context?.userId!,
@@ -391,6 +415,7 @@ export class TemplateService extends BaseService {
           description: validatedData.description,
           version: validatedData.version,
           isActive: validatedData.isActive,
+          creditCost: validatedData.creditCost,
           scoringCriteria: validatedData.scoringCriteria || undefined,
           aiPrompts: validatedData.aiPrompts || undefined,
         },
@@ -702,6 +727,236 @@ export class TemplateService extends BaseService {
     } catch (error) {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'bulkCreateQuestions');
+    }
+  }
+
+  /**
+   * Update section
+   */
+  async updateSection(
+    id: string,
+    data: z.infer<typeof UpdateSectionSchema>,
+    context?: ServiceContext
+  ): Promise<ApiResponse<DatabaseSection>> {
+    try {
+      const validatedData = await this.validateInput(UpdateSectionSchema, data);
+
+      // Only admins can modify templates
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Verify section exists and get template
+      const section = await this.prisma.section.findUnique({
+        where: { id },
+        include: { template: { select: { id: true, isActive: true } } },
+      });
+
+      if (!section) {
+        throw this.createError('Section not found', 404, 'SECTION_NOT_FOUND');
+      }
+
+      if (!section.template.isActive) {
+        throw this.createError('Cannot modify inactive template', 400, 'TEMPLATE_INACTIVE');
+      }
+
+      // Update section
+      const updatedSection = await this.prisma.section.update({
+        where: { id },
+        data: {
+          title: validatedData.title,
+          description: validatedData.description,
+          order: validatedData.order,
+          weight: validatedData.weight,
+        },
+      });
+
+      await this.logAudit(
+        {
+          action: 'TEMPLATE_SECTION_UPDATED',
+          entity: 'Section',
+          entityId: id,
+          oldValues: { title: section.title, weight: section.weight, order: section.order },
+          newValues: validatedData,
+        },
+        context
+      );
+
+      this.logger.info('Section updated successfully', { sectionId: id });
+
+      return this.createResponse(true, updatedSection, 'Section updated successfully');
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'updateSection');
+    }
+  }
+
+  /**
+   * Delete section
+   */
+  async deleteSection(
+    id: string,
+    context?: ServiceContext
+  ): Promise<ApiResponse<void>> {
+    try {
+      // Only admins can modify templates
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Verify section exists and get template + question count
+      const section = await this.prisma.section.findUnique({
+        where: { id },
+        include: {
+          template: { select: { id: true, isActive: true } },
+          _count: { select: { questions: true } },
+        },
+      });
+
+      if (!section) {
+        throw this.createError('Section not found', 404, 'SECTION_NOT_FOUND');
+      }
+
+      if (!section.template.isActive) {
+        throw this.createError('Cannot modify inactive template', 400, 'TEMPLATE_INACTIVE');
+      }
+
+      // Delete section (cascade to questions handled by Prisma schema)
+      await this.prisma.section.delete({ where: { id } });
+
+      await this.logAudit(
+        {
+          action: 'TEMPLATE_SECTION_DELETED',
+          entity: 'Section',
+          entityId: id,
+          oldValues: { title: section.title, questionCount: section._count.questions },
+        },
+        context
+      );
+
+      this.logger.info('Section deleted successfully', { sectionId: id, cascadedQuestions: section._count.questions });
+
+      return this.createResponse(true, undefined, `Section and ${section._count.questions} questions deleted successfully`);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'deleteSection');
+    }
+  }
+
+  /**
+   * Update question
+   */
+  async updateQuestion(
+    id: string,
+    data: z.infer<typeof UpdateQuestionSchema>,
+    context?: ServiceContext
+  ): Promise<ApiResponse<DatabaseQuestion>> {
+    try {
+      const validatedData = await this.validateInput(UpdateQuestionSchema, data);
+
+      // Only admins can modify templates
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Verify question exists and get template via section
+      const question = await this.prisma.question.findUnique({
+        where: { id },
+        include: {
+          section: {
+            include: { template: { select: { id: true, isActive: true } } },
+          },
+        },
+      });
+
+      if (!question) {
+        throw this.createError('Question not found', 404, 'QUESTION_NOT_FOUND');
+      }
+
+      if (!question.section.template.isActive) {
+        throw this.createError('Cannot modify inactive template', 400, 'TEMPLATE_INACTIVE');
+      }
+
+      // Update question
+      const updatedQuestion = await this.prisma.question.update({
+        where: { id },
+        data: {
+          text: validatedData.text,
+          type: validatedData.type,
+          required: validatedData.required,
+          options: validatedData.options,
+          helpText: validatedData.helpText,
+          aiPromptHint: validatedData.aiPromptHint,
+          weight: validatedData.weight,
+          order: validatedData.order,
+          categoryTag: validatedData.categoryTag,
+          scoringRules: validatedData.scoringRules,
+          validation: validatedData.validation,
+        },
+      });
+
+      await this.logAudit(
+        {
+          action: 'TEMPLATE_QUESTION_UPDATED',
+          entity: 'Question',
+          entityId: id,
+          oldValues: { text: question.text, weight: question.weight, order: question.order },
+          newValues: validatedData,
+        },
+        context
+      );
+
+      this.logger.info('Question updated successfully', { questionId: id });
+
+      return this.createResponse(true, updatedQuestion, 'Question updated successfully');
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'updateQuestion');
+    }
+  }
+
+  /**
+   * Delete question
+   */
+  async deleteQuestion(
+    id: string,
+    context?: ServiceContext
+  ): Promise<ApiResponse<void>> {
+    try {
+      // Only admins can modify templates
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Verify question exists and get template via section
+      const question = await this.prisma.question.findUnique({
+        where: { id },
+        include: {
+          section: {
+            include: { template: { select: { id: true, isActive: true } } },
+          },
+        },
+      });
+
+      if (!question) {
+        throw this.createError('Question not found', 404, 'QUESTION_NOT_FOUND');
+      }
+
+      if (!question.section.template.isActive) {
+        throw this.createError('Cannot modify inactive template', 400, 'TEMPLATE_INACTIVE');
+      }
+
+      // Delete question
+      await this.prisma.question.delete({ where: { id } });
+
+      await this.logAudit(
+        {
+          action: 'TEMPLATE_QUESTION_DELETED',
+          entity: 'Question',
+          entityId: id,
+          oldValues: { text: question.text, sectionId: question.sectionId },
+        },
+        context
+      );
+
+      this.logger.info('Question deleted successfully', { questionId: id });
+
+      return this.createResponse(true, undefined, 'Question deleted successfully');
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'deleteQuestion');
     }
   }
 
