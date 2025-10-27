@@ -961,48 +961,135 @@ export class TemplateService extends BaseService {
   }
 
   /**
-   * Get template statistics
+   * Get comprehensive template statistics
    */
   async getTemplateStats(
     context?: ServiceContext
-  ): Promise<ApiResponse<TemplateStats>> {
+  ): Promise<ApiResponse<any>> {
     try {
+      // Basic counts
       const [totalCount, activeCount, templates] = await Promise.all([
         this.prisma.template.count(),
         this.prisma.template.count({ where: { isActive: true } }),
         this.prisma.template.findMany({
           select: {
+            id: true,
+            name: true,
             category: true,
+            isActive: true,
+            createdAt: true,
             _count: {
-              select: { sections: true },
+              select: {
+                sections: true,
+                assessments: true,
+              },
             },
           },
         }),
       ]);
 
+      // Category distribution
       const categoryCounts: Record<string, number> = {};
-      let totalMinutes = 0;
-      let totalQuestions = 0;
-
       templates.forEach(template => {
-        // Count categories
         categoryCounts[template.category] = (categoryCounts[template.category] || 0) + 1;
-        
-        // Sum minutes
-        
-        // Count questions (this is a simplified count, might need adjustment based on actual schema)
-        // We'll need to do a proper count query for questions
       });
 
-      // Get actual question counts
+      // Total questions count
       const questionCount = await this.prisma.question.count();
 
-      const stats: TemplateStats = {
+      // Get assessment statistics per template
+      const assessmentStats = await this.prisma.assessment.groupBy({
+        by: ['templateId', 'status'],
+        _count: true,
+      });
+
+      // Calculate template usage and completion rates
+      const templateUsage: Record<string, { total: number; completed: number }> = {};
+      assessmentStats.forEach(stat => {
+        if (!templateUsage[stat.templateId]) {
+          templateUsage[stat.templateId] = { total: 0, completed: 0 };
+        }
+        templateUsage[stat.templateId].total += stat._count;
+        if (stat.status === 'COMPLETED') {
+          templateUsage[stat.templateId].completed += stat._count;
+        }
+      });
+
+      // Get average completion times for completed assessments
+      const completionTimes = await this.prisma.assessment.groupBy({
+        by: ['templateId'],
+        where: {
+          status: 'COMPLETED',
+          completedAt: { not: null },
+        },
+        _avg: {
+          // Note: We'd need a computed field for duration in minutes
+          // For now, we'll skip this or calculate it client-side
+        },
+      });
+
+      // Calculate most and least popular templates
+      const templatesWithUsage = templates.map(t => ({
+        id: t.id,
+        name: t.name,
+        category: t.category,
+        usageCount: templateUsage[t.id]?.total || 0,
+        completionRate: templateUsage[t.id]
+          ? (templateUsage[t.id].completed / templateUsage[t.id].total) * 100
+          : 0,
+        isActive: t.isActive,
+        sectionCount: t._count.sections,
+        createdAt: t.createdAt,
+      }));
+
+      // Sort by usage
+      const sortedByUsage = [...templatesWithUsage].sort((a, b) => b.usageCount - a.usageCount);
+      const mostPopular = sortedByUsage.slice(0, 5);
+      const leastUsed = sortedByUsage.slice(-5).reverse();
+
+      // Calculate health indicators
+      const needsAttention = templatesWithUsage.filter(t => {
+        const hasLowCompletion = t.usageCount > 0 && t.completionRate < 50;
+        const hasNoRecentUsage = t.usageCount === 0 &&
+          new Date(t.createdAt).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000; // 30 days
+        return hasLowCompletion || hasNoRecentUsage;
+      });
+
+      // Template performance metrics
+      const performanceMetrics = templatesWithUsage.map(t => ({
+        templateId: t.id,
+        templateName: t.name,
+        category: t.category,
+        totalUses: t.usageCount,
+        completionRate: t.completionRate,
+        isActive: t.isActive,
+        sectionCount: t.sectionCount,
+      }));
+
+      const stats = {
+        // Basic counts
         totalTemplates: totalCount,
         activeTemplates: activeCount,
         categoryCounts,
-        averageQuestions: templates.length > 0 ? questionCount / templates.length : 0,
-        averageMinutes: 0, // Not tracked in new schema
+        averageQuestions: templates.length > 0 ? Math.round(questionCount / templates.length) : 0,
+
+        // Usage statistics
+        totalAssessments: Object.values(templateUsage).reduce((sum, t) => sum + t.total, 0),
+        completedAssessments: Object.values(templateUsage).reduce((sum, t) => sum + t.completed, 0),
+        averageCompletionRate: templatesWithUsage.length > 0
+          ? templatesWithUsage.reduce((sum, t) => sum + t.completionRate, 0) / templatesWithUsage.length
+          : 0,
+
+        // Popular templates
+        mostPopularTemplates: mostPopular,
+        leastUsedTemplates: leastUsed,
+
+        // Health indicators
+        templatesNeedingAttention: needsAttention.length,
+        needsAttentionList: needsAttention.slice(0, 5), // Top 5 that need attention
+
+        // Performance metrics
+        performanceMetrics: performanceMetrics.sort((a, b) => a.completionRate - b.completionRate).slice(0, 10),
       };
 
       return this.createResponse(true, stats);
