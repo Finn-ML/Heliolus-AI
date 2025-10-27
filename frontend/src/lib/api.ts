@@ -788,6 +788,95 @@ export const createMutations = (queryClient: QueryClient) => ({
   }),
 });
 
+// RFP API
+export const rfpApi = {
+  // Create a new RFP
+  createRFP: async (data: {
+    organizationId: string;
+    title: string;
+    objectives?: string;
+    requirements?: string;
+    timeline?: string;
+    budget?: string;
+    vendorIds: string[];
+    documents?: string[];
+  }) => {
+    const response = await apiRequest<ApiResponse<any>>('/rfps', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  // Get all RFPs for the current user
+  getRFPs: async (filters?: {
+    status?: string;
+    leadStatus?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (filters?.status) searchParams.set('status', filters.status);
+    if (filters?.leadStatus) searchParams.set('leadStatus', filters.leadStatus);
+    if (filters?.dateFrom) searchParams.set('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) searchParams.set('dateTo', filters.dateTo);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/rfps?${queryString}` : '/rfps';
+
+    const response = await apiRequest<ApiResponse<any[]>>(endpoint);
+    return response.data;
+  },
+
+  // Get a single RFP by ID
+  getRFP: async (rfpId: string) => {
+    const response = await apiRequest<ApiResponse<any>>(`/rfps/${rfpId}`);
+    return response.data;
+  },
+
+  // Update an existing RFP (DRAFT only)
+  updateRFP: async (rfpId: string, data: {
+    title?: string;
+    objectives?: string;
+    requirements?: string;
+    timeline?: string;
+    budget?: string;
+    vendorIds?: string[];
+    documents?: string[];
+  }) => {
+    const response = await apiRequest<ApiResponse<any>>(`/rfps/${rfpId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  // Delete an RFP
+  deleteRFP: async (rfpId: string) => {
+    const response = await apiRequest<ApiResponse<{ success: boolean; message: string }>>(`/rfps/${rfpId}`, {
+      method: 'DELETE',
+    });
+    return response.data;
+  },
+
+  // Get strategic roadmap for RFP auto-population
+  getStrategicRoadmap: async (organizationId: string) => {
+    const response = await apiRequest<ApiResponse<{
+      organizationProfile: any;
+      assessmentContext: any;
+      topGaps: any[];
+      phasedRoadmap: any;
+      hasCompletedAssessment: boolean;
+      formatted: {
+        companyOverview: string;
+        projectObjectives: string;
+        suggestedRequirements: string;
+      };
+    }>>(`/organizations/${organizationId}/strategic-roadmap`);
+    return response.data;
+  },
+};
+
 // Admin Analytics API
 export const adminAnalyticsApi = {
   // Get assessment analytics
