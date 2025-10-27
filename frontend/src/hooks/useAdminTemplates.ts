@@ -22,7 +22,7 @@ export function useTemplates() {
   return useQuery({
     queryKey: adminTemplateKeys.lists(),
     queryFn: async () => {
-      const response = await adminTemplateApi.getTemplateStats(); // Will need to be replaced with proper getTemplates call
+      const response = await adminTemplateApi.getTemplates();
       return response.data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -38,8 +38,7 @@ export function useTemplate(id: string) {
   return useQuery({
     queryKey: adminTemplateKeys.detail(id),
     queryFn: async () => {
-      // Will need proper endpoint - using placeholder
-      const response = await adminTemplateApi.getTemplateStats();
+      const response = await adminTemplateApi.getTemplate(id);
       return response.data;
     },
     enabled: !!id,

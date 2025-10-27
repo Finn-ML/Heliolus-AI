@@ -983,6 +983,14 @@ export const adminTemplateApi = {
     });
   },
 
+  getTemplates: async (): Promise<ApiResponse<AssessmentTemplate[]>> => {
+    return await apiRequest<ApiResponse<AssessmentTemplate[]>>('/templates');
+  },
+
+  getTemplate: async (id: string): Promise<ApiResponse<AssessmentTemplate>> => {
+    return await apiRequest<ApiResponse<AssessmentTemplate>>(`/templates/${id}`);
+  },
+
   getTemplateStats: async (): Promise<ApiResponse<TemplateStats>> => {
     return await apiRequest<ApiResponse<TemplateStats>>('/admin/templates/stats');
   },
