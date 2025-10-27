@@ -6,11 +6,11 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { z } from 'zod';
-import { paymentProvider } from './stripe.js';
-import { subscriptionManager } from './subscriptions.js';
-import { creditManager } from './credits.js';
-import { invoiceManager } from './invoicing.js';
-import { SubscriptionPlan, SubscriptionStatus, InvoiceStatus } from '../../types/database.js';
+import { paymentProvider } from './stripe';
+import { subscriptionManager } from './subscriptions';
+import { creditManager } from './credits';
+import { invoiceManager } from './invoicing';
+import { SubscriptionPlan, SubscriptionStatus, InvoiceStatus } from '../../types/database';
 
 const program = new Command();
 

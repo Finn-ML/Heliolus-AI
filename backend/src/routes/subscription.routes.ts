@@ -483,10 +483,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         data: upgradeResult.data,
       });
     } catch (error: any) {
-      logger.error('Error upgrading subscription', {
-        userId,
-        error: error.message,
-      });
+      request.log.error({ error, userId }, 'Error upgrading subscription');
 
       reply.status(500).send({
         success: false,
@@ -580,10 +577,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         data: purchaseResult.data,
       });
     } catch (error: any) {
-      logger.error('Error purchasing assessment', {
-        userId,
-        error: error.message,
-      });
+      request.log.error({ error, userId }, 'Error purchasing assessment');
 
       if (error.code === 'SUBSCRIPTION_NOT_FOUND') {
         reply.status(404).send({
@@ -673,10 +667,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         },
       });
     } catch (error: any) {
-      logger.error('Error getting billing info', {
-        userId,
-        error: error.message,
-      });
+      request.log.error({ error, userId }, 'Error getting billing info');
 
       reply.status(500).send({
         success: false,

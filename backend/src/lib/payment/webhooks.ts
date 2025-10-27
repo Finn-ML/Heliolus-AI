@@ -3,15 +3,15 @@
  */
 
 import Stripe from 'stripe';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient } from '../../generated/prisma/index';
 import {
   WebhookHandler,
   WebhookEvent,
   WebhookResult,
   PaymentError
-} from './types.js';
-import { PAYMENT_CONFIG } from './index.js';
-import { SubscriptionStatus, InvoiceStatus, TransactionType } from '../../types/database.js';
+} from './types';
+import { PAYMENT_CONFIG } from './config';
+import { SubscriptionStatus, InvoiceStatus, TransactionType } from '../../types/database';
 
 const prisma = new PrismaClient();
 const stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {
@@ -39,6 +39,14 @@ export class HeliolusWebhookHandler implements WebhookHandler {
       // Process the event based on type
       let result: any;
       switch (event.type) {
+        // Checkout events
+        case 'checkout.session.completed':
+          result = await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+          break;
+        case 'checkout.session.expired':
+          result = await this.handleCheckoutSessionExpired(event.data.object as Stripe.Checkout.Session);
+          break;
+
         // Customer events
         case 'customer.created':
           result = await this.handleCustomerCreated(event.data.object as Stripe.Customer);
@@ -117,6 +125,168 @@ export class HeliolusWebhookHandler implements WebhookHandler {
         error: error instanceof PaymentError ? error.message : 'Webhook processing failed'
       };
     }
+  }
+
+  // Checkout event handlers
+
+  private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<any> {
+    console.log(`Checkout session completed: ${session.id}`);
+
+    try {
+      const userId = session.metadata?.userId;
+      const plan = session.metadata?.plan;
+
+      if (!userId || !plan) {
+        console.error('Missing userId or plan in checkout session metadata');
+        return { handled: false, error: 'Missing metadata' };
+      }
+
+      // For subscription mode
+      if (session.mode === 'subscription' && session.subscription) {
+        // Get the Stripe subscription
+        const stripeSubscription = await stripe.subscriptions.retrieve(session.subscription as string);
+
+        // Check if subscription already exists for this user
+        const existingSub = await prisma.subscription.findUnique({
+          where: { userId }
+        });
+
+        if (existingSub) {
+          // Update existing subscription with Stripe details
+          await prisma.subscription.update({
+            where: { userId },
+            data: {
+              plan: plan as any,
+              status: this.mapStripeSubscriptionStatus(stripeSubscription.status),
+              stripeCustomerId: session.customer as string,
+              stripeSubscriptionId: stripeSubscription.id,
+              stripePaymentMethodId: stripeSubscription.default_payment_method as string || null,
+              currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+              currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+              trialEnd: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null
+            }
+          });
+
+          // Add initial credits for the plan
+          const planConfig = PAYMENT_CONFIG.subscriptions.plans[plan];
+          if (planConfig && planConfig.credits > 0) {
+            await prisma.$transaction(async (tx) => {
+              const updatedSub = await tx.subscription.update({
+                where: { userId },
+                data: {
+                  creditsBalance: { increment: planConfig.credits },
+                  creditsPurchased: { increment: planConfig.credits }
+                }
+              });
+
+              await tx.creditTransaction.create({
+                data: {
+                  subscriptionId: existingSub.id,
+                  type: TransactionType.SUBSCRIPTION_RENEWAL,
+                  amount: planConfig.credits,
+                  balance: updatedSub.creditsBalance,
+                  description: `${plan} plan subscription credits`,
+                  reference: session.id
+                }
+              });
+            });
+          }
+
+          console.log(`✅ Subscription upgraded for user ${userId} to ${plan}`);
+        } else {
+          // Create new subscription
+          const planConfig = PAYMENT_CONFIG.subscriptions.plans[plan];
+          const newSubscription = await prisma.subscription.create({
+            data: {
+              userId,
+              plan: plan as any,
+              status: this.mapStripeSubscriptionStatus(stripeSubscription.status),
+              stripeCustomerId: session.customer as string,
+              stripeSubscriptionId: stripeSubscription.id,
+              stripePaymentMethodId: stripeSubscription.default_payment_method as string || null,
+              creditsBalance: planConfig?.credits || 0,
+              creditsUsed: 0,
+              creditsPurchased: planConfig?.credits || 0,
+              currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+              currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+              trialEnd: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null
+            }
+          });
+
+          // Create initial credit transaction
+          if (planConfig && planConfig.credits > 0) {
+            await prisma.creditTransaction.create({
+              data: {
+                subscriptionId: newSubscription.id,
+                type: TransactionType.SUBSCRIPTION_RENEWAL,
+                amount: planConfig.credits,
+                balance: planConfig.credits,
+                description: `${plan} plan subscription credits`,
+                reference: session.id
+              }
+            });
+          }
+
+          console.log(`✅ New subscription created for user ${userId} with plan ${plan}`);
+        }
+
+        return { sessionId: session.id, userId, plan, handled: true };
+      }
+
+      // For payment mode (credit purchases)
+      if (session.mode === 'payment') {
+        const creditAmount = parseInt(session.metadata?.creditAmount || '0');
+        if (creditAmount > 0) {
+          const subscription = await prisma.subscription.findUnique({
+            where: { userId }
+          });
+
+          if (subscription) {
+            await prisma.$transaction(async (tx) => {
+              const updatedSub = await tx.subscription.update({
+                where: { userId },
+                data: {
+                  creditsBalance: { increment: creditAmount },
+                  creditsPurchased: { increment: creditAmount }
+                }
+              });
+
+              await tx.creditTransaction.create({
+                data: {
+                  subscriptionId: subscription.id,
+                  type: TransactionType.PURCHASE,
+                  amount: creditAmount,
+                  balance: updatedSub.creditsBalance,
+                  description: `Purchased ${creditAmount} credits`,
+                  reference: session.id
+                }
+              });
+            });
+
+            console.log(`✅ Added ${creditAmount} credits to user ${userId}`);
+          }
+        }
+
+        return { sessionId: session.id, userId, creditAmount, handled: true };
+      }
+
+      return { sessionId: session.id, handled: true };
+    } catch (error) {
+      console.error('Error handling checkout session:', error);
+      return { handled: false, error: error.message };
+    }
+  }
+
+  private async handleCheckoutSessionExpired(session: Stripe.Checkout.Session): Promise<any> {
+    console.log(`Checkout session expired: ${session.id}`);
+
+    // Log expired session - could send email reminder to user
+    const userId = session.metadata?.userId;
+    if (userId) {
+      console.log(`User ${userId} abandoned checkout session ${session.id}`);
+    }
+
+    return { sessionId: session.id, handled: true };
   }
 
   // Customer event handlers

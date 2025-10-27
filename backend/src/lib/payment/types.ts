@@ -2,7 +2,7 @@
  * Payment library types and interfaces
  */
 
-import { SubscriptionPlan, SubscriptionStatus, TransactionType, InvoiceStatus } from '../../types/database.js';
+import { SubscriptionPlan, SubscriptionStatus, TransactionType, InvoiceStatus } from '../../types/database';
 
 // Core payment interfaces
 export interface PaymentProvider {
