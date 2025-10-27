@@ -1,4 +1,12 @@
+# Environment variables (sensitive data)
+.env
 .env.local
+.env*.local
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+
 # Large binaries and chromium
 backend/chromium/
 **/chrome

@@ -7,10 +7,15 @@ Your Stripe sandbox is **fully configured and operational**. Here's everything y
 ## 🔑 Your Test Keys (Already Configured)
 
 ```bash
-# These are in backend/.env
-Publishable: pk_test_51SGKylGialFATytvJkqAn5WJMm79bgrLt1hk155osSHUIuf8T5U2cQg09jSNP0aBKBhFVIZLm3XLnF9bJ96MeRBE00KbXanoH4
-Secret: sk_test_51SGKylGialFATytvAFeT9CNwxjSyjzi52aWt7WTnrlSdKQlBXcFLHdSoJmOmupWKF0o3r8s6Lfj7YPYYQ6Evu8fA001lNhubl6
+# These are set as Replit Secrets or in backend/.env
+STRIPE_PUBLISHABLE_KEY=pk_test_...your-publishable-key...
+STRIPE_SECRET_KEY=sk_test_...your-secret-key...
 ```
+
+**To set up Stripe keys:**
+1. Get your test keys from [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys)
+2. Add them to Replit Secrets (recommended) or backend/.env
+3. Keys should start with `pk_test_` (publishable) and `sk_test_` (secret)
 
 ## 🧪 Quick Test
 

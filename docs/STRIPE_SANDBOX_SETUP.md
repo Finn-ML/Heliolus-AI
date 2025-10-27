@@ -21,13 +21,19 @@ The Heliolus platform now has **full Stripe integration enabled** for sandbox/te
 
 ### Environment Variables
 
-The following test keys are configured in `backend/.env`:
+Set up the following environment variables in Replit Secrets or `backend/.env`:
 
 ```bash
-STRIPE_PUBLISHABLE_KEY=pk_test_51SGKylGialFATytvJkqAn5WJMm79bgrLt1hk155osSHUIuf8T5U2cQg09jSNP0aBKBhFVIZLm3XLnF9bJ96MeRBE00KbXanoH4
-STRIPE_SECRET_KEY=sk_test_51SGKylGialFATytvAFeT9CNwxjSyjzi52aWt7WTnrlSdKQlBXcFLHdSoJmOmupWKF0o3r8s6Lfj7YPYYQ6Evu8fA001lNhubl6
-STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret-here
+STRIPE_PUBLISHABLE_KEY=pk_test_...your-publishable-key...
+STRIPE_SECRET_KEY=sk_test_...your-secret-key...
+STRIPE_WEBHOOK_SECRET=whsec_...your-webhook-secret...
 ```
+
+**How to get your Stripe test keys:**
+1. Go to [Stripe Dashboard > API Keys](https://dashboard.stripe.com/test/apikeys)
+2. Copy your **Publishable key** (starts with `pk_test_`)
+3. Reveal and copy your **Secret key** (starts with `sk_test_`)
+4. Add them to Replit Secrets (recommended for security)
 
 **Note:** The webhook secret needs to be configured when you set up webhook endpoints in the Stripe dashboard.
 
