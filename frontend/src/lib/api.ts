@@ -875,6 +875,23 @@ export const rfpApi = {
     }>>(`/organizations/${organizationId}/strategic-roadmap`);
     return response.data;
   },
+
+  // Send RFP to vendors
+  sendRFP: async (rfpId: string) => {
+    const response = await apiRequest<ApiResponse<{
+      success: boolean;
+      sentCount: number;
+      failedCount: number;
+      failures: Array<{
+        vendorId: string;
+        vendorName: string;
+        error: string;
+      }>;
+    }>>(`/rfps/${rfpId}/send`, {
+      method: 'POST',
+    });
+    return response.data;
+  },
 };
 
 // Admin Analytics API

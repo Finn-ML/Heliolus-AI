@@ -10,6 +10,8 @@ import { UserRole, VendorCategory, VendorStatus } from '../types/database';
 import { requireRole, requireFeature, asyncHandler, authenticationMiddleware } from '../middleware';
 import { VendorService } from '../services/vendor.service';
 import { AdminCreditService } from '../services/admin-credit.service';
+import { LeadService, LeadType } from '../services/lead.service.js';
+import { LeadStatus } from '../generated/prisma/index.js';
 
 // Request/Response schemas
 const AdminDashboardSchema = {
@@ -2116,6 +2118,133 @@ export default async function adminRoutes(server: FastifyInstance) {
         error: 'Failed to delete vendor',
       });
     }
+  }));
+
+  // ==================== LEAD MANAGEMENT ROUTES ====================
+
+  const leadService = new LeadService();
+
+  /**
+   * GET /v1/admin/leads
+   * List all leads with filtering and pagination
+   */
+  server.get('/leads', asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = request.query as any;
+    const filters = {
+      type: query.type || 'ALL',
+      status: query.status ? (Array.isArray(query.status) ? query.status : [query.status]) : undefined,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      page: query.page ? parseInt(query.page) : 1,
+      limit: query.limit ? parseInt(query.limit) : 50,
+    };
+
+    const result = await leadService.getLeads(filters);
+
+    reply.code(200).send({
+      success: true,
+      data: result,
+    });
+  }));
+
+  /**
+   * GET /v1/admin/leads/:id
+   * Get lead details by ID
+   * Requires query param: type (PREMIUM or BASIC)
+   */
+  server.get('/leads/:id', asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const query = request.query as any;
+    const leadType = query.type as LeadType;
+
+    if (!leadType || (leadType !== 'PREMIUM' && leadType !== 'BASIC')) {
+      reply.code(400).send({
+        success: false,
+        error: 'Query parameter "type" is required and must be PREMIUM or BASIC',
+      });
+      return;
+    }
+
+    const lead = await leadService.getLeadById(id, leadType);
+
+    reply.code(200).send({
+      success: true,
+      data: lead,
+    });
+  }));
+
+  /**
+   * PATCH /v1/admin/leads/:id
+   * Update lead status
+   * Requires query param: type (PREMIUM or BASIC)
+   * Requires body: { status: LeadStatus }
+   */
+  server.patch('/leads/:id', asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const query = request.query as any;
+    const body = request.body as any;
+    const leadType = query.type as LeadType;
+    const newStatus = body.status as LeadStatus;
+
+    if (!leadType || (leadType !== 'PREMIUM' && leadType !== 'BASIC')) {
+      reply.code(400).send({
+        success: false,
+        error: 'Query parameter "type" is required and must be PREMIUM or BASIC',
+      });
+      return;
+    }
+
+    if (!newStatus || !Object.values(LeadStatus).includes(newStatus)) {
+      reply.code(400).send({
+        success: false,
+        error: 'Request body must include valid "status" field',
+      });
+      return;
+    }
+
+    const updatedLead = await leadService.updateLeadStatus(id, leadType, newStatus, {
+      userId: request.user?.id,
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
+
+    reply.code(200).send({
+      success: true,
+      data: updatedLead,
+    });
+  }));
+
+  /**
+   * GET /v1/admin/leads/export
+   * Export leads to CSV
+   */
+  server.get('/leads/export', asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = request.query as any;
+    const filters = {
+      type: query.type || 'ALL',
+      status: query.status ? (Array.isArray(query.status) ? query.status : [query.status]) : undefined,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+    };
+
+    const csv = await leadService.exportLeadsToCSV(filters);
+
+    reply.header('Content-Type', 'text/csv');
+    reply.header('Content-Disposition', 'attachment; filename=leads-export.csv');
+    reply.send(csv);
+  }));
+
+  /**
+   * GET /v1/admin/leads/analytics
+   * Get lead analytics summary
+   */
+  server.get('/leads/analytics', asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const analytics = await leadService.getLeadAnalytics();
+
+    reply.code(200).send({
+      success: true,
+      data: analytics,
+    });
   }));
 }
 
