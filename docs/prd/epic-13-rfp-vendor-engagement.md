@@ -1,6 +1,6 @@
-# Epic 12: RFP & Vendor Engagement System
+# Epic 13: RFP & Vendor Engagement System
 
-**Epic ID:** 12
+**Epic ID:** 13
 **Status:** Draft
 **Priority:** P1 - High
 **Estimated Effort:** 33-37 hours
@@ -70,7 +70,7 @@ Transform the existing vendor contact system into a comprehensive RFP (Request f
 
 ## Stories
 
-### Story 12.1: RFP Form & Auto-Population System
+### Story 13.1: RFP Form & Auto-Population System
 
 **As a** Premium user
 **I want** to create a detailed RFP with auto-populated strategic context
@@ -108,7 +108,7 @@ Transform the existing vendor contact system into a comprehensive RFP (Request f
 
 ---
 
-### Story 12.2: RFP Delivery System
+### Story 13.2: RFP Delivery System
 
 **As a** system
 **I want** to deliver RFPs to selected vendors via professional email
@@ -144,7 +144,7 @@ Transform the existing vendor contact system into a comprehensive RFP (Request f
 
 ---
 
-### Story 12.3: Lead Tracking & Classification System
+### Story 13.3: Lead Tracking & Classification System
 
 **As an** admin
 **I want** to see all RFPs and contacts classified by type (Basic vs Premium)
@@ -187,7 +187,7 @@ Transform the existing vendor contact system into a comprehensive RFP (Request f
 
 ---
 
-### Story 12.4: Company User RFP Management Dashboard
+### Story 13.4: Company User RFP Management Dashboard
 
 **As a** user
 **I want** to view all my RFPs, track their status, and see vendor responses
@@ -229,7 +229,7 @@ Transform the existing vendor contact system into a comprehensive RFP (Request f
 
 ---
 
-### Story 12.5: User Tier Access Control
+### Story 13.5: User Tier Access Control
 
 **As a** system
 **I want** to restrict RFP features to Premium users only
@@ -267,7 +267,7 @@ Transform the existing vendor contact system into a comprehensive RFP (Request f
 
 ---
 
-### Story 12.6: Contact Form System (Basic Lead)
+### Story 13.6: Contact Form System (Basic Lead)
 
 **As a** Free tier user
 **I want** to submit a simple contact form to vendors
