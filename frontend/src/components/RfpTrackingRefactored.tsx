@@ -33,6 +33,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { RFPFormModal } from '@/components/rfp/RFPFormModal';
 import { SendRFPButton } from '@/components/rfp/SendRFPButton';
+import { UpgradePromptModal } from '@/components/subscription/UpgradePromptModal';
+import { useSubscriptionCheck } from '@/hooks/useSubscriptionCheck';
 import { useQuery } from '@tanstack/react-query';
 import { organizationApi } from '@/lib/api';
 
@@ -66,7 +68,9 @@ const RfpTrackingRefactored = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRfp, setSelectedRfp] = useState<RFP | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const { toast } = useToast();
+  const { canAccessPremiumFeature } = useSubscriptionCheck();
 
   // Fetch organization for RFP creation
   const { data: organization } = useQuery({
@@ -270,7 +274,16 @@ const RfpTrackingRefactored = () => {
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
               </Button>
-              <Button onClick={() => setCreateModalOpen(true)} disabled={!organization}>
+              <Button
+                onClick={() => {
+                  if (!canAccessPremiumFeature) {
+                    setUpgradeModalOpen(true);
+                  } else {
+                    setCreateModalOpen(true);
+                  }
+                }}
+                disabled={!organization}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Create RFP
               </Button>
@@ -514,6 +527,14 @@ const RfpTrackingRefactored = () => {
           organizationId={organization.id}
         />
       )}
+
+      {/* Upgrade Prompt Modal */}
+      <UpgradePromptModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        featureName="RFP Management"
+        description="Create unlimited RFPs and send them to vendors to get compliance solutions"
+      />
     </div>
   );
 };

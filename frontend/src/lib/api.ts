@@ -894,6 +894,58 @@ export const rfpApi = {
   },
 };
 
+// Subscription API
+export const subscriptionApi = {
+  // Get current user's subscription
+  getCurrentSubscription: async () => {
+    const response = await apiRequest<{
+      id: string;
+      plan: 'FREE' | 'PREMIUM' | 'ENTERPRISE';
+      status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED' | 'UNPAID';
+      creditsBalance: number;
+      creditsUsed: number;
+      currentPeriodStart: string;
+      currentPeriodEnd: string;
+      cancelAt?: string;
+    }>('/subscriptions/current');
+    return response;
+  },
+
+  // Get subscription plans
+  getPlans: async () => {
+    const response = await apiRequest<ApiResponse<Array<{
+      name: string;
+      price: number;
+      interval: string;
+      features: string[];
+      creditsIncluded: number;
+    }>>>('/subscriptions/plans');
+    return response.data;
+  },
+
+  // Create checkout session
+  createCheckout: async (plan: 'FREE' | 'PREMIUM' | 'ENTERPRISE') => {
+    const response = await apiRequest<ApiResponse<{
+      checkoutUrl: string;
+      sessionId: string;
+    }>>('/subscriptions/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    });
+    return response.data;
+  },
+
+  // Get credit balance
+  getCredits: async () => {
+    const response = await apiRequest<ApiResponse<{
+      balance: number;
+      used: number;
+      total: number;
+    }>>('/subscriptions/credits');
+    return response.data;
+  },
+};
+
 // Admin Analytics API
 export const adminAnalyticsApi = {
   // Get assessment analytics
