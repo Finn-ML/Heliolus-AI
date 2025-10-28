@@ -271,23 +271,6 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     await server.register(publicPlansRoutes, { prefix: '/public/plans' });
     await server.register(legalDocumentRoutes, { prefix: '/legal-documents' });
 
-    // Create single Prisma client instance for anonymous and claim routes
-    const { PrismaClient } = await import('./generated/prisma/index.js');
-    const prisma = new PrismaClient();
-    
-    // Register anonymous routes with middleware in the same scope
-    await server.register(async function (server) {
-      // Register middleware first within this scope
-      await server.register(anonymousSessionMiddleware, {
-        secret: process.env.COOKIE_SECRET || 'heliolus-super-secret-cookie-key',
-        prisma
-      });
-      
-      // Then register routes
-      await server.register(anonymousRoutes, { prisma });
-      await server.register(claimRoutes, { prisma });
-    }, { prefix: '/anon' });
-
     // Templates: prefer DB-backed routes if enabled; fallback to mocks for compatibility
     console.log('DEBUG: process.env.USE_DB_TEMPLATES =', process.env.USE_DB_TEMPLATES);
     const useDbTemplates = process.env.USE_DB_TEMPLATES === 'true';
@@ -449,6 +432,23 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     }
 
   }, { prefix: '/v1' });
+
+  // Create single Prisma client instance for anonymous and claim routes
+  const { PrismaClient } = await import('./generated/prisma/index.js');
+  const prisma = new PrismaClient();
+
+  // Register anonymous routes with middleware in the same scope
+  await server.register(async function (server) {
+    // Register middleware first within this scope
+    await server.register(anonymousSessionMiddleware, {
+      secret: process.env.COOKIE_SECRET || 'heliolus-super-secret-cookie-key',
+      prisma
+    });
+
+    // Then register routes
+    await server.register(anonymousRoutes, { prisma });
+    await server.register(claimRoutes, { prisma });
+  }, { prefix: '/anon' });
 
   // Simple test endpoint for basic functionality
   await server.register(async function (server) {

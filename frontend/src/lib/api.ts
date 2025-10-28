@@ -1110,21 +1110,16 @@ export const legalDocumentsApi = {
     });
   },
 
-  // Helper to upload file to S3 using presigned URL
+  // Helper to upload file to object storage using presigned URL
   uploadToS3: async (url: string, fields: Record<string, string>, file: File): Promise<void> => {
-    const formData = new FormData();
-
-    // Add all fields from presigned URL response
-    Object.entries(fields).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
-
-    // Add file last
-    formData.append('file', file);
-
+    // Replit Object Storage uses simple PUT request (not multipart POST like S3)
+    // The fields parameter is not used but kept for API compatibility
     const response = await fetch(url, {
-      method: 'POST',
-      body: formData,
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+      },
     });
 
     if (!response.ok) {
@@ -1133,91 +1128,242 @@ export const legalDocumentsApi = {
   },
 };
 
-// ==================== LEGAL DOCUMENTS API ====================
+// ==================== PLAN MANAGEMENT API ====================
 
-export interface LegalDocument {
+export interface Plan {
   id: string;
-  type: 'PRIVACY_POLICY' | 'TERMS_OF_SERVICE';
-  filename: string;
-  s3Key: string;
-  s3Bucket: string;
-  fileSize: number;
-  mimeType: string;
-  version: string;
+  slug: string;
+  name: string;
+  description?: string;
   isActive: boolean;
-  uploadedBy: string;
+  isPublic: boolean;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  stripeProductId?: string;
+  stripeMonthlyPriceId?: string;
+  stripeAnnualPriceId?: string;
+  monthlyCredits: number;
+  assessmentCredits: number;
+  maxAssessments: number;
+  maxUsers: number;
+  features?: string[];
+  trialDays: number;
+  displayOrder: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface UploadLegalDocumentRequest {
-  type: 'PRIVACY_POLICY' | 'TERMS_OF_SERVICE';
-  filename: string;
-  mimeType: string;
-  fileSize: number;
-  version?: string;
+export interface CreatePlanData {
+  slug: string;
+  name: string;
+  description?: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency?: string;
+  monthlyCredits?: number;
+  assessmentCredits?: number;
+  maxAssessments?: number;
+  maxUsers?: number;
+  features?: string[];
+  trialDays?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
+  displayOrder?: number;
+  createInStripe?: boolean;
 }
 
-export interface UploadLegalDocumentResponse {
-  document: LegalDocument;
-  uploadUrl: string;
-  fields: Record<string, string>;
+export interface UpdatePlanData {
+  name?: string;
+  description?: string;
+  monthlyPrice?: number;
+  annualPrice?: number;
+  monthlyCredits?: number;
+  assessmentCredits?: number;
+  maxAssessments?: number;
+  maxUsers?: number;
+  features?: string[];
+  trialDays?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
+  displayOrder?: number;
+  syncToStripe?: boolean;
 }
 
-export const legalDocumentsApi = {
-  // Public endpoints
-  getActive: async (type: 'PRIVACY_POLICY' | 'TERMS_OF_SERVICE'): Promise<ApiResponse<LegalDocument | null>> => {
-    return await apiRequest<ApiResponse<LegalDocument | null>>(`/legal-documents/active/${type}`);
+export const adminPlanApi = {
+  listPlans: async (params?: {
+    activeOnly?: boolean;
+    publicOnly?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse<{ data: Plan[]; pagination: PaginationInfo }>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.activeOnly) queryParams.append('activeOnly', 'true');
+    if (params?.publicOnly) queryParams.append('publicOnly', 'true');
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+    const queryString = queryParams.toString();
+    const url = queryString ? `/admin/plans?${queryString}` : '/admin/plans';
+
+    return await apiRequest<ApiResponse<{ data: Plan[]; pagination: PaginationInfo }>>(url);
   },
 
-  getDownloadUrl: async (documentId: string): Promise<ApiResponse<string>> => {
-    return await apiRequest<ApiResponse<string>>(`/legal-documents/${documentId}/download`);
+  getPlan: async (id: string): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>(`/admin/plans/${id}`);
   },
 
-  // Admin endpoints
-  upload: async (data: UploadLegalDocumentRequest): Promise<ApiResponse<UploadLegalDocumentResponse>> => {
-    return await apiRequest<ApiResponse<UploadLegalDocumentResponse>>('/legal-documents/upload', {
+  createPlan: async (data: CreatePlanData): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>('/admin/plans', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  list: async (type: 'PRIVACY_POLICY' | 'TERMS_OF_SERVICE'): Promise<ApiResponse<LegalDocument[]>> => {
-    return await apiRequest<ApiResponse<LegalDocument[]>>(`/legal-documents/list/${type}`);
-  },
-
-  activate: async (documentId: string): Promise<ApiResponse<LegalDocument>> => {
-    return await apiRequest<ApiResponse<LegalDocument>>(`/legal-documents/${documentId}/activate`, {
-      method: 'POST',
+  updatePlan: async (id: string, data: UpdatePlanData): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>(`/admin/plans/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   },
 
-  delete: async (documentId: string): Promise<ApiResponse<void>> => {
-    return await apiRequest<ApiResponse<void>>(`/legal-documents/${documentId}`, {
+  deletePlan: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/plans/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ==================== PUBLIC PLANS API ====================
+
+export const publicPlanApi = {
+  listPlans: async (): Promise<ApiResponse<Plan[]>> => {
+    const response = await fetch(`${API_BASE_URL}/public/plans`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch plans: ${response.statusText}`);
+    }
+
+    return await response.json();
+  },
+};
+
+// ==================== COUPON MANAGEMENT API ====================
+
+export interface Coupon {
+  id: string;
+  code: string;
+  stripeCouponId?: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number;
+  currency?: string;
+  isActive: boolean;
+  maxRedemptions?: number;
+  timesRedeemed: number;
+  validFrom: string;
+  validUntil?: string;
+  applicablePlans: string[];
+  minimumAmount?: number;
+  newCustomersOnly: boolean;
+  durationInMonths?: number;
+  name?: string;
+  description?: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCouponData {
+  code: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number;
+  currency?: string;
+  maxRedemptions?: number;
+  validFrom?: string;
+  validUntil?: string;
+  applicablePlans?: string[];
+  minimumAmount?: number;
+  newCustomersOnly?: boolean;
+  durationInMonths?: number;
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+  createInStripe?: boolean;
+}
+
+export interface UpdateCouponData {
+  code?: string;
+  discountType?: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue?: number;
+  maxRedemptions?: number;
+  validUntil?: string;
+  applicablePlans?: string[];
+  minimumAmount?: number;
+  newCustomersOnly?: boolean;
+  durationInMonths?: number;
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+  syncToStripe?: boolean;
+}
+
+export interface ValidateCouponData {
+  code: string;
+  planSlug?: string;
+  amount?: number;
+}
+
+export const adminCouponApi = {
+  listCoupons: async (params?: {
+    activeOnly?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse<{ data: Coupon[]; pagination: PaginationInfo }>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.activeOnly) queryParams.append('activeOnly', 'true');
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+    const queryString = queryParams.toString();
+    const url = queryString ? `/admin/coupons?${queryString}` : '/admin/coupons';
+
+    return await apiRequest<ApiResponse<{ data: Coupon[]; pagination: PaginationInfo }>>(url);
+  },
+
+  getCoupon: async (id: string): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>(`/admin/coupons/${id}`);
+  },
+
+  createCoupon: async (data: CreateCouponData): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>('/admin/coupons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCoupon: async (id: string, data: UpdateCouponData): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>(`/admin/coupons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCoupon: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/coupons/${id}`, {
       method: 'DELETE',
     });
   },
 
-  // Helper to upload file to S3 using presigned URL
-  uploadToS3: async (url: string, fields: Record<string, string>, file: File): Promise<void> => {
-    const formData = new FormData();
-
-    // Add all fields from presigned URL response
-    Object.entries(fields).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
-
-    // Add file last
-    formData.append('file', file);
-
-    const response = await fetch(url, {
+  validateCoupon: async (data: ValidateCouponData): Promise<ApiResponse<{ valid: boolean; coupon?: Coupon; error?: string }>> => {
+    return await apiRequest<ApiResponse<{ valid: boolean; coupon?: Coupon; error?: string }>>('/admin/coupons/validate', {
       method: 'POST',
-      body: formData,
+      body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload file: ${response.statusText}`);
-    }
   },
 };
 

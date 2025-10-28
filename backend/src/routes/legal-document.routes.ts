@@ -5,16 +5,15 @@
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { LegalDocumentService } from '../services/legal-document.service';
-import { requireRole, asyncHandler } from '../middleware';
+import { requireRole, asyncHandler, authenticationMiddleware } from '../middleware';
 import { UserRole } from '../types/database';
 import { LegalDocumentType } from '../generated/prisma';
 
 export default async function legalDocumentRoutes(server: FastifyInstance) {
-  const legalDocService = new LegalDocumentService({
-    prisma: server.prisma,
-    logger: server.log,
-    redis: server.redis,
-  });
+  const legalDocService = new LegalDocumentService();
+
+  // Admin route middleware (auth + role check)
+  const adminMiddleware = [authenticationMiddleware, requireRole('ADMIN')];
 
   // ==================== ADMIN ROUTES ====================
 
@@ -66,7 +65,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
-    preHandler: requireRole(UserRole.ADMIN),
+    preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Body: {
       type: string;
@@ -84,7 +83,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         fileSize: request.body.fileSize,
         version: request.body.version,
       },
-      request.user.id
+      request.currentUser?.id || 'system'
     );
 
     return reply.code(result.success ? 200 : 400).send(result);
@@ -130,7 +129,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
-    preHandler: requireRole(UserRole.ADMIN),
+    preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { type: string };
   }>, reply: FastifyReply) => {
@@ -175,7 +174,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
-    preHandler: requireRole(UserRole.ADMIN),
+    preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { id: string };
   }>, reply: FastifyReply) => {
@@ -209,7 +208,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
-    preHandler: requireRole(UserRole.ADMIN),
+    preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { id: string };
   }>, reply: FastifyReply) => {

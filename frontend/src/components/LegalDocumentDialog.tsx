@@ -59,15 +59,15 @@ export function LegalDocumentDialog({ type, open, onOpenChange }: LegalDocumentD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {document ? `Version ${document.version}` : 'Loading...'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden px-6 pb-6">
           {isLoading && (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -86,36 +86,11 @@ export function LegalDocumentDialog({ type, open, onOpenChange }: LegalDocumentD
           )}
 
           {document && pdfUrl && (
-            <div className="h-full flex flex-col">
-              <iframe
-                src={pdfUrl}
-                className="w-full flex-1 border rounded-md"
-                title={title}
-              />
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(pdfUrl, '_blank')}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in New Tab
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = pdfUrl;
-                    link.download = document.filename;
-                    link.click();
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-              </div>
-            </div>
+            <iframe
+              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+              className="w-full h-full border rounded-md"
+              title={title}
+            />
           )}
         </div>
       </DialogContent>

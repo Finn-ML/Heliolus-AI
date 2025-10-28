@@ -45,8 +45,8 @@ export interface UploadLegalDocumentResult {
 }
 
 export class LegalDocumentService extends BaseService {
-  constructor(context: ServiceContext) {
-    super(context);
+  constructor() {
+    super();
   }
 
   /**
@@ -61,14 +61,15 @@ export class LegalDocumentService extends BaseService {
       // Validate input
       const validated = UploadLegalDocumentSchema.parse(data);
 
-      // Generate S3 key
+      // Generate object storage path
       const timestamp = Date.now();
       const sanitizedFilename = validated.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const s3Key = `legal-documents/${validated.type.toLowerCase()}/${timestamp}_${sanitizedFilename}`;
-      const s3Bucket = process.env.S3_BUCKET_NAME || 'heliolus-documents';
+      const privateDir = objectStorageService.getPrivateObjectDir();
+      const s3Key = `${privateDir}/legal-documents/${validated.type.toLowerCase()}/${timestamp}_${sanitizedFilename}`;
+      const s3Bucket = 'replit-object-storage'; // Keep for compatibility
 
       // Deactivate any existing active documents of this type
-      await this.context.prisma.legalDocument.updateMany({
+      await this.prisma.legalDocument.updateMany({
         where: {
           type: validated.type,
           isActive: true,
@@ -79,7 +80,7 @@ export class LegalDocumentService extends BaseService {
       });
 
       // Create document record
-      const document = await this.context.prisma.legalDocument.create({
+      const document = await this.prisma.legalDocument.create({
         data: {
           type: validated.type,
           filename: validated.filename,
@@ -94,13 +95,10 @@ export class LegalDocumentService extends BaseService {
       });
 
       // Generate presigned upload URL
-      const { url, fields } = await objectStorageService.generatePresignedUploadUrl(
-        s3Key,
-        validated.mimeType,
-        validated.fileSize
-      );
+      const url = await objectStorageService.getDocumentUploadURL(s3Key);
+      const fields = {}; // Replit object storage doesn't use form fields like S3
 
-      this.context.logger.info(
+      this.logger.info(
         `Legal document upload initiated: ${validated.type} by ${uploadedBy}`
       );
 
@@ -114,7 +112,7 @@ export class LegalDocumentService extends BaseService {
         message: 'Legal document upload URL generated',
       };
     } catch (error) {
-      this.context.logger.error('Error uploading legal document:', error);
+      this.logger.error('Error uploading legal document:', error);
       return {
         success: false,
         data: null as any,
@@ -130,7 +128,7 @@ export class LegalDocumentService extends BaseService {
     type: LegalDocumentType
   ): Promise<ApiResponse<LegalDocumentData | null>> {
     try {
-      const document = await this.context.prisma.legalDocument.findFirst({
+      const document = await this.prisma.legalDocument.findFirst({
         where: {
           type,
           isActive: true,
@@ -154,7 +152,7 @@ export class LegalDocumentService extends BaseService {
         message: 'Legal document retrieved',
       };
     } catch (error) {
-      this.context.logger.error('Error fetching legal document:', error);
+      this.logger.error('Error fetching legal document:', error);
       return {
         success: false,
         data: null,
@@ -168,7 +166,7 @@ export class LegalDocumentService extends BaseService {
    */
   async getDownloadUrl(documentId: string): Promise<ApiResponse<string>> {
     try {
-      const document = await this.context.prisma.legalDocument.findUnique({
+      const document = await this.prisma.legalDocument.findUnique({
         where: { id: documentId },
       });
 
@@ -181,10 +179,7 @@ export class LegalDocumentService extends BaseService {
       }
 
       // Generate presigned download URL (valid for 1 hour)
-      const url = await objectStorageService.generatePresignedDownloadUrl(
-        document.s3Key,
-        3600 // 1 hour
-      );
+      const url = await objectStorageService.getDocumentDownloadURL(document.s3Key);
 
       return {
         success: true,
@@ -192,7 +187,7 @@ export class LegalDocumentService extends BaseService {
         message: 'Download URL generated',
       };
     } catch (error) {
-      this.context.logger.error('Error generating download URL:', error);
+      this.logger.error('Error generating download URL:', error);
       return {
         success: false,
         data: '',
@@ -208,7 +203,7 @@ export class LegalDocumentService extends BaseService {
     type: LegalDocumentType
   ): Promise<ApiResponse<LegalDocumentData[]>> {
     try {
-      const documents = await this.context.prisma.legalDocument.findMany({
+      const documents = await this.prisma.legalDocument.findMany({
         where: { type },
         orderBy: {
           createdAt: 'desc',
@@ -221,7 +216,7 @@ export class LegalDocumentService extends BaseService {
         message: `Found ${documents.length} document(s)`,
       };
     } catch (error) {
-      this.context.logger.error('Error listing legal documents:', error);
+      this.logger.error('Error listing legal documents:', error);
       return {
         success: false,
         data: [],
@@ -235,7 +230,7 @@ export class LegalDocumentService extends BaseService {
    */
   async deleteLegalDocument(documentId: string): Promise<ApiResponse<void>> {
     try {
-      const document = await this.context.prisma.legalDocument.findUnique({
+      const document = await this.prisma.legalDocument.findUnique({
         where: { id: documentId },
       });
 
@@ -247,20 +242,20 @@ export class LegalDocumentService extends BaseService {
         };
       }
 
-      // Delete from S3
+      // Delete from object storage
       try {
-        await objectStorageService.deleteObject(document.s3Key);
+        await objectStorageService.deleteDocument(document.s3Key);
       } catch (error) {
-        this.context.logger.warn('Failed to delete S3 object:', error);
-        // Continue with database deletion even if S3 deletion fails
+        this.logger.warn('Failed to delete object from storage:', error);
+        // Continue with database deletion even if storage deletion fails
       }
 
       // Delete from database
-      await this.context.prisma.legalDocument.delete({
+      await this.prisma.legalDocument.delete({
         where: { id: documentId },
       });
 
-      this.context.logger.info(`Legal document deleted: ${documentId}`);
+      this.logger.info(`Legal document deleted: ${documentId}`);
 
       return {
         success: true,
@@ -268,7 +263,7 @@ export class LegalDocumentService extends BaseService {
         message: 'Legal document deleted',
       };
     } catch (error) {
-      this.context.logger.error('Error deleting legal document:', error);
+      this.logger.error('Error deleting legal document:', error);
       return {
         success: false,
         data: undefined,
@@ -282,7 +277,7 @@ export class LegalDocumentService extends BaseService {
    */
   async setActiveVersion(documentId: string): Promise<ApiResponse<LegalDocumentData>> {
     try {
-      const document = await this.context.prisma.legalDocument.findUnique({
+      const document = await this.prisma.legalDocument.findUnique({
         where: { id: documentId },
       });
 
@@ -295,7 +290,7 @@ export class LegalDocumentService extends BaseService {
       }
 
       // Deactivate all other documents of this type
-      await this.context.prisma.legalDocument.updateMany({
+      await this.prisma.legalDocument.updateMany({
         where: {
           type: document.type,
           isActive: true,
@@ -307,12 +302,12 @@ export class LegalDocumentService extends BaseService {
       });
 
       // Activate this document
-      const updatedDocument = await this.context.prisma.legalDocument.update({
+      const updatedDocument = await this.prisma.legalDocument.update({
         where: { id: documentId },
         data: { isActive: true },
       });
 
-      this.context.logger.info(`Legal document activated: ${documentId}`);
+      this.logger.info(`Legal document activated: ${documentId}`);
 
       return {
         success: true,
@@ -320,7 +315,7 @@ export class LegalDocumentService extends BaseService {
         message: 'Legal document version activated',
       };
     } catch (error) {
-      this.context.logger.error('Error activating legal document:', error);
+      this.logger.error('Error activating legal document:', error);
       return {
         success: false,
         data: null as any,
