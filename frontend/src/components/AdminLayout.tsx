@@ -40,6 +40,7 @@ const navigation: NavItem[] = [
   { title: 'Dashboard', href: '/admin', icon: Home },
   { title: 'Vendor Management', href: '/admin/vendors', icon: Building2 },
   { title: 'User Management', href: '/admin/users', icon: Users },
+  { title: 'Leads', href: '/admin/leads', icon: TrendingUp },
   { title: 'Templates', href: '/admin/templates', icon: FileText },
   { title: 'Plans', href: '/admin/plans', icon: Layers },
   { title: 'Coupons', href: '/admin/coupons', icon: Tag },

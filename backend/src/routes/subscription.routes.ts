@@ -632,18 +632,8 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
     }
 
     try {
-      // Query subscription with selective fields (security + performance)
-      const subscription = await prisma.subscription.findUnique({
-        where: { userId },
-        select: {
-          plan: true,
-          billingCycle: true,
-          currentPeriodStart: true,
-          currentPeriodEnd: true,
-          creditsBalance: true,
-          stripeSubscriptionId: true,
-        },
-      });
+      // Use subscription service to get billing info
+      const subscription = await subscriptionService.getSubscriptionDetails(userId);
 
       if (!subscription) {
         reply.status(404).send({
@@ -654,20 +644,20 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         return;
       }
 
-      // Return billing info (sensitive fields excluded via select)
+      // Return billing info
       reply.status(200).send({
         success: true,
         data: {
           plan: subscription.plan,
-          billingCycle: subscription.billingCycle,
-          currentPeriodStart: subscription.currentPeriodStart.toISOString(),
-          currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() || null,
-          creditsBalance: subscription.creditsBalance,
+          billingCycle: subscription.billingCycle || 'monthly',
+          currentPeriodStart: subscription.currentPeriodStart ? new Date(subscription.currentPeriodStart).toISOString() : null,
+          currentPeriodEnd: subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toISOString() : null,
+          creditsBalance: subscription.creditsBalance || 0,
           stripeSubscriptionId: subscription.stripeSubscriptionId,
         },
       });
     } catch (error: any) {
-      request.log.error({ error, userId }, 'Error getting billing info');
+      request.log.error({ error: error.message || error, userId, stack: error?.stack }, 'Error getting billing info');
 
       reply.status(500).send({
         success: false,

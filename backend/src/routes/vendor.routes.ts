@@ -599,13 +599,12 @@ export default async function vendorRoutes(server: FastifyInstance) {
     try {
       // Map contact type from string to enum
       const contactData = {
+        vendorId: params.id,
         ...data,
         type: ContactType[data.type as keyof typeof ContactType],
       };
 
       const result = await vendorService.contactVendor(
-        params.id,
-        user.id,
         contactData,
         { userId: user.id, userRole: user.role }
       );

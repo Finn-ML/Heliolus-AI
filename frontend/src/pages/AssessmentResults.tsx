@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
-import { assessmentApi, queryKeys, apiRequest, getCurrentUserId } from '@/lib/api';
+import { assessmentApi, queryKeys, apiRequest, getCurrentUserId, subscriptionApi } from '@/lib/api';
 import { BlurredSection } from '@/components/BlurredSection';
 import {
   AssessmentResults as AssessmentResultsType,
@@ -969,27 +969,15 @@ const AssessmentResults = () => {
     enabled: !!assessmentId,
   });
 
-  // Fetch user's billing info to check plan
-  const { data: billingInfo } = useQuery({
-    queryKey: ['subscription', 'billing-info'],
-    queryFn: async () => {
-      const userId = getCurrentUserId();
-      if (!userId) return null;
-
-      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) return null;
-      return response.json();
-    },
+  // Fetch user's subscription to check plan
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: subscriptionApi.getCurrentSubscription,
     enabled: !!localStorage.getItem('token'),
     retry: false,
   });
 
-  const currentPlan = billingInfo?.data?.plan || 'FREE';
+  const currentPlan = subscription?.plan || 'FREE';
   const isRestricted = currentPlan === 'FREE';
 
   // Fetch AI-generated metrics
@@ -1015,6 +1003,40 @@ const AssessmentResults = () => {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
+
+  // Helper function to check if priorities are complete
+  const arePrioritiesComplete = (priorities: any): boolean => {
+    if (!priorities) return false;
+
+    // Check all required array fields have at least one item
+    const requiredArrays = [
+      'selectedUseCases',
+      'rankedPriorities',
+    ];
+
+    const arrayFieldsComplete = requiredArrays.every(field =>
+      Array.isArray(priorities[field]) && priorities[field].length > 0
+    );
+
+    // Check all required string fields are not empty
+    const requiredStrings = [
+      'primaryGoal',
+      'implementationUrgency',
+      'budgetRange',
+      'deploymentPreference',
+      'vendorMaturity',
+      'geographicRequirements',
+      'supportModel',
+    ];
+
+    const stringFieldsComplete = requiredStrings.every(field =>
+      priorities[field] && priorities[field].trim().length > 0
+    );
+
+    return arrayFieldsComplete && stringFieldsComplete;
+  };
+
+  const isPrioritiesComplete = arePrioritiesComplete(priorities);
 
   // Debug priorities
   useEffect(() => {
@@ -1173,53 +1195,56 @@ const AssessmentResults = () => {
         </Card>
 
         {/* Call to Action - Questionnaire or Vendor Matching */}
-        <Card className="mb-8 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-800/50">
-          <CardContent className="p-6">
-            {!priorities ? (
-              // Show Priorities Questionnaire CTA if not completed
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                    <Target className="h-6 w-6 text-pink-400" />
-                    Complete Your Priorities Questionnaire
-                  </h3>
-                  <p className="text-gray-300">
-                    Tell us about your organization's priorities and get personalized vendor
-                    recommendations based on your specific needs.
-                  </p>
+        {currentPlan !== 'FREE' && (
+          <Card className="mb-8 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-800/50">
+            <CardContent className="p-6">
+              {!isPrioritiesComplete ? (
+                // Show Priorities Questionnaire CTA if not completed (Premium users only)
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                      <Target className="h-6 w-6 text-pink-400" />
+                      {!priorities ? 'Complete Your Priorities Questionnaire' : 'Finish Your Priorities Questionnaire'}
+                    </h3>
+                    <p className="text-gray-300">
+                      {!priorities
+                        ? 'Tell us about your organization\'s priorities and get personalized vendor recommendations based on your specific needs.'
+                        : 'Your questionnaire is incomplete. Complete it to unlock AI-powered vendor matching.'}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => navigate(`/assessments/${assessmentId}/priorities`)}
+                    className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white px-8 py-6 text-lg font-semibold"
+                  >
+                    <Sparkles className="h-5 w-5 mr-2" />
+                    {!priorities ? 'Complete Questionnaire' : 'Finish Questionnaire'}
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => navigate(`/assessments/${assessmentId}/priorities`)}
-                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white px-8 py-6 text-lg font-semibold"
-                >
-                  <Sparkles className="h-5 w-5 mr-2" />
-                  Complete Questionnaire
-                  <ArrowRight className="h-5 w-5 ml-2" />
-                </Button>
-              </div>
-            ) : (
-              // Show Vendor Matching CTA if priorities completed
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Ready to Address Your Compliance Gaps?
-                  </h3>
-                  <p className="text-gray-300">
-                    Discover vendors matched to your specific compliance needs
-                  </p>
+              ) : (
+                // Show Vendor Matching CTA if priorities completed (Premium users only)
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Ready to Address Your Compliance Gaps?
+                    </h3>
+                    <p className="text-gray-300">
+                      Discover vendors matched to your specific compliance needs
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => navigate(`/marketplace?assessmentId=${assessmentId}`)}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Find Matching Vendors
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => navigate(`/marketplace?assessmentId=${assessmentId}`)}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Find Matching Vendors
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">

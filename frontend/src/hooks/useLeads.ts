@@ -16,18 +16,20 @@ export interface LeadFilters {
 export interface Lead {
   id: string;
   type: 'PREMIUM' | 'BASIC';
-  status: LeadStatus;
-  organizationName: string;
-  organizationId?: string;
+  status: string;
+  companyName: string;
   userName: string;
-  userId?: string;
-  vendorName: string;
-  vendorId: string;
-  contactType?: string;
-  message?: string;
-  rfpTitle?: string;
-  createdAt: string;
-  updatedAt: string;
+  userEmail: string;
+  submissionDate: string;
+  vendors: Array<{ id: string; name: string }>;
+  message?: string | null;
+  phone?: string | null;
+  rfpTitle?: string | null;
+  objectives?: string | null;
+  requirements?: string | null;
+  budget?: string | null;
+  timeline?: string | null;
+  documents?: string[];
 }
 
 export interface LeadsResponse {

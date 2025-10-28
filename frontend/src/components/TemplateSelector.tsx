@@ -24,22 +24,13 @@ import { templateApi, queryKeys } from '@/lib/api';
 import { AssessmentTemplate, TemplateCategory, TemplateFilters } from '@/types/assessment';
 import { FreemiumProgress, RestrictedContent } from '@/components/ui/freemium';
 import { toast } from '@/hooks/use-toast';
+import { useSubscriptionCheck } from '@/hooks/useSubscriptionCheck';
 
 interface TemplateSelectorProps {
   onTemplateSelect: (template: AssessmentTemplate) => void;
   onSkip: () => void;
   className?: string;
 }
-
-// Mock freemium data - replace with real API call
-const mockFreemiumStatus = {
-  isFreeTier: true,
-  assessmentsUsed: 0,
-  assessmentsLimit: 1,
-  canViewFullResults: false,
-  canDownloadReports: false,
-  canAccessMarketplace: false,
-};
 
 const categoryIcons: Record<TemplateCategory, any> = {
   FINANCIAL_CRIME: Shield,
@@ -72,6 +63,19 @@ const TemplateSelector = ({ onTemplateSelect, onSkip, className }: TemplateSelec
   const [searchQuery, setSearchQuery] = useState('');
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
+  // Get real subscription status from hook
+  const { isPremium, isLoading: subscriptionLoading } = useSubscriptionCheck();
+
+  // Build freemium status from real subscription data
+  const freemiumStatus = {
+    isFreeTier: !isPremium,
+    assessmentsUsed: 0,
+    assessmentsLimit: isPremium ? 999 : 1,
+    canViewFullResults: isPremium,
+    canDownloadReports: isPremium,
+    canAccessMarketplace: isPremium,
+  };
+
   // Build filters for API call
   const filters: TemplateFilters = {
     ...(selectedCategory !== 'all' && { category: selectedCategory }),
@@ -94,8 +98,8 @@ const TemplateSelector = ({ onTemplateSelect, onSkip, className }: TemplateSelec
   const handleTemplateSelect = (template: AssessmentTemplate) => {
     // Check freemium limits
     if (
-      mockFreemiumStatus.isFreeTier &&
-      mockFreemiumStatus.assessmentsUsed >= mockFreemiumStatus.assessmentsLimit
+      freemiumStatus.isFreeTier &&
+      freemiumStatus.assessmentsUsed >= freemiumStatus.assessmentsLimit
     ) {
       setShowUpgradeDialog(true);
       toast({
@@ -150,12 +154,12 @@ const TemplateSelector = ({ onTemplateSelect, onSkip, className }: TemplateSelec
       </Card>
 
       {/* Freemium Progress */}
-      {mockFreemiumStatus.isFreeTier && (
+      {freemiumStatus.isFreeTier && (
         <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5">
           <CardContent className="p-4">
             <FreemiumProgress
-              used={mockFreemiumStatus.assessmentsUsed}
-              limit={mockFreemiumStatus.assessmentsLimit}
+              used={freemiumStatus.assessmentsUsed}
+              limit={freemiumStatus.assessmentsLimit}
               itemName="Assessment"
             />
             <p className="text-xs text-muted-foreground mt-2">
@@ -240,8 +244,8 @@ const TemplateSelector = ({ onTemplateSelect, onSkip, className }: TemplateSelec
                     {templates.map(template => {
                       const Icon = categoryIcons[template.category];
                       const isRestricted =
-                        mockFreemiumStatus.isFreeTier &&
-                        mockFreemiumStatus.assessmentsUsed >= mockFreemiumStatus.assessmentsLimit;
+                        freemiumStatus.isFreeTier &&
+                        freemiumStatus.assessmentsUsed >= freemiumStatus.assessmentsLimit;
 
                       return (
                         <RestrictedContent

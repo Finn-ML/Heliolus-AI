@@ -540,7 +540,7 @@ export class EmailServiceImpl extends BaseService implements EmailService {
         companyName: inquiryData.companyName,
         error
       });
-      throw error;
+      // Don't throw - vendor contact should succeed even if email fails
     }
   }
 

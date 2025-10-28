@@ -44,6 +44,7 @@ import Subscriptions from './pages/admin/Subscriptions';
 import PlanManagement from './pages/admin/PlanManagement';
 import CouponManagement from './pages/admin/CouponManagement';
 import LegalDocuments from './pages/admin/LegalDocuments';
+import LeadsPage from './pages/admin/LeadsPage';
 import UserSettings from './components/UserSettings';
 import PasswordReset from './pages/PasswordReset';
 import EmailVerification from './pages/EmailVerification';
@@ -219,6 +220,14 @@ const App = () => (
                   element={
                     <AdminRoute>
                       <LegalDocuments />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/leads"
+                  element={
+                    <AdminRoute>
+                      <LeadsPage />
                     </AdminRoute>
                   }
                 />

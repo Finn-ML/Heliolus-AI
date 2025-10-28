@@ -34,7 +34,7 @@ import { useNavigate } from 'react-router-dom';
 import VendorProfile from './VendorProfile';
 import VendorComparison from './VendorComparison';
 import { ContactVendorModal } from '@/components/vendor/ContactVendorModal';
-import { assessmentApi, queryKeys, getCurrentUserId } from '@/lib/api';
+import { assessmentApi, queryKeys, getCurrentUserId, subscriptionApi } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { VendorMatchScore } from '@/types/vendor-matching.types';
 import { getMatchQuality, getMatchQualityColor } from '@/types/vendor-matching.types';
@@ -64,27 +64,15 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [contactVendor, setContactVendor] = useState<any>(null);
 
-  // Fetch user's billing info to check plan
-  const { data: billingInfo } = useQuery({
-    queryKey: ['subscription', 'billing-info'],
-    queryFn: async () => {
-      const userId = getCurrentUserId();
-      if (!userId) return null;
-
-      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) return null;
-      return response.json();
-    },
+  // Fetch user's subscription to check plan (use standard API)
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: subscriptionApi.getCurrentSubscription,
     enabled: !!localStorage.getItem('token'),
     retry: false,
   });
 
-  const currentPlan = billingInfo?.data?.plan || 'FREE';
+  const currentPlan = subscription?.plan || 'FREE';
   const isFreePlan = currentPlan === 'FREE';
 
   // Fetch user's completed assessments for filter dropdown

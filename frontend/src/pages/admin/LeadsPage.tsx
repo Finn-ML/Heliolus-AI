@@ -70,9 +70,9 @@ export default function LeadsPage() {
     const term = searchTerm.toLowerCase();
     return leadsData.leads.filter(
       (lead) =>
-        lead.organizationName?.toLowerCase().includes(term) ||
+        lead.companyName?.toLowerCase().includes(term) ||
         lead.userName?.toLowerCase().includes(term) ||
-        lead.vendorName?.toLowerCase().includes(term) ||
+        lead.vendors?.[0]?.name?.toLowerCase().includes(term) ||
         lead.rfpTitle?.toLowerCase().includes(term)
     );
   }, [leadsData?.leads, searchTerm]);
@@ -323,7 +323,7 @@ export default function LeadsPage() {
                           <div>
                             <p className="text-xs text-gray-400">Organization</p>
                             <p className="text-sm font-medium text-white">
-                              {lead.organizationName || 'N/A'}
+                              {lead.companyName || 'N/A'}
                             </p>
                           </div>
                         </div>
@@ -332,7 +332,7 @@ export default function LeadsPage() {
                           <Package className="h-4 w-4 text-pink-400" />
                           <div>
                             <p className="text-xs text-gray-400">Vendor</p>
-                            <p className="text-sm font-medium text-white">{lead.vendorName}</p>
+                            <p className="text-sm font-medium text-white">{lead.vendors?.[0]?.name || 'Unknown Vendor'}</p>
                           </div>
                         </div>
 
@@ -341,7 +341,7 @@ export default function LeadsPage() {
                           <div>
                             <p className="text-xs text-gray-400">Created</p>
                             <p className="text-sm font-medium text-white">
-                              {formatDate(lead.createdAt)}
+                              {formatDate(lead.submissionDate)}
                             </p>
                           </div>
                         </div>

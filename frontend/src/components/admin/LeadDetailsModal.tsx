@@ -140,7 +140,7 @@ export function LeadDetailsModal({ open, onOpenChange, leadId, leadType }: LeadD
                   <Building className="h-4 w-4 text-cyan-400" />
                   Organization
                 </div>
-                <p className="text-white pl-6">{lead.organizationName || 'N/A'}</p>
+                <p className="text-white pl-6">{lead.companyName || 'N/A'}</p>
               </div>
 
               <div className="space-y-2">
@@ -160,7 +160,7 @@ export function LeadDetailsModal({ open, onOpenChange, leadId, leadType }: LeadD
                 <Package className="h-4 w-4 text-cyan-400" />
                 Vendor
               </div>
-              <p className="text-white pl-6">{lead.vendorName}</p>
+              <p className="text-white pl-6">{lead.vendors?.[0]?.name || 'Unknown Vendor'}</p>
             </div>
 
             <Separator />
@@ -218,17 +218,17 @@ export function LeadDetailsModal({ open, onOpenChange, leadId, leadType }: LeadD
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
                   <Calendar className="h-4 w-4 text-cyan-400" />
-                  Created
+                  Submission Date
                 </div>
-                <p className="text-white pl-6 text-sm">{formatDate(lead.createdAt)}</p>
+                <p className="text-white pl-6 text-sm">{formatDate(lead.submissionDate)}</p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <Calendar className="h-4 w-4 text-cyan-400" />
-                  Updated
+                  <Mail className="h-4 w-4 text-cyan-400" />
+                  Email
                 </div>
-                <p className="text-white pl-6 text-sm">{formatDate(lead.updatedAt)}</p>
+                <p className="text-white pl-6 text-sm">{lead.userEmail || 'N/A'}</p>
               </div>
             </div>
 

@@ -78,6 +78,24 @@ export class PrioritiesService extends BaseService {
         complianceTeamSize: validated.complianceTeamSize || assessment.organization?.complianceTeamSize,
       };
 
+      // Validate that required fields are present after merging with organization data
+      const missingRequiredFields = [];
+      if (!finalData.companySize) missingRequiredFields.push('companySize');
+      if (!finalData.annualRevenue) missingRequiredFields.push('annualRevenue');
+      if (!finalData.complianceTeamSize) missingRequiredFields.push('complianceTeamSize');
+
+      if (missingRequiredFields.length > 0) {
+        throw this.createError(
+          `Required organization information is missing: ${missingRequiredFields.join(', ')}. Please complete your business profile first.`,
+          400,
+          'INCOMPLETE_BUSINESS_PROFILE',
+          {
+            missingFields: missingRequiredFields,
+            message: 'Please complete your business profile with company size, annual revenue, and compliance team size before submitting priorities.'
+          }
+        );
+      }
+
       // 4. Upsert priorities (create or update)
       const priorities = await this.prisma.assessmentPriorities.upsert({
         where: { assessmentId },

@@ -45,6 +45,7 @@ import {
   FreemiumBanner,
 } from '@/components/ui/freemium';
 import { toast } from '@/hooks/use-toast';
+import { useSubscriptionCheck } from '@/hooks/useSubscriptionCheck';
 
 interface AssessmentResultsProps {
   assessmentId: string;
@@ -52,16 +53,6 @@ interface AssessmentResultsProps {
   onStartNewAssessment?: () => void;
   className?: string;
 }
-
-// Mock freemium status - replace with real API call
-const mockFreemiumStatus: FreemiumRestrictions = {
-  isFreeTier: true,
-  assessmentsUsed: 1,
-  assessmentsLimit: 1,
-  canViewFullResults: false,
-  canDownloadReports: false,
-  canAccessMarketplace: false,
-};
 
 const getSeverityColor = (severity: Severity) => {
   const colors = {
@@ -114,6 +105,32 @@ const AssessmentResults = ({
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
+  // Fetch real subscription data
+  const { isPremium, isLoading: subscriptionLoading, subscription, isError: subscriptionError } = useSubscriptionCheck();
+
+  // Log subscription data for debugging
+  if (typeof window !== 'undefined') {
+    console.log('Subscription check:', {
+      subscription,
+      isPremium,
+      isLoading: subscriptionLoading,
+      isError: subscriptionError,
+      plan: subscription?.plan,
+      status: subscription?.status
+    });
+  }
+
+  // Derive freemium status from actual subscription
+  // Default to PREMIUM access if subscription is still loading (assume premium during load)
+  const freemiumStatus: FreemiumRestrictions = {
+    isFreeTier: subscriptionLoading ? false : !isPremium,
+    assessmentsUsed: 1,
+    assessmentsLimit: isPremium || subscriptionLoading ? 999 : 1,
+    canViewFullResults: isPremium || subscriptionLoading,
+    canDownloadReports: isPremium || subscriptionLoading,
+    canAccessMarketplace: isPremium || subscriptionLoading,
+  };
+
   const handleUpgrade = (plan: 'monthly' | 'annual') => {
     toast({
       title: 'Upgrade Coming Soon',
@@ -123,7 +140,7 @@ const AssessmentResults = ({
   };
 
   const handleDownload = () => {
-    if (!mockFreemiumStatus.canDownloadReports) {
+    if (!freemiumStatus.canDownloadReports) {
       setUpgradeDialogOpen(true);
       return;
     }
@@ -136,7 +153,7 @@ const AssessmentResults = ({
   };
 
   const handleMarketplaceAccess = () => {
-    if (!mockFreemiumStatus.canAccessMarketplace) {
+    if (!freemiumStatus.canAccessMarketplace) {
       setUpgradeDialogOpen(true);
       return;
     }
@@ -223,7 +240,7 @@ const AssessmentResults = ({
       </Card>
 
       {/* Freemium Banner */}
-      {mockFreemiumStatus.isFreeTier && (
+      {freemiumStatus.isFreeTier && (
         <FreemiumBanner
           title="Upgrade for Complete Analysis"
           description="Get detailed risk analysis, vendor recommendations, and unlimited assessments"
@@ -395,7 +412,7 @@ const AssessmentResults = ({
 
         <TabsContent value="gaps" className="space-y-4">
           <BlurOverlay
-            isBlurred={!mockFreemiumStatus.canViewFullResults}
+            isBlurred={!freemiumStatus.canViewFullResults}
             upgradeMessage="Upgrade to view detailed gap analysis"
             onUpgrade={() => setUpgradeDialogOpen(true)}
           >
@@ -456,7 +473,7 @@ const AssessmentResults = ({
 
         <TabsContent value="risks" className="space-y-4">
           <BlurOverlay
-            isBlurred={!mockFreemiumStatus.canViewFullResults}
+            isBlurred={!freemiumStatus.canViewFullResults}
             upgradeMessage="Upgrade to view detailed risk assessment"
             onUpgrade={() => setUpgradeDialogOpen(true)}
           >

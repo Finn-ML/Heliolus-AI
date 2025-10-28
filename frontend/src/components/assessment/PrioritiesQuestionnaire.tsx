@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { assessmentApi } from '@/lib/api';
 import type { PrioritiesData, PrioritiesDraft, PrioritiesPayload } from '@/types/priorities.types';
 
@@ -261,12 +262,42 @@ export default function PrioritiesQuestionnaire({
       console.error('[PrioritiesQuestionnaire] Submission error:', error);
       console.error('[PrioritiesQuestionnaire] Error details:', error.response?.data || error);
 
-      // Try to show detailed validation errors
+      // Check if this is an incomplete business profile error
+      const errorCode = error.response?.data?.code || error.code;
+      const errorData = error.response?.data;
+
+      if (errorCode === 'INCOMPLETE_BUSINESS_PROFILE') {
+        const missingFields = errorData?.details?.missingFields || [];
+        const friendlyFieldNames: Record<string, string> = {
+          companySize: 'Company Size',
+          annualRevenue: 'Annual Revenue',
+          complianceTeamSize: 'Compliance Team Size',
+        };
+        const missingFieldsText = missingFields
+          .map((f: string) => friendlyFieldNames[f] || f)
+          .join(', ');
+
+        toast({
+          title: 'Business Profile Incomplete',
+          description: `Please complete your business profile first. Missing: ${missingFieldsText}`,
+          variant: 'destructive',
+          action: (
+            <ToastAction altText="Complete Profile" onClick={() => navigate('/settings/organization')}>
+              Complete Profile
+            </ToastAction>
+          ),
+        });
+        return;
+      }
+
+      // Try to show detailed validation errors for other errors
       let errorMessage = error.message;
-      if (error.response?.data?.details) {
-        errorMessage = JSON.stringify(error.response.data.details, null, 2);
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+      if (errorData?.details) {
+        errorMessage = JSON.stringify(errorData.details, null, 2);
+      } else if (errorData?.error) {
+        errorMessage = errorData.error;
+      } else if (errorData?.message) {
+        errorMessage = errorData.message;
       }
 
       toast({

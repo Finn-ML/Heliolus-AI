@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { BaseService, ServiceContext } from './base.service.js';
-import { RFP, VendorContact, LeadStatus, Prisma } from '../generated/prisma/index.js';
+import { RFP, VendorContact, LeadStatus, ContactStatus, Prisma } from '../generated/prisma/index.js';
 
 // ==================== TYPES ====================
 
@@ -122,18 +122,26 @@ export class LeadService extends BaseService {
         });
 
         for (const rfp of rfps) {
+          // Handle potentially null/undefined relations with fallbacks
+          const orgName = rfp.organization?.name || 'Unknown Organization';
+          const userEmail = rfp.user?.email || 'Unknown Email';
+          const firstName = rfp.user?.firstName || 'Unknown';
+          const lastName = rfp.user?.lastName || 'User';
+
           leads.push({
             id: rfp.id,
             type: 'PREMIUM',
-            companyName: rfp.organization.name,
-            userEmail: rfp.user.email,
-            userName: `${rfp.user.firstName} ${rfp.user.lastName}`.trim(),
+            companyName: orgName,
+            userEmail: userEmail,
+            userName: `${firstName} ${lastName}`.trim(),
             submissionDate: rfp.sentAt || rfp.createdAt,
             status: rfp.leadStatus || LeadStatus.NEW,
-            vendors: rfp.contacts.map(c => ({
-              id: c.vendor.id,
-              name: c.vendor.companyName,
-            })),
+            vendors: rfp.contacts
+              .filter(c => c.vendor) // Filter out contacts with null vendors
+              .map(c => ({
+                id: c.vendor!.id,
+                name: c.vendor!.companyName,
+              })),
             budget: rfp.budget,
             timeline: rfp.timeline,
             rfpTitle: rfp.title,
@@ -151,7 +159,16 @@ export class LeadService extends BaseService {
         };
 
         if (status && status.length > 0) {
-          contactWhere.status = { in: status };
+          // Filter to only valid ContactStatus enum values
+          const validStatuses = status.filter((s): s is ContactStatus => {
+            const validValues: ContactStatus[] = ['PENDING', 'ACKNOWLEDGED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED'];
+            return validValues.includes(s as ContactStatus);
+          });
+
+          // Only apply filter if there are valid statuses
+          if (validStatuses.length > 0) {
+            contactWhere.status = { in: validStatuses };
+          }
         }
 
         if (startDate || endDate) {
@@ -171,15 +188,23 @@ export class LeadService extends BaseService {
         });
 
         for (const contact of contacts) {
+          // Handle potentially null/undefined relations with fallbacks
+          const orgName = contact.organization?.name || 'Unknown Organization';
+          const userEmail = contact.user?.email || 'Unknown Email';
+          const firstName = contact.user?.firstName || 'Unknown';
+          const lastName = contact.user?.lastName || 'User';
+          const vendorId = contact.vendor?.id || 'unknown-vendor';
+          const vendorName = contact.vendor?.companyName || 'Unknown Vendor';
+
           leads.push({
             id: contact.id,
             type: 'BASIC',
-            companyName: contact.organization.name,
-            userEmail: contact.user.email,
-            userName: `${contact.user.firstName} ${contact.user.lastName}`.trim(),
+            companyName: orgName,
+            userEmail: userEmail,
+            userName: `${firstName} ${lastName}`.trim(),
             submissionDate: contact.createdAt,
             status: contact.status || 'PENDING',
-            vendors: [{ id: contact.vendor.id, name: contact.vendor.companyName }],
+            vendors: [{ id: vendorId, name: vendorName }],
             message: (contact.metadata as any)?.message || null,
             phone: (contact.metadata as any)?.phone || null,
           });
@@ -355,11 +380,11 @@ export class LeadService extends BaseService {
         };
       } else {
         // BASIC lead - map LeadStatus to VendorContact status
-        const contactStatusMap: Record<LeadStatus, string> = {
+        const contactStatusMap: Record<LeadStatus, ContactStatus> = {
           [LeadStatus.NEW]: 'PENDING',
-          [LeadStatus.IN_PROGRESS]: 'CONTACTED',
-          [LeadStatus.QUALIFIED]: 'RESPONDED',
-          [LeadStatus.CONVERTED]: 'CONVERTED',
+          [LeadStatus.IN_PROGRESS]: 'IN_PROGRESS',
+          [LeadStatus.QUALIFIED]: 'ACKNOWLEDGED',
+          [LeadStatus.CONVERTED]: 'COMPLETED',
           [LeadStatus.LOST]: 'REJECTED',
         };
 
@@ -495,12 +520,22 @@ export class LeadService extends BaseService {
    */
   async exportLeadsToCSV(filters: LeadFilters): Promise<string> {
     try {
-      // Get all leads without pagination
-      const { leads } = await this.getLeads({
-        ...filters,
-        limit: 10000, // High limit to get all
-        page: 1,
-      });
+      // Fetch all leads using pagination with max limit of 100
+      const allLeads: Lead[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { leads, totalPages } = await this.getLeads({
+          ...filters,
+          limit: 100,
+          page,
+        });
+
+        allLeads.push(...leads);
+        hasMore = page < totalPages;
+        page++;
+      }
 
       // CSV headers
       const headers = [
@@ -518,7 +553,7 @@ export class LeadService extends BaseService {
       ];
 
       // CSV rows
-      const rows = leads.map(lead => [
+      const rows = allLeads.map(lead => [
         lead.submissionDate.toISOString().split('T')[0], // Date only
         lead.type,
         lead.companyName,
@@ -538,7 +573,7 @@ export class LeadService extends BaseService {
         ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
       ].join('\n');
 
-      this.logger.info('Leads exported to CSV', { leadCount: leads.length });
+      this.logger.info('Leads exported to CSV', { leadCount: allLeads.length });
 
       return csvContent;
     } catch (error) {

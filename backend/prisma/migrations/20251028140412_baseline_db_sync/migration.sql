@@ -1,0 +1,1 @@
+-- This migration represents the current database state after prisma db push

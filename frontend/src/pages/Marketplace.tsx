@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Building, FileText, Store } from 'lucide-react';
+import { Building, FileText, Store, Plus } from 'lucide-react';
 import VendorMarketplace from '@/components/VendorMarketplace';
 import RfpTracking from '@/components/RfpTracking';
 import ComparisonView from '@/components/ComparisonView';
 import VendorOnboarding from '@/components/VendorOnboarding';
+import { RFPFormModal } from '@/components/rfp/RFPFormModal';
+import { InlinePremiumGate } from '@/components/subscription/PremiumFeatureGate';
+import { organizationApi } from '@/lib/api';
 
 interface MarketplaceProps {
   // Optional props for when connected to main workflow
@@ -24,11 +28,21 @@ const Marketplace: React.FC<MarketplaceProps> = ({
 }) => {
   const [searchParams] = useSearchParams();
   const assessmentId = searchParams.get('assessmentId') || undefined;
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('vendors');
   const [selectedVendors, setSelectedVendors] = useState<any[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [showVendorOnboarding, setShowVendorOnboarding] = useState(false);
+  const [showRFPModal, setShowRFPModal] = useState(false);
+
+  // Fetch user's organization for RFP creation
+  const { data: organization } = useQuery({
+    queryKey: ['organization', 'my'],
+    queryFn: organizationApi.getMyOrganization,
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
 
   if (showComparison) {
     return (
@@ -85,6 +99,18 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 )}
               </div>
               <div className="flex space-x-3">
+                <InlinePremiumGate
+                  featureName="RFP Creation"
+                  onUpgradeClick={() => navigate('/settings/subscription')}
+                >
+                  <Button
+                    onClick={() => setShowRFPModal(true)}
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    <span>Create RFP</span>
+                  </Button>
+                </InlinePremiumGate>
                 <Button
                   variant="outline"
                   onClick={() => setShowVendorOnboarding(true)}
@@ -133,6 +159,15 @@ const Marketplace: React.FC<MarketplaceProps> = ({
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* RFP Form Modal */}
+      {organization?.id && (
+        <RFPFormModal
+          open={showRFPModal}
+          onOpenChange={setShowRFPModal}
+          organizationId={organization.id}
+        />
+      )}
     </div>
   );
 };
