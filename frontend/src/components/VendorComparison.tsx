@@ -34,6 +34,10 @@ import { getCurrentUserId } from '@/lib/api';
 import { MatchQualityBadge } from '@/components/vendor/MatchQualityBadge';
 import { BaseScoreChart } from '@/components/vendor/BaseScoreChart';
 import { PriorityBoostChart } from '@/components/vendor/PriorityBoostChart';
+import { MatchReasonsList } from '@/components/vendor/MatchReasonsList';
+import { PriorityBadge } from '@/components/vendor/PriorityBadge';
+import { FeatureCoverageList } from '@/components/vendor/FeatureCoverageList';
+import { Progress } from '@/components/ui/progress';
 
 interface VendorComparisonProps {
   vendors: any[];
@@ -195,6 +199,38 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
               </CardHeader>
 
               <CardContent className="space-y-6">
+                {/* Epic 13 - Story 13.3: Priority Badge */}
+                {match1?.priorityBoost && (
+                  <PriorityBadge
+                    priorityBoost={match1.priorityBoost.topPriorityBoost}
+                    matchedPriority={match1.priorityBoost.matchedPriority}
+                  />
+                )}
+
+                {/* Epic 13 - Story 13.3: Gap Coverage */}
+                {match1?.baseScore && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-400 mb-2">Gap Coverage</h4>
+                    <div className="mb-2">
+                      <Progress
+                        value={(match1.baseScore.riskAreaCoverage / 40) * 100}
+                        className={`h-3 ${
+                          match1.baseScore.riskAreaCoverage >= 30
+                            ? 'bg-green-900/30 [&>div]:bg-green-500'
+                            : match1.baseScore.riskAreaCoverage >= 20
+                            ? 'bg-yellow-900/30 [&>div]:bg-yellow-500'
+                            : 'bg-red-900/30 [&>div]:bg-red-500'
+                        }`}
+                      />
+                      <p className="text-sm text-gray-400 mt-1">
+                        {((match1.baseScore.riskAreaCoverage / 40) * 100).toFixed(0)}% of identified compliance gaps
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <Separator className="bg-gray-800" />
+
                 {/* Base Score Chart */}
                 {match1?.baseScore && <BaseScoreChart baseScore={match1.baseScore} />}
 
@@ -203,6 +239,22 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
                 {/* Priority Boost Chart */}
                 {match1?.priorityBoost && (
                   <PriorityBoostChart priorityBoost={match1.priorityBoost} />
+                )}
+
+                <Separator className="bg-gray-800" />
+
+                {/* Epic 13 - Story 13.3: Match Reasons */}
+                {match1?.matchReasons && match1.matchReasons.length > 0 && (
+                  <MatchReasonsList matchReasons={match1.matchReasons} />
+                )}
+
+                <Separator className="bg-gray-800" />
+
+                {/* Epic 13 - Story 13.3: Feature Coverage */}
+                {match1?.priorityBoost && (
+                  <FeatureCoverageList
+                    missingFeatures={match1.priorityBoost.missingFeatures || []}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -266,6 +318,38 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
               </CardHeader>
 
               <CardContent className="space-y-6">
+                {/* Epic 13 - Story 13.3: Priority Badge */}
+                {match2?.priorityBoost && (
+                  <PriorityBadge
+                    priorityBoost={match2.priorityBoost.topPriorityBoost}
+                    matchedPriority={match2.priorityBoost.matchedPriority}
+                  />
+                )}
+
+                {/* Epic 13 - Story 13.3: Gap Coverage */}
+                {match2?.baseScore && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-400 mb-2">Gap Coverage</h4>
+                    <div className="mb-2">
+                      <Progress
+                        value={(match2.baseScore.riskAreaCoverage / 40) * 100}
+                        className={`h-3 ${
+                          match2.baseScore.riskAreaCoverage >= 30
+                            ? 'bg-green-900/30 [&>div]:bg-green-500'
+                            : match2.baseScore.riskAreaCoverage >= 20
+                            ? 'bg-yellow-900/30 [&>div]:bg-yellow-500'
+                            : 'bg-red-900/30 [&>div]:bg-red-500'
+                        }`}
+                      />
+                      <p className="text-sm text-gray-400 mt-1">
+                        {((match2.baseScore.riskAreaCoverage / 40) * 100).toFixed(0)}% of identified compliance gaps
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <Separator className="bg-gray-800" />
+
                 {/* Base Score Chart */}
                 {match2?.baseScore && <BaseScoreChart baseScore={match2.baseScore} />}
 
@@ -274,6 +358,22 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
                 {/* Priority Boost Chart */}
                 {match2?.priorityBoost && (
                   <PriorityBoostChart priorityBoost={match2.priorityBoost} />
+                )}
+
+                <Separator className="bg-gray-800" />
+
+                {/* Epic 13 - Story 13.3: Match Reasons */}
+                {match2?.matchReasons && match2.matchReasons.length > 0 && (
+                  <MatchReasonsList matchReasons={match2.matchReasons} />
+                )}
+
+                <Separator className="bg-gray-800" />
+
+                {/* Epic 13 - Story 13.3: Feature Coverage */}
+                {match2?.priorityBoost && (
+                  <FeatureCoverageList
+                    missingFeatures={match2.priorityBoost.missingFeatures || []}
+                  />
                 )}
               </CardContent>
             </Card>
