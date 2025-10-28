@@ -946,6 +946,55 @@ export const subscriptionApi = {
   },
 };
 
+// Vendor API
+export const vendorApi = {
+  // Contact a vendor
+  contactVendor: async (vendorId: string, data: {
+    type: 'DEMO_REQUEST' | 'INFO_REQUEST' | 'RFP' | 'PRICING' | 'GENERAL';
+    message: string;
+    requirements?: Record<string, any>;
+    budget?: string;
+    timeline?: string;
+  }) => {
+    const response = await apiRequest<{
+      id: string;
+      vendorId: string;
+      type: string;
+      message: string;
+      status: string;
+      createdAt: string;
+    }>(`/vendors/${vendorId}/contact`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response;
+  },
+
+  // Get approved vendors (for vendor selection)
+  getVendors: async (filters?: {
+    status?: string;
+    category?: string;
+    search?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (filters?.status) searchParams.set('status', filters.status);
+    if (filters?.category) searchParams.set('category', filters.category);
+    if (filters?.search) searchParams.set('search', filters.search);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/vendors?${queryString}` : '/vendors';
+
+    const response = await apiRequest<ApiResponse<any[]>>(endpoint);
+    return response.data;
+  },
+
+  // Get single vendor details
+  getVendor: async (vendorId: string) => {
+    const response = await apiRequest<ApiResponse<any>>(`/vendors/${vendorId}`);
+    return response.data;
+  },
+};
+
 // Admin Analytics API
 export const adminAnalyticsApi = {
   // Get assessment analytics

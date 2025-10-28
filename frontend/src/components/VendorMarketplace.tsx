@@ -26,12 +26,14 @@ import {
   TrendingUp,
   Calendar,
   FileText,
+  MessageCircle,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import VendorProfile from './VendorProfile';
 import VendorComparison from './VendorComparison';
+import { ContactVendorModal } from '@/components/vendor/ContactVendorModal';
 import { assessmentApi, queryKeys, getCurrentUserId } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { VendorMatchScore } from '@/types/vendor-matching.types';
@@ -59,6 +61,8 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
   const [assessmentFilter, setAssessmentFilter] = useState(assessmentId || 'all');
   const [selectedVendorProfile, setSelectedVendorProfile] = useState<any>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [contactVendor, setContactVendor] = useState<any>(null);
 
   // Fetch user's billing info to check plan
   const { data: billingInfo } = useQuery({
@@ -754,18 +758,31 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
                   )}
 
                   {/* Contact Action */}
-                  <div className="flex items-center justify-center p-3 rounded-lg bg-gradient-to-r from-cyan-500/10 to-pink-500/10 border border-cyan-500/20">
+                  <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-gradient-to-r from-cyan-500/10 to-pink-500/10 border border-cyan-500/20">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10"
+                      className="flex-1 text-pink-300 hover:text-pink-200 hover:bg-pink-500/10"
+                      onClick={e => {
+                        e.stopPropagation();
+                        setContactVendor(vendor);
+                        setContactModalOpen(true);
+                      }}
+                    >
+                      <MessageCircle className="h-3 w-3 mr-1" />
+                      Contact
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10"
                       onClick={e => {
                         e.stopPropagation();
                         handleViewDetails(vendor);
                       }}
                     >
                       <ArrowRight className="h-3 w-3 mr-1" />
-                      View Vendor
+                      View
                     </Button>
                   </div>
                 </CardContent>
@@ -786,6 +803,16 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Contact Vendor Modal */}
+      {contactVendor && (
+        <ContactVendorModal
+          open={contactModalOpen}
+          onOpenChange={setContactModalOpen}
+          vendorId={contactVendor.id}
+          vendorName={contactVendor.companyName}
+        />
       )}
     </div>
   );

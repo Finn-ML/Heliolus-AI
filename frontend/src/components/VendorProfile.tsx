@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { ContactVendorModal } from '@/components/vendor/ContactVendorModal';
 import {
   Star,
   ArrowLeft,
@@ -34,6 +35,8 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
   onSelect,
   isSelected = false,
 }) => {
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+
   const getCategoryColor = (index: number) => {
     const colors = [
       'bg-blue-500/10 text-blue-300 border-blue-500/30',
@@ -253,6 +256,7 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
           <Card className="bg-card/80 backdrop-blur border-border/50">
             <CardContent className="p-6 text-center">
               <Button
+                onClick={() => setContactModalOpen(true)}
                 variant="outline"
                 className="w-full hover:bg-pink-500/10 hover:border-pink-400"
                 data-testid="button-contact-vendor"
@@ -537,6 +541,7 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
                   </Button>
 
                   <Button
+                    onClick={() => setContactModalOpen(true)}
                     variant="outline"
                     className="w-full hover:bg-pink-500/10 hover:border-pink-400"
                     data-testid="button-contact-vendor-form"
@@ -549,6 +554,14 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Contact Vendor Modal */}
+        <ContactVendorModal
+          open={contactModalOpen}
+          onOpenChange={setContactModalOpen}
+          vendorId={vendor.id}
+          vendorName={vendor.companyName}
+        />
       </div>
     </div>
   );
