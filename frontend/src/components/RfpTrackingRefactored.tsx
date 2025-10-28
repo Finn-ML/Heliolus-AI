@@ -31,6 +31,10 @@ import {
 import { useRFPs } from '@/hooks/useRFPs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
+import { RFPFormModal } from '@/components/rfp/RFPFormModal';
+import { SendRFPButton } from '@/components/rfp/SendRFPButton';
+import { useQuery } from '@tanstack/react-query';
+import { organizationApi } from '@/lib/api';
 
 // Backend RFP interface (from API)
 interface RFP {
@@ -61,7 +65,14 @@ const RfpTrackingRefactored = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRfp, setSelectedRfp] = useState<RFP | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const { toast } = useToast();
+
+  // Fetch organization for RFP creation
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: organizationApi.getMyOrganization,
+  });
 
   // Fetch RFPs from backend
   const { data: rfps = [], isLoading, isError, error, refetch } = useRFPs();
@@ -259,7 +270,7 @@ const RfpTrackingRefactored = () => {
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
               </Button>
-              <Button>
+              <Button onClick={() => setCreateModalOpen(true)} disabled={!organization}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create RFP
               </Button>
@@ -373,10 +384,12 @@ const RfpTrackingRefactored = () => {
                         View
                       </Button>
                       {rfp.status === 'DRAFT' && (
-                        <Button size="sm">
-                          <Send className="mr-1 h-4 w-4" />
-                          Send
-                        </Button>
+                        <SendRFPButton
+                          rfpId={rfp.id}
+                          vendorCount={rfp.vendorIds.length}
+                          size="sm"
+                          onSuccess={refetch}
+                        />
                       )}
                     </div>
                   </div>
@@ -472,10 +485,17 @@ const RfpTrackingRefactored = () => {
 
               <div className="flex space-x-3 pt-4">
                 {selectedRfp.status === 'DRAFT' && (
-                  <Button className="flex-1">
-                    <Send className="mr-2 h-4 w-4" />
-                    Send RFP
-                  </Button>
+                  <div className="flex-1">
+                    <SendRFPButton
+                      rfpId={selectedRfp.id}
+                      vendorCount={selectedRfp.vendorIds.length}
+                      size="default"
+                      onSuccess={() => {
+                        refetch();
+                        setSelectedRfp(null);
+                      }}
+                    />
+                  </div>
                 )}
                 <Button variant="outline" onClick={() => setSelectedRfp(null)} className="flex-1">
                   Close
@@ -484,6 +504,15 @@ const RfpTrackingRefactored = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* RFP Create Modal */}
+      {organization && (
+        <RFPFormModal
+          open={createModalOpen}
+          onOpenChange={setCreateModalOpen}
+          organizationId={organization.id}
+        />
       )}
     </div>
   );
