@@ -633,20 +633,20 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/30">
-                      {vendor1.logoUrl ? (
+                      {vendor1.logo ? (
                         <img
-                          src={vendor1.logoUrl}
-                          alt={vendor1.name}
+                          src={vendor1.logo}
+                          alt={vendor1.companyName}
                           className="w-full h-full object-cover rounded-xl"
                         />
                       ) : (
                         <span className="text-2xl font-bold text-cyan-400">
-                          {vendor1.name.substring(0, 2).toUpperCase()}
+                          {vendor1.companyName.substring(0, 2).toUpperCase()}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-1">{vendor1.name}</h2>
+                      <h2 className="text-2xl font-bold text-white mb-1">{vendor1.companyName}</h2>
                       {vendor1.rating && (
                         <div className="flex items-center gap-2">
                           <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
@@ -683,20 +683,20 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center border border-pink-500/30">
-                      {vendor2.logoUrl ? (
+                      {vendor2.logo ? (
                         <img
-                          src={vendor2.logoUrl}
-                          alt={vendor2.name}
+                          src={vendor2.logo}
+                          alt={vendor2.companyName}
                           className="w-full h-full object-cover rounded-xl"
                         />
                       ) : (
                         <span className="text-2xl font-bold text-pink-400">
-                          {vendor2.name.substring(0, 2).toUpperCase()}
+                          {vendor2.companyName.substring(0, 2).toUpperCase()}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-1">{vendor2.name}</h2>
+                      <h2 className="text-2xl font-bold text-white mb-1">{vendor2.companyName}</h2>
                       {vendor2.rating && (
                         <div className="flex items-center gap-2">
                           <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
@@ -842,7 +842,7 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
             size="lg"
             data-testid="button-request-demo-vendor1"
           >
-            Request Demo - {vendor1.name}
+            Request Demo - {vendor1.companyName}
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
           <Button
@@ -850,7 +850,7 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
             size="lg"
             data-testid="button-request-demo-vendor2"
           >
-            Request Demo - {vendor2.name}
+            Request Demo - {vendor2.companyName}
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

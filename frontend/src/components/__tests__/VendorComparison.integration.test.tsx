@@ -404,7 +404,7 @@ describe('VendorComparison Integration Tests', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/Vendor/)).toBeInTheDocument();
+        expect(screen.getByText('Vendor Intelligence Matrix')).toBeInTheDocument();
       });
     });
 
@@ -419,7 +419,7 @@ describe('VendorComparison Integration Tests', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/Vendor/)).toBeInTheDocument();
+        expect(screen.getByText('Vendor Intelligence Matrix')).toBeInTheDocument();
       });
     });
   });

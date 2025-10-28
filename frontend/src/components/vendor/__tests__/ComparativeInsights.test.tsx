@@ -248,7 +248,7 @@ describe('ComparativeInsights', () => {
   describe('Edge Cases', () => {
     it('should handle vendors with identical scores', () => {
       const identicalMatch2 = { ...mockMatch1, vendorId: 'vendor-2' };
-      render(
+      const { container } = render(
         <ComparativeInsights
           vendor1={mockVendor1}
           match1={mockMatch1}
@@ -256,8 +256,8 @@ describe('ComparativeInsights', () => {
           match2={identicalMatch2}
         />
       );
-      // Should still render without crashing
-      expect(screen.getByText('AI-Powered Comparative Insights')).toBeInTheDocument();
+      // Should return null when no insights are generated (identical scores = no differences)
+      expect(container.firstChild).toBeNull();
     });
 
     it('should handle vendors with minimal differences', () => {
@@ -267,7 +267,7 @@ describe('ComparativeInsights', () => {
         totalScore: 126,
         baseScore: { ...mockMatch1.baseScore, riskAreaCoverage: 31 },
       };
-      render(
+      const { container } = render(
         <ComparativeInsights
           vendor1={mockVendor1}
           match1={mockMatch1}
@@ -275,8 +275,8 @@ describe('ComparativeInsights', () => {
           match2={similarMatch2}
         />
       );
-      // Should generate fewer insights due to thresholds
-      expect(screen.getByText('AI-Powered Comparative Insights')).toBeInTheDocument();
+      // Should return null when differences are below thresholds (1 point = 0.8% < 10% threshold)
+      expect(container.firstChild).toBeNull();
     });
 
     it('should return null when no meaningful insights can be generated', () => {

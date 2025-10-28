@@ -23,8 +23,10 @@ describe('PriorityBadge', () => {
 
     it('should show Star icon for #1', () => {
       const { container } = render(<PriorityBadge priorityBoost={20} />);
-      const badge = screen.getByText('#1 Priority Match').closest('span');
-      expect(badge).toBeInTheDocument();
+      expect(screen.getByText('#1 Priority Match')).toBeInTheDocument();
+      // Verify icon exists (Star icon should be rendered)
+      const svgElements = container.querySelectorAll('svg');
+      expect(svgElements.length).toBeGreaterThan(0);
     });
   });
 
