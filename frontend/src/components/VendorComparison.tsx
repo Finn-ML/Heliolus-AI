@@ -31,6 +31,9 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getCurrentUserId } from '@/lib/api';
+import { MatchQualityBadge } from '@/components/vendor/MatchQualityBadge';
+import { BaseScoreChart } from '@/components/vendor/BaseScoreChart';
+import { PriorityBoostChart } from '@/components/vendor/PriorityBoostChart';
 
 interface VendorComparisonProps {
   vendors: any[];
@@ -87,12 +90,20 @@ const VendorComparison: React.FC<VendorComparisonProps> = ({ vendors, onBack }) 
   />;
 };
 
-// Epic 13 - Story 13.2: Stub for Premium Comparison View (to be implemented in Story 13.2)
+// Epic 13 - Story 13.2: Premium Comparison View with Match Score Visualization
 const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBack }) => {
   const [vendor1, vendor2] = vendors.slice(0, 2);
 
+  // Get match details from vendors
+  const match1 = vendor1.matchDetails;
+  const match2 = vendor2.matchDetails;
+
+  // Determine which vendor has higher score
+  const higherScoreVendor = match1?.totalScore > match2?.totalScore ? 1 : 2;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black p-6">
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -119,22 +130,180 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 via-blue-400 to-pink-400 bg-clip-text text-transparent">
             AI-Powered Vendor Comparison
           </h1>
-          <p className="text-gray-400">Premium features - Detailed implementation in Story 13.2</p>
+          <p className="text-gray-400">Personalized match scores based on your assessment</p>
         </div>
       </motion.div>
 
-      {/* Stub content - to be replaced in Story 13.2 */}
+      {/* Match Score Comparison */}
       <div className="max-w-7xl mx-auto">
-        <Card className="bg-gray-900/50 border-cyan-500/30 p-8 text-center">
-          <Sparkles className="h-16 w-16 text-cyan-400 mx-auto mb-4" />
-          <p className="text-white text-xl mb-2">Premium Comparison View</p>
-          <p className="text-gray-400">
-            Comparing {vendor1.name} vs {vendor2.name}
-          </p>
-          <p className="text-gray-500 text-sm mt-4">
-            Full implementation in Story 13.2: Match Score Visualization
-          </p>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Vendor 1 Column */}
+          <motion.div
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className={`${
+              higherScoreVendor === 1
+                ? 'ring-2 ring-green-500/50 shadow-lg shadow-green-500/20'
+                : ''
+            } rounded-lg`}
+          >
+            <Card className="bg-gradient-to-br from-cyan-900/20 via-gray-900/50 to-gray-900/20 border-cyan-500/30">
+              <CardHeader>
+                {/* Vendor Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/30">
+                      {vendor1.logo ? (
+                        <img
+                          src={vendor1.logo}
+                          alt={vendor1.companyName}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
+                      ) : (
+                        <span className="text-xl font-bold text-cyan-400">
+                          {vendor1.companyName.substring(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">{vendor1.companyName}</h3>
+                      {vendor1.rating && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+                          <span className="text-yellow-400 text-sm">{vendor1.rating.toFixed(1)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Score */}
+                <div className="text-center py-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-lg mb-4">
+                  <p className="text-gray-400 text-sm mb-1">Match Score</p>
+                  <p className="text-5xl font-bold text-white mb-2">
+                    {match1?.totalScore || 0}
+                    <span className="text-gray-500 text-2xl ml-1">/ 140</span>
+                  </p>
+                  <MatchQualityBadge score={match1?.totalScore || 0} />
+                  {higherScoreVendor === 1 && (
+                    <Badge className="bg-green-500/20 text-green-400 border-green-500/50 mt-2">
+                      Best Match
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {/* Base Score Chart */}
+                {match1?.baseScore && <BaseScoreChart baseScore={match1.baseScore} />}
+
+                <Separator className="bg-gray-800" />
+
+                {/* Priority Boost Chart */}
+                {match1?.priorityBoost && (
+                  <PriorityBoostChart priorityBoost={match1.priorityBoost} />
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Vendor 2 Column */}
+          <motion.div
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className={`${
+              higherScoreVendor === 2
+                ? 'ring-2 ring-green-500/50 shadow-lg shadow-green-500/20'
+                : ''
+            } rounded-lg`}
+          >
+            <Card className="bg-gradient-to-br from-pink-900/20 via-gray-900/50 to-gray-900/20 border-pink-500/30">
+              <CardHeader>
+                {/* Vendor Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center border border-pink-500/30">
+                      {vendor2.logo ? (
+                        <img
+                          src={vendor2.logo}
+                          alt={vendor2.companyName}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
+                      ) : (
+                        <span className="text-xl font-bold text-pink-400">
+                          {vendor2.companyName.substring(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">{vendor2.companyName}</h3>
+                      {vendor2.rating && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+                          <span className="text-yellow-400 text-sm">{vendor2.rating.toFixed(1)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Score */}
+                <div className="text-center py-4 bg-gradient-to-r from-pink-500/10 to-purple-500/10 rounded-lg mb-4">
+                  <p className="text-gray-400 text-sm mb-1">Match Score</p>
+                  <p className="text-5xl font-bold text-white mb-2">
+                    {match2?.totalScore || 0}
+                    <span className="text-gray-500 text-2xl ml-1">/ 140</span>
+                  </p>
+                  <MatchQualityBadge score={match2?.totalScore || 0} />
+                  {higherScoreVendor === 2 && (
+                    <Badge className="bg-green-500/20 text-green-400 border-green-500/50 mt-2">
+                      Best Match
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {/* Base Score Chart */}
+                {match2?.baseScore && <BaseScoreChart baseScore={match2.baseScore} />}
+
+                <Separator className="bg-gray-800" />
+
+                {/* Priority Boost Chart */}
+                {match2?.priorityBoost && (
+                  <PriorityBoostChart priorityBoost={match2.priorityBoost} />
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8 grid grid-cols-2 gap-4"
+        >
+          <Button
+            className="bg-cyan-600 hover:bg-cyan-700 text-white"
+            size="lg"
+            data-testid="button-request-demo-vendor1"
+          >
+            Request Demo - {vendor1.companyName}
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+          <Button
+            className="bg-pink-600 hover:bg-pink-700 text-white"
+            size="lg"
+            data-testid="button-request-demo-vendor2"
+          >
+            Request Demo - {vendor2.companyName}
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        </motion.div>
       </div>
     </div>
   );
