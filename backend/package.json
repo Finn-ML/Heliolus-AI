@@ -18,6 +18,7 @@
     "db:seed": "prisma db seed",
     "db:seed:trade-v3": "tsx prisma/seed-trade-v3-only.ts",
     "db:seed:financial-enhanced": "tsx prisma/seed-financial-enhanced-only.ts",
+    "db:seed:revenue": "tsx prisma/seed-revenue.ts",
     "db:fix-stuck-assessments": "tsx prisma/fix-stuck-assessments.ts",
     "db:studio": "prisma studio",
     "docker:dev": "./scripts/dev-setup.sh",
