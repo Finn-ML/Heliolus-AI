@@ -911,6 +911,24 @@ export const adminAnalyticsApi = {
       throw error;
     }
   },
+
+  // Get revenue analytics
+  getRevenueAnalytics: async (params: {
+    view: 'overview' | 'trends' | 'customers' | 'breakdown';
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('view', params.view);
+    if (params.startDate) searchParams.set('startDate', params.startDate);
+    if (params.endDate) searchParams.set('endDate', params.endDate);
+
+    const queryString = searchParams.toString();
+    const endpoint = `/admin/analytics/revenue?${queryString}`;
+
+    const response = await apiRequest<ApiResponse<any>>(endpoint);
+    return response.data;
+  },
 };
 
 // TypeScript interfaces for Admin Template API
