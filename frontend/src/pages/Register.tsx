@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/useAuth';
+import { LegalDocumentLink } from '@/components/LegalDocumentDialog';
 
 // Blocked free/personal email domains
 const BLOCKED_EMAIL_DOMAINS = [
@@ -313,16 +314,15 @@ const Register: React.FC = () => {
                     />
                     <Label htmlFor="agreeToTerms" className="text-sm">
                       I agree to the{' '}
-                      <Link to="/terms" className="hover:text-primary underline underline-offset-4">
-                        Terms of Service
-                      </Link>{' '}
-                      and{' '}
-                      <Link
-                        to="/privacy"
+                      <LegalDocumentLink
+                        type="TERMS_OF_SERVICE"
                         className="hover:text-primary underline underline-offset-4"
-                      >
-                        Privacy Policy
-                      </Link>
+                      />{' '}
+                      and{' '}
+                      <LegalDocumentLink
+                        type="PRIVACY_POLICY"
+                        className="hover:text-primary underline underline-offset-4"
+                      />
                     </Label>
                   </div>
                   {errors.agreeToTerms && (

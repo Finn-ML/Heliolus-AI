@@ -22,6 +22,7 @@ import {
   Crown,
   Layers,
   Tag,
+  Scale,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -47,6 +48,7 @@ const navigation: NavItem[] = [
   { title: 'Template Costs', href: '/admin/template-costs', icon: Calculator },
   { title: 'Revenue Reports', href: '/admin/reports', icon: FileBarChart },
   { title: 'Subscriptions', href: '/admin/subscriptions', icon: Crown },
+  { title: 'Legal Documents', href: '/admin/legal-documents', icon: Scale },
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {

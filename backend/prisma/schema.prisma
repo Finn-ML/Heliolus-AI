@@ -257,6 +257,11 @@ enum InvoiceStatus {
   UNCOLLECTIBLE
 }
 
+enum LegalDocumentType {
+  PRIVACY_POLICY
+  TERMS_OF_SERVICE
+}
+
 enum AnswerStatus {
   COMPLETE
   INCOMPLETE
@@ -1245,4 +1250,31 @@ model AssessmentPriorities {
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId])
+}
+
+// ==================== LEGAL DOCUMENTS MODEL ====================
+
+model LegalDocument {
+  id   String            @id @default(cuid())
+  type LegalDocumentType
+
+  // File details
+  filename String
+  s3Key    String
+  s3Bucket String
+  fileSize Int
+  mimeType String @default("application/pdf")
+
+  // Version control
+  version  String  @default("1.0")
+  isActive Boolean @default(true)
+
+  // Metadata
+  uploadedBy String // Admin user ID
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@index([createdAt])
 }
