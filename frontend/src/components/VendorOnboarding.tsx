@@ -485,10 +485,10 @@ const VendorOnboarding: React.FC<VendorOnboardingProps> = ({ onComplete, onCance
         />
       </div>
 
-      <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-        <h4 className="font-medium">Legal Agreements</h4>
-        <div className="space-y-3">
-          <div className="flex items-start space-x-3">
+      <div className="legal-agreements-section space-y-4 p-4 rounded-lg" style={{ backgroundColor: '#f9fafb', color: '#111827' }}>
+        <h4 className="font-medium" style={{ color: '#111827 !important' }}>Legal Agreements</h4>
+        <div className="space-y-3" style={{ color: '#111827' }}>
+          <div className="flex items-start space-x-3" style={{ color: '#111827' }}>
             <Checkbox
               id="terms"
               checked={formData.termsAccepted}
@@ -496,15 +496,15 @@ const VendorOnboarding: React.FC<VendorOnboardingProps> = ({ onComplete, onCance
                 setFormData(prev => ({ ...prev, termsAccepted: !!checked }))
               }
             />
-            <Label htmlFor="terms" className="text-sm leading-5">
+            <label htmlFor="terms" className="text-sm leading-5" style={{ color: '#111827', display: 'inline', fontWeight: '500' }}>
               I agree to the{' '}
-              <a href="#" className="text-blue-600 hover:underline">
+              <a href="#" style={{ color: '#2563eb', textDecoration: 'underline' }}>
                 Terms of Service
               </a>{' '}
               and marketplace listing guidelines *
-            </Label>
+            </label>
           </div>
-          <div className="flex items-start space-x-3">
+          <div className="flex items-start space-x-3" style={{ color: '#111827' }}>
             <Checkbox
               id="privacy"
               checked={formData.dataProcessingAccepted}
@@ -512,14 +512,13 @@ const VendorOnboarding: React.FC<VendorOnboardingProps> = ({ onComplete, onCance
                 setFormData(prev => ({ ...prev, dataProcessingAccepted: !!checked }))
               }
             />
-            <Label htmlFor="privacy" className="text-sm leading-5">
-              I consent to the processing of my data as described in the
-              <a href="#" className="text-blue-600 hover:underline">
-                {' '}
+            <label htmlFor="privacy" className="text-sm leading-5" style={{ color: '#111827', display: 'inline', fontWeight: '500' }}>
+              I consent to the processing of my data as described in the{' '}
+              <a href="#" style={{ color: '#2563eb', textDecoration: 'underline' }}>
                 Privacy Policy
               </a>{' '}
               *
-            </Label>
+            </label>
           </div>
         </div>
       </div>

@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Check, ArrowLeft, CreditCard, Lock, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getCurrentUserId } from '@/lib/api';
+import { LegalDocumentLink } from '@/components/LegalDocumentDialog';
 
 type BillingCycle = 'MONTHLY' | 'ANNUAL';
 
@@ -31,13 +32,10 @@ export default function Checkout() {
   const initialCycle = (searchParams.get('cycle')?.toUpperCase() as BillingCycle) || 'MONTHLY';
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(initialCycle);
 
-  // Upgrade mutation
+  // Create Stripe Checkout Session and redirect
   const upgradeMutation = useMutation({
     mutationFn: async () => {
-      const userId = getCurrentUserId();
-      if (!userId) throw new Error('User not authenticated');
-
-      const response = await fetch(`/v1/subscriptions/${userId}/upgrade`, {
+      const response = await fetch('/v1/subscriptions/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -45,35 +43,33 @@ export default function Checkout() {
         },
         body: JSON.stringify({
           plan: 'PREMIUM',
-          billingCycle,
-          stripePaymentMethodId: 'pm_mock_success', // Mock payment method ID
         }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Upgrade failed');
+        throw new Error(error.message || 'Failed to create checkout session');
       }
 
       return response.json();
     },
-    onSuccess: () => {
-      // Invalidate billing info to refresh
-      queryClient.invalidateQueries({ queryKey: ['subscription', 'billing-info'] });
+    onSuccess: (data) => {
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        toast({
+          title: 'Redirecting to Stripe...',
+          description: 'You will be redirected to complete your payment securely.',
+        });
 
-      toast({
-        title: 'Upgrade Successful!',
-        description: 'Welcome to Premium! Your account has been upgraded.',
-      });
-
-      // Redirect to dashboard
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
+        // Redirect to Stripe Checkout page
+        window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL received');
+      }
     },
     onError: (error: Error) => {
       toast({
-        title: 'Upgrade Failed',
+        title: 'Checkout Failed',
         description: error.message,
         variant: 'destructive',
       });
@@ -241,15 +237,15 @@ export default function Checkout() {
 
                 <Separator className="bg-gray-700" />
 
-                {/* Payment Section Placeholder */}
+                {/* Payment Section */}
                 <div className="space-y-4">
                   <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CreditCard className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-300">Payment Method</span>
+                      <span className="text-sm font-medium text-gray-300">Secure Payment via Stripe</span>
                     </div>
                     <p className="text-xs text-gray-400">
-                      Stripe payment integration will be added here. For now, this is a mock checkout.
+                      You'll be redirected to Stripe's secure checkout page to complete your payment.
                     </p>
                   </div>
 
@@ -260,17 +256,26 @@ export default function Checkout() {
                     size="lg"
                   >
                     {upgradeMutation.isPending ? (
-                      'Processing...'
+                      'Redirecting to Stripe...'
                     ) : (
                       <>
                         <Lock className="mr-2 h-4 w-4" />
-                        Confirm Upgrade - €{totalAmount.toLocaleString()}
+                        Continue to Payment - €{totalAmount.toLocaleString()}
                       </>
                     )}
                   </Button>
 
                   <p className="text-xs text-center text-gray-400">
-                    By confirming, you agree to our Terms of Service and Privacy Policy
+                    By continuing, you agree to our{' '}
+                    <LegalDocumentLink
+                      type="TERMS_OF_SERVICE"
+                      className="text-primary hover:underline"
+                    />{' '}
+                    and{' '}
+                    <LegalDocumentLink
+                      type="PRIVACY_POLICY"
+                      className="text-primary hover:underline"
+                    />
                   </p>
                 </div>
               </CardContent>

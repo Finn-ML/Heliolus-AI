@@ -4,10 +4,13 @@ import { userService } from '../services/user.service';
 import { OrganizationService } from '../services/organization.service';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { ObjectStorageService } from '../objectStorage.js';
+import { LegalDocumentService } from '../services/legal-document.service';
+import { LegalDocumentType } from '../generated/prisma';
 
 // Create service instances
 const organizationService = new OrganizationService();
 const objectStorageService = new ObjectStorageService();
+const legalDocService = new LegalDocumentService();
 
 // JSON Schema definitions for Fastify validation
 const OrganizationDraftSchema = {
@@ -386,5 +389,32 @@ export default async function anonymousRoutes(
       profileComplete: !!(organizationDraft?.name && organizationDraft?.industry),
       canProceed: !!(organizationDraft?.name && organizationDraft?.industry && documentDrafts > 0)
     };
+  });
+
+  // ==================== PUBLIC LEGAL DOCUMENT ROUTES ====================
+  // These routes are accessible to anonymous users for viewing privacy policy and terms
+
+  /**
+   * GET /anon/legal-documents/active/:type
+   * Get the active legal document by type (public, no auth required)
+   */
+  fastify.get('/legal-documents/active/:type', async (request: FastifyRequest<{
+    Params: { type: string };
+  }>, reply: FastifyReply) => {
+    const result = await legalDocService.getActiveLegalDocument(
+      request.params.type as LegalDocumentType
+    );
+    return reply.code(200).send(result);
+  });
+
+  /**
+   * GET /anon/legal-documents/:id/download
+   * Get download URL for a legal document (public, no auth required)
+   */
+  fastify.get('/legal-documents/:id/download', async (request: FastifyRequest<{
+    Params: { id: string };
+  }>, reply: FastifyReply) => {
+    const result = await legalDocService.getDownloadUrl(request.params.id);
+    return reply.code(result.success ? 200 : 404).send(result);
   });
 }

@@ -25,7 +25,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/contexts/OnboardingContext';
-import { User, Mail, Building, Globe, Bell, Lock, Eye, EyeOff, Edit2, RefreshCw } from 'lucide-react';
+import { User, Mail, Building, Globe, Bell, Lock, Eye, EyeOff, Edit2, RefreshCw, CreditCard, ArrowRight } from 'lucide-react';
 
 const PasswordResetSection = () => {
   const { toast } = useToast();
@@ -527,6 +527,40 @@ const UserSettings = () => {
               onCheckedChange={checked => handleChange('marketingEmails', checked)}
               disabled={!isEditMode}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Subscription & Billing */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Subscription & Billing
+          </CardTitle>
+          <CardDescription>Manage your subscription plan and billing</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+              <div>
+                <p className="font-medium">Current Plan</p>
+                <p className="text-sm text-muted-foreground">
+                  {user?.subscription?.plan || 'FREE'} Plan
+                </p>
+              </div>
+              <Button
+                variant="default"
+                onClick={() => navigate('/pricing')}
+                data-testid="button-manage-plan"
+              >
+                Manage Plan
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              View available plans, upgrade your subscription, or manage your billing settings.
+            </p>
           </div>
         </CardContent>
       </Card>

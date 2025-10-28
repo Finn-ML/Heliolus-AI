@@ -333,7 +333,6 @@ export default async function assessmentRoutes(server: FastifyInstance) {
               type: question.type,
               displayOrder: question.order,
               isRequired: question.required,
-              options: question.options,
               placeholder: '', // Questions don't have placeholder field in schema
               helpText: question.helpText,
               tags: [], // Questions don't have tags field in schema

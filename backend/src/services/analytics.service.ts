@@ -199,11 +199,11 @@ export class AnalyticsService extends BaseService {
 
       // Calculate average completion time using raw SQL
       const avgTimeResult = await this.prisma.$queryRaw<Array<{ avg_minutes: number | null }>>`
-        SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60) as avg_minutes
+        SELECT AVG(EXTRACT(EPOCH FROM ("updatedAt" - "createdAt")) / 60) as avg_minutes
         FROM "Assessment"
-        WHERE status = ${AssessmentStatus.COMPLETED}
-          AND created_at >= ${startDate}
-          AND created_at <= ${endDate}
+        WHERE status::text = ${AssessmentStatus.COMPLETED}
+          AND "createdAt" >= ${startDate}
+          AND "createdAt" <= ${endDate}
       `;
       const avgCompletionTime = Math.round(avgTimeResult[0]?.avg_minutes || 0);
 
@@ -216,7 +216,7 @@ export class AnalyticsService extends BaseService {
 
       // Fetch template names
       const templateIds = byTemplateRaw.map(t => t.templateId);
-      const templates = await this.prisma.assessmentTemplate.findMany({
+      const templates = await this.prisma.template.findMany({
         where: { id: { in: templateIds } },
         select: { id: true, name: true }
       });
@@ -247,17 +247,17 @@ export class AnalyticsService extends BaseService {
         abandoned: bigint;
       }>>`
         SELECT
-          DATE_TRUNC(${truncType}, created_at)::date as date,
-          COUNT(*) FILTER (WHERE status IN (${AssessmentStatus.IN_PROGRESS}, ${AssessmentStatus.COMPLETED})) as started,
-          COUNT(*) FILTER (WHERE status = ${AssessmentStatus.COMPLETED}) as completed,
+          DATE_TRUNC(${truncType}, "createdAt")::date as date,
+          COUNT(*) FILTER (WHERE status::text IN (${AssessmentStatus.IN_PROGRESS}, ${AssessmentStatus.COMPLETED})) as started,
+          COUNT(*) FILTER (WHERE status::text = ${AssessmentStatus.COMPLETED}) as completed,
           COUNT(*) FILTER (
-            WHERE status = ${AssessmentStatus.IN_PROGRESS}
-            AND updated_at < NOW() - INTERVAL '7 days'
+            WHERE status::text = ${AssessmentStatus.IN_PROGRESS}
+            AND "updatedAt" < NOW() - INTERVAL '7 days'
           ) as abandoned
         FROM "Assessment"
-        WHERE created_at >= ${startDate}
-          AND created_at <= ${endDate}
-        GROUP BY DATE_TRUNC(${truncType}, created_at)
+        WHERE "createdAt" >= ${startDate}
+          AND "createdAt" <= ${endDate}
+        GROUP BY 1
         ORDER BY date ASC
       `;
 
@@ -321,7 +321,7 @@ export class AnalyticsService extends BaseService {
       // Active vendors (vendors with at least one match)
       const activeVendorsResult = await this.prisma.vendor.findMany({
         where: {
-          vendorMatches: {
+          matches: {
             some: {}
           }
         },
@@ -337,15 +337,17 @@ export class AnalyticsService extends BaseService {
         }
       });
 
-      // Unique visitors (distinct userIds from VendorMatch)
-      const uniqueVisitorsResult = await this.prisma.vendorMatch.groupBy({
-        by: ['userId'],
-        where: {
-          viewed: true,
-          ...dateFilter
-        }
-      });
-      const uniqueVisitors = uniqueVisitorsResult.length;
+      // Unique visitors (distinct userIds from VendorMatch through Gap and Assessment)
+      const uniqueVisitorsRaw = await this.prisma.$queryRaw<Array<{ distinct_users: bigint }>>`
+        SELECT COUNT(DISTINCT a."userId") as distinct_users
+        FROM "VendorMatch" vm
+        JOIN "Gap" g ON vm."gapId" = g.id
+        JOIN "Assessment" a ON g."assessmentId" = a.id
+        WHERE vm.viewed = true
+          AND vm."createdAt" >= ${dateFilter.createdAt.gte}
+          AND vm."createdAt" <= ${dateFilter.createdAt.lte}
+      `;
+      const uniqueVisitors = Number(uniqueVisitorsRaw[0]?.distinct_users || 0);
 
       // Total contacts
       const totalContacts = await this.prisma.vendorContact.count({
@@ -369,13 +371,13 @@ export class AnalyticsService extends BaseService {
         include: {
           _count: {
             select: {
-              vendorMatches: {
+              matches: {
                 where: {
                   viewed: true,
                   ...dateFilter
                 }
               },
-              vendorContacts: {
+              contacts: {
                 where: dateFilter
               }
             }
@@ -390,8 +392,8 @@ export class AnalyticsService extends BaseService {
 
       const topVendorsWithTrend = await Promise.all(
         vendorEngagement.map(async (vendor) => {
-          const clicks = vendor._count.vendorMatches;
-          const contacts = vendor._count.vendorContacts;
+          const clicks = vendor._count.matches;
+          const contacts = vendor._count.contacts;
           const engagementScore = clicks * 1 + contacts * 5;
 
           // Get clicks for last 7 days vs previous 7 days
@@ -499,7 +501,7 @@ export class AnalyticsService extends BaseService {
         .map(([category, data]) => ({ category, ...data }))
         .sort((a, b) => b.clicks - a.clicks);
 
-      // Trend data
+      // Trend data - Note: VendorMatch doesn't have userId, need to join through Gap -> Assessment
       const trend = await this.prisma.$queryRaw<Array<{
         date: Date;
         clicks: bigint;
@@ -507,26 +509,28 @@ export class AnalyticsService extends BaseService {
         unique_visitors: bigint;
       }>>`
         SELECT
-          DATE_TRUNC('day', vm.created_at)::date as date,
+          DATE_TRUNC('day', vm."createdAt")::date as date,
           COUNT(DISTINCT vm.id) FILTER (WHERE vm.viewed = true) as clicks,
           0 as contacts,
-          COUNT(DISTINCT vm.user_id) FILTER (WHERE vm.viewed = true) as unique_visitors
+          COUNT(DISTINCT a."userId") FILTER (WHERE vm.viewed = true) as unique_visitors
         FROM "VendorMatch" vm
-        WHERE vm.created_at >= ${startDate}
-          AND vm.created_at <= ${endDate}
-        GROUP BY DATE_TRUNC('day', vm.created_at)
+        LEFT JOIN "Gap" g ON vm."gapId" = g.id
+        LEFT JOIN "Assessment" a ON g."assessmentId" = a.id
+        WHERE vm."createdAt" >= ${startDate}
+          AND vm."createdAt" <= ${endDate}
+        GROUP BY DATE_TRUNC('day', vm."createdAt")
 
         UNION ALL
 
         SELECT
-          DATE_TRUNC('day', vc.created_at)::date as date,
+          DATE_TRUNC('day', vc."createdAt")::date as date,
           0 as clicks,
           COUNT(DISTINCT vc.id) as contacts,
           0 as unique_visitors
         FROM "VendorContact" vc
-        WHERE vc.created_at >= ${startDate}
-          AND vc.created_at <= ${endDate}
-        GROUP BY DATE_TRUNC('day', vc.created_at)
+        WHERE vc."createdAt" >= ${startDate}
+          AND vc."createdAt" <= ${endDate}
+        GROUP BY DATE_TRUNC('day', vc."createdAt")
 
         ORDER BY date ASC
       `;
@@ -633,7 +637,7 @@ export class AnalyticsService extends BaseService {
         }),
         this.prisma.user.count({
           where: {
-            organizationId: { not: null },
+            organization: { isNot: null },
             status: { not: 'DELETED' }
           }
         }),
@@ -689,13 +693,13 @@ export class AnalyticsService extends BaseService {
         verifications: bigint;
       }>>`
         SELECT
-          DATE_TRUNC('day', created_at)::date as date,
+          DATE_TRUNC('day', "createdAt")::date as date,
           COUNT(*) as signups,
-          COUNT(*) FILTER (WHERE email_verified = true) as verifications
+          COUNT(*) FILTER (WHERE "emailVerified" = true) as verifications
         FROM "User"
-        WHERE created_at >= ${thirtyDaysAgo}
+        WHERE "createdAt" >= ${thirtyDaysAgo}
           AND status != 'DELETED'
-        GROUP BY DATE_TRUNC('day', created_at)
+        GROUP BY DATE_TRUNC('day', "createdAt")
         ORDER BY date ASC
       `;
 
@@ -714,7 +718,7 @@ export class AnalyticsService extends BaseService {
           CASE
             WHEN assessment_count >= 5 THEN 'highlyActive'
             WHEN assessment_count BETWEEN 2 AND 4 THEN 'active'
-            WHEN assessment_count BETWEEN 0 AND 1 AND last_login > ${ninetyDaysAgo} THEN 'inactive'
+            WHEN assessment_count BETWEEN 0 AND 1 AND "lastLogin" > ${ninetyDaysAgo} THEN 'inactive'
             ELSE 'churned'
           END as segment,
           COUNT(*) as count
@@ -722,11 +726,11 @@ export class AnalyticsService extends BaseService {
           SELECT
             u.id,
             COUNT(a.id) as assessment_count,
-            u.last_login
+            u."lastLogin"
           FROM "User" u
-          LEFT JOIN "Assessment" a ON u.id = a.user_id
+          LEFT JOIN "Assessment" a ON u.id = a."userId"
           WHERE u.status != 'DELETED'
-          GROUP BY u.id, u.last_login
+          GROUP BY u.id, u."lastLogin"
         ) user_stats
         GROUP BY segment
       `;

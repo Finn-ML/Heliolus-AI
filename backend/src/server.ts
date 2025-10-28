@@ -40,6 +40,10 @@ import templateRoutes from './routes/template.routes';
 import anonymousRoutes from './routes/anonymous.routes';
 import claimRoutes from './routes/claim.routes';
 import rfpRoutes from './routes/rfp.routes';
+import planRoutes from './routes/plan.routes';
+import couponRoutes from './routes/coupon.routes';
+import publicPlansRoutes from './routes/public-plans.routes';
+import legalDocumentRoutes from './routes/legal-document.routes';
 
 export interface AppConfig {
   port: number;
@@ -264,11 +268,15 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     await server.register(adminRoutes, { prefix: '/admin' });
     await server.register(userRoutes, { prefix: '/user' });
     await server.register(rfpRoutes);
+    await server.register(planRoutes, { prefix: '/admin/plans' });
+    await server.register(couponRoutes, { prefix: '/admin/coupons' });
+    await server.register(publicPlansRoutes, { prefix: '/public/plans' });
+    await server.register(legalDocumentRoutes, { prefix: '/legal-documents' });
 
     // Create single Prisma client instance for anonymous and claim routes
     const { PrismaClient } = await import('./generated/prisma/index.js');
     const prisma = new PrismaClient();
-    
+
     // Register anonymous routes with middleware in the same scope
     await server.register(async function (server) {
       // Register middleware first within this scope
@@ -276,17 +284,31 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
         secret: process.env.COOKIE_SECRET || 'heliolus-super-secret-cookie-key',
         prisma
       });
-      
+
       // Then register routes
       await server.register(anonymousRoutes, { prisma });
       await server.register(claimRoutes, { prisma });
     }, { prefix: '/anon' });
 
     // Templates: prefer DB-backed routes if enabled; fallback to mocks for compatibility
+    console.log('DEBUG: process.env.USE_DB_TEMPLATES =', process.env.USE_DB_TEMPLATES);
     const useDbTemplates = process.env.USE_DB_TEMPLATES === 'true';
+    console.log('DEBUG: useDbTemplates =', useDbTemplates);
     if (useDbTemplates) {
-      await server.register(templateRoutes, { prefix: '/templates' });
-    } else {
+      console.log('DEBUG: Registering database-backed template routes...');
+      try {
+        // Test route to verify Fastify routing works
+        server.get('/test-templates', async (request, reply) => {
+          reply.send({ success: true, message: 'Test route works!' });
+        });
+
+        await server.register(templateRoutes, { prefix: '/templates' });
+        console.log('DEBUG: Template routes registered successfully!');
+      } catch (error) {
+        console.error('DEBUG: Template routes registration failed:', error);
+        throw error;
+      }
+    } else{
       // Direct template routes for frontend compatibility (mock data)
       const MOCK_TEMPLATES = [
       {
@@ -429,6 +451,23 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     }
 
   }, { prefix: '/v1' });
+
+  // Create single Prisma client instance for anonymous and claim routes
+  const { PrismaClient } = await import('./generated/prisma/index.js');
+  const prisma = new PrismaClient();
+
+  // Register anonymous routes with middleware in the same scope
+  await server.register(async function (server) {
+    // Register middleware first within this scope
+    await server.register(anonymousSessionMiddleware, {
+      secret: process.env.COOKIE_SECRET || 'heliolus-super-secret-cookie-key',
+      prisma
+    });
+
+    // Then register routes
+    await server.register(anonymousRoutes, { prisma });
+    await server.register(claimRoutes, { prisma });
+  }, { prefix: '/anon' });
 
   // Simple test endpoint for basic functionality
   await server.register(async function (server) {

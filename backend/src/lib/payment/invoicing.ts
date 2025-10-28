@@ -3,7 +3,7 @@
  */
 
 import Stripe from 'stripe';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient } from '../../generated/prisma/index';
 import {
   InvoiceManager,
   Invoice,
@@ -11,9 +11,9 @@ import {
   InvoiceItem,
   InvoiceResult,
   PaymentError
-} from './types.js';
-import { PAYMENT_CONFIG } from './index.js';
-import { InvoiceStatus } from '../../types/database.js';
+} from './types';
+import { PAYMENT_CONFIG } from './config';
+import { InvoiceStatus } from '../../types/database';
 
 const prisma = new PrismaClient();
 const stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {

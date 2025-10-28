@@ -24,6 +24,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/anon': {
+        target: 'http://localhost:8543',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/anon/, '/v1/anon'),
+      },
     },
   },
   plugins: [

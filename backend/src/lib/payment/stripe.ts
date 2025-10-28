@@ -14,8 +14,14 @@ import {
   PaymentMethodData,
   PaymentIntentData,
   PaymentError
-} from './types.js';
-import { PAYMENT_CONFIG } from './index.js';
+} from './types';
+
+// Get Stripe config directly from environment to avoid circular dependency
+const STRIPE_CONFIG = {
+  secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
+  apiVersion: '2025-08-27.basil' as const,
+  timeout: 30000
+};
 
 // Validation schemas
 const CreateCustomerSchema = z.object({
@@ -43,9 +49,9 @@ export class StripeProvider implements PaymentProvider {
   private stripe: Stripe;
 
   constructor() {
-    this.stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {
-      apiVersion: PAYMENT_CONFIG.stripe.apiVersion,
-      timeout: PAYMENT_CONFIG.stripe.timeout
+    this.stripe = new Stripe(STRIPE_CONFIG.secretKey, {
+      apiVersion: STRIPE_CONFIG.apiVersion,
+      timeout: STRIPE_CONFIG.timeout
     });
   }
 
@@ -355,3 +361,4 @@ export class StripeProvider implements PaymentProvider {
 
 // Export the Stripe provider instance
 export const stripeProvider = new StripeProvider();
+export const paymentProvider = stripeProvider; // Alias for backward compatibility

@@ -203,6 +203,11 @@ enum BillingCycle {
   ANNUAL
 }
 
+enum CouponDiscountType {
+  PERCENTAGE    // e.g., 20% off
+  FIXED_AMOUNT  // e.g., $50 off
+}
+
 enum ReportType {
   EXECUTIVE_SUMMARY
   DETAILED
@@ -267,6 +272,11 @@ enum InvoiceStatus {
   PAID
   VOID
   UNCOLLECTIBLE
+}
+
+enum LegalDocumentType {
+  PRIVACY_POLICY
+  TERMS_OF_SERVICE
 }
 
 enum AnswerStatus {
@@ -604,6 +614,7 @@ model Section {
   regulatoryPriority String? // FFIEC, FATF reference
   order       Int
   isRequired  Boolean @default(true) // Whether section is required for assessment completion
+  isLibrary   Boolean @default(false) // Whether section is available in reusable library
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -614,6 +625,7 @@ model Section {
 
   @@index([templateId])
   @@index([order])
+  @@index([isLibrary])
 }
 
 model Question {
@@ -622,7 +634,6 @@ model Question {
   text       String
   type       QuestionType
   required   Boolean      @default(false)
-  options    String[] // For select/multi
   validation Json?
   helpText   String?
   order      Int
@@ -634,6 +645,7 @@ model Question {
   isFoundational Boolean @default(false) // Critical question for compliance
   aiPromptHint  String? // Specific AI prompt guidance for this question
   scoringRules  Json?   // Rules for how to score responses
+  isLibrary    Boolean @default(false) // Whether question is available in reusable library
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -646,6 +658,7 @@ model Question {
   @@index([order])
   @@index([type])
   @@index([categoryTag])
+  @@index([isLibrary])
 }
 
 // ==================== VENDOR MODELS ====================
@@ -781,6 +794,90 @@ model VendorMatch {
 }
 
 // ==================== BILLING MODELS ====================
+
+model Plan {
+  id   String @id @default(cuid())
+  slug String @unique // FREE, PREMIUM, ENTERPRISE or custom
+
+  // Plan details
+  name        String // e.g., "Premium Plan"
+  description String?
+  isActive    Boolean @default(true)
+  isPublic    Boolean @default(true) // Show on pricing page
+
+  // Pricing
+  monthlyPrice     Decimal @default(0) // Price in dollars/euros for monthly billing
+  annualPrice      Decimal @default(0) // Price in dollars/euros for annual billing
+  currency         String  @default("USD") // EUR, USD, etc.
+
+  // Stripe Integration
+  stripeProductId       String? @unique // prod_xxx
+  stripeMonthlyPriceId  String? @unique // price_xxx for monthly
+  stripeAnnualPriceId   String? @unique // price_xxx for annual
+
+  // Credits and Limits
+  monthlyCredits     Int @default(0) // Credits allocated per month
+  assessmentCredits  Int @default(0) // Credits per assessment
+  maxAssessments     Int @default(0) // Max assessments per month (0 = unlimited)
+  maxUsers           Int @default(1) // Max team members
+
+  // Features
+  features Json? // Array of feature strings or feature flags
+
+  // Trial
+  trialDays Int @default(0) // Number of trial days
+
+  // Metadata
+  displayOrder Int      @default(0) // Order on pricing page
+  metadata     Json?    // Additional metadata
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([displayOrder])
+}
+
+model Coupon {
+  id   String @id @default(cuid())
+  code String @unique // Coupon code (e.g., "SAVE20")
+
+  // Stripe Integration
+  stripeCouponId String? @unique // Stripe coupon ID
+
+  // Discount details
+  discountType       CouponDiscountType // PERCENTAGE or FIXED_AMOUNT
+  discountValue      Decimal // 20 for 20% or 50 for $50 off
+  currency           String?             @default("USD") // For FIXED_AMOUNT coupons
+
+  // Validity
+  isActive           Boolean  @default(true)
+  maxRedemptions     Int?     // Max times this can be used (null = unlimited)
+  timesRedeemed      Int      @default(0)
+  validFrom          DateTime @default(now())
+  validUntil         DateTime? // Expiry date (null = no expiry)
+
+  // Restrictions
+  applicablePlans    String[] // Array of plan slugs (empty = all plans)
+  minimumAmount      Decimal? // Minimum purchase amount
+  newCustomersOnly   Boolean  @default(false)
+
+  // Duration (for subscriptions)
+  durationInMonths   Int? // How many months the discount applies (null = forever)
+
+  // Metadata
+  name               String? // Internal name
+  description        String?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([validFrom])
+  @@index([validUntil])
+}
 
 model Subscription {
   id     String @id @default(cuid())
@@ -1217,4 +1314,31 @@ model AssessmentPriorities {
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId])
+}
+
+// ==================== LEGAL DOCUMENTS MODEL ====================
+
+model LegalDocument {
+  id   String            @id @default(cuid())
+  type LegalDocumentType
+
+  // File details
+  filename String
+  s3Key    String
+  s3Bucket String
+  fileSize Int
+  mimeType String @default("application/pdf")
+
+  // Version control
+  version  String  @default("1.0")
+  isActive Boolean @default(true)
+
+  // Metadata
+  uploadedBy String // Admin user ID
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@index([createdAt])
 }

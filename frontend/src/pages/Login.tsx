@@ -160,18 +160,21 @@ const Login: React.FC = () => {
                       setIsLoading(true);
                       setError(null);
                       try {
-                        // Get test token from backend
-                        const response = await fetch('/v1/test-token', {
+                        // Login with test user credentials
+                        const response = await fetch('/v1/auth/login', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ email: 'test@example.com' }),
+                          body: JSON.stringify({
+                            email: 'test-1761057880863-pxseqx@example.com',
+                            password: import.meta.env.VITE_DEV_ADMIN_PASSWORD || 'secure_dev_admin_2024'
+                          }),
                         });
                         const result = await response.json();
                         if (response.ok) {
                           login(result.token, result.user);
                           navigate('/dashboard');
                         } else {
-                          setError('Failed to get test token');
+                          setError(result.message || 'Test login failed');
                         }
                       } catch {
                         setError('Network error. Please try again.');

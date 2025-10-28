@@ -699,6 +699,42 @@ export class SubscriptionService extends BaseService {
   }
 
   /**
+   * Upgrade subscription to a new plan
+   */
+  async upgradeSubscription(
+    userId: string,
+    newPlan: SubscriptionPlan,
+    billingCycle?: 'MONTHLY' | 'ANNUAL',
+    stripePaymentMethodId?: string,
+    context?: ServiceContext
+  ): Promise<ApiResponse<DatabaseSubscription>> {
+    try {
+      const subscription = await this.prisma.subscription.findUnique({
+        where: { userId },
+      });
+
+      if (!subscription) {
+        throw this.createError('Subscription not found', 404, 'SUBSCRIPTION_NOT_FOUND');
+      }
+
+      this.requirePermission(context, [UserRole.USER, UserRole.ADMIN], userId);
+
+      // Use updateSubscription for the actual upgrade
+      return await this.updateSubscription(
+        userId,
+        {
+          plan: newPlan,
+          paymentMethodId: stripePaymentMethodId
+        },
+        context
+      );
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'upgradeSubscription');
+    }
+  }
+
+  /**
    * Cancel subscription
    */
   async cancelSubscription(

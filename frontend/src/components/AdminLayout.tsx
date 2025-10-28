@@ -20,6 +20,9 @@ import {
   TrendingUp,
   FileBarChart,
   Crown,
+  Layers,
+  Tag,
+  Scale,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -38,11 +41,14 @@ const navigation: NavItem[] = [
   { title: 'Vendor Management', href: '/admin/vendors', icon: Building2 },
   { title: 'User Management', href: '/admin/users', icon: Users },
   { title: 'Templates', href: '/admin/templates', icon: FileText },
+  { title: 'Plans', href: '/admin/plans', icon: Layers },
+  { title: 'Coupons', href: '/admin/coupons', icon: Tag },
   { title: 'Credit Balances', href: '/admin/credits', icon: DollarSign },
   { title: 'Transactions', href: '/admin/transactions', icon: Receipt },
   { title: 'Template Costs', href: '/admin/template-costs', icon: Calculator },
   { title: 'Revenue Reports', href: '/admin/reports', icon: FileBarChart },
   { title: 'Subscriptions', href: '/admin/subscriptions', icon: Crown },
+  { title: 'Legal Documents', href: '/admin/legal-documents', icon: Scale },
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {

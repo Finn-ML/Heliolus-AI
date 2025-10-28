@@ -41,6 +41,9 @@ import TemplateCosts from './pages/admin/TemplateCosts';
 import TemplateManagement from './pages/admin/TemplateManagement';
 import RevenueReports from './pages/admin/RevenueReports';
 import Subscriptions from './pages/admin/Subscriptions';
+import PlanManagement from './pages/admin/PlanManagement';
+import CouponManagement from './pages/admin/CouponManagement';
+import LegalDocuments from './pages/admin/LegalDocuments';
 import UserSettings from './components/UserSettings';
 import PasswordReset from './pages/PasswordReset';
 import EmailVerification from './pages/EmailVerification';
@@ -192,6 +195,30 @@ const App = () => (
                   element={
                     <AdminRoute>
                       <Subscriptions />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/plans"
+                  element={
+                    <AdminRoute>
+                      <PlanManagement />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/coupons"
+                  element={
+                    <AdminRoute>
+                      <CouponManagement />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/legal-documents"
+                  element={
+                    <AdminRoute>
+                      <LegalDocuments />
                     </AdminRoute>
                   }
                 />

@@ -3,7 +3,7 @@
  */
 
 import Stripe from 'stripe';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient } from '../../generated/prisma/index';
 import {
   SubscriptionManager,
   Subscription,
@@ -12,14 +12,30 @@ import {
   CancelOptions,
   SubscriptionResult,
   SubscriptionError
-} from './types.js';
-import { stripeProvider } from './stripe.js';
-import { PAYMENT_CONFIG } from './index.js';
-import { SubscriptionPlan, SubscriptionStatus, TransactionType } from '../../types/database.js';
+} from './types';
+import { stripeProvider } from './stripe';
+import { SubscriptionPlan, SubscriptionStatus, TransactionType } from '../../types/database';
+
+// Read config directly to avoid circular dependency
+const STRIPE_CONFIG = {
+  secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
+  apiVersion: '2025-08-27.basil' as const
+};
+
+const PAYMENT_CONFIG = {
+  subscriptions: {
+    plans: {
+      FREE: { price: 0, credits: 10, features: ['basic_assessments'] },
+      PREMIUM: { price: 59900, credits: 100, features: ['advanced_assessments', 'ai_analysis', 'priority_support'] },
+      ENTERPRISE: { price: 0, credits: 1000, features: ['all_features', 'custom_templates', 'dedicated_support'] }
+    },
+    trialPeriodDays: 14
+  }
+};
 
 const prisma = new PrismaClient();
-const stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {
-  apiVersion: PAYMENT_CONFIG.stripe.apiVersion
+const stripe = new Stripe(STRIPE_CONFIG.secretKey, {
+  apiVersion: STRIPE_CONFIG.apiVersion
 });
 
 /**
@@ -371,3 +387,222 @@ export class HeliolusSubscriptionManager implements SubscriptionManager {
 
 // Export the subscription manager instance
 export const subscriptionManager = new HeliolusSubscriptionManager();
+
+/**
+ * Create Stripe Checkout Session for subscription upgrade
+ */
+export async function createSubscriptionCheckout(options: {
+  userId: string;
+  userEmail: string;
+  plan: SubscriptionPlan;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  data?: { sessionId: string; url: string };
+}> {
+  try {
+    // Get or create Stripe customer
+    let customer: Stripe.Customer;
+    const existingCustomers = await stripe.customers.list({
+      email: options.userEmail,
+      limit: 1
+    });
+
+    if (existingCustomers.data.length > 0) {
+      customer = existingCustomers.data[0];
+    } else {
+      customer = await stripe.customers.create({
+        email: options.userEmail,
+        metadata: { userId: options.userId }
+      });
+    }
+
+    // Get plan configuration
+    const planConfig = PAYMENT_CONFIG.subscriptions.plans[options.plan];
+    if (!planConfig) {
+      return {
+        success: false,
+        message: `Invalid subscription plan: ${options.plan}`
+      };
+    }
+
+    // FREE plan doesn't need checkout
+    if (options.plan === SubscriptionPlan.FREE) {
+      return {
+        success: false,
+        message: 'Cannot create checkout session for FREE plan'
+      };
+    }
+
+    // Get price ID from environment or create dynamic price
+    const priceId = process.env[`STRIPE_${options.plan}_PRICE_ID`] ||
+      await createDynamicPrice(options.plan, planConfig.price);
+
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      mode: 'subscription',
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1
+        }
+      ],
+      success_url: options.successUrl,
+      cancel_url: options.cancelUrl,
+      metadata: {
+        userId: options.userId,
+        plan: options.plan
+      },
+      subscription_data: {
+        metadata: {
+          userId: options.userId,
+          plan: options.plan
+        },
+        trial_period_days: PAYMENT_CONFIG.subscriptions.trialPeriodDays
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        sessionId: session.id,
+        url: session.url || ''
+      }
+    };
+  } catch (error) {
+    console.error('Error creating subscription checkout session:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create checkout session'
+    };
+  }
+}
+
+/**
+ * Create Stripe Checkout Session for credit purchase
+ */
+export async function createCreditCheckout(options: {
+  userId: string;
+  userEmail: string;
+  creditAmount: number;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  data?: { sessionId: string; url: string };
+}> {
+  try {
+    // Get or create Stripe customer
+    let customer: Stripe.Customer;
+    const existingCustomers = await stripe.customers.list({
+      email: options.userEmail,
+      limit: 1
+    });
+
+    if (existingCustomers.data.length > 0) {
+      customer = existingCustomers.data[0];
+    } else {
+      customer = await stripe.customers.create({
+        email: options.userEmail,
+        metadata: { userId: options.userId }
+      });
+    }
+
+    // Calculate price (e.g., $10 per 10 credits)
+    const pricePerCredit = 1000; // $10 in cents
+    const totalAmount = options.creditAmount * pricePerCredit;
+
+    // Get credit price ID from environment or create dynamic price
+    const priceId = process.env.STRIPE_CREDIT_PRICE_ID ||
+      await createDynamicCreditPrice(totalAmount, options.creditAmount);
+
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      mode: 'payment',
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1
+        }
+      ],
+      success_url: options.successUrl,
+      cancel_url: options.cancelUrl,
+      metadata: {
+        userId: options.userId,
+        creditAmount: options.creditAmount.toString()
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        sessionId: session.id,
+        url: session.url || ''
+      }
+    };
+  } catch (error) {
+    console.error('Error creating credit checkout session:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create credit checkout session'
+    };
+  }
+}
+
+/**
+ * Helper: Create dynamic Stripe price for subscription plan
+ */
+async function createDynamicPrice(plan: SubscriptionPlan, amount: number): Promise<string> {
+  try {
+    const price = await stripe.prices.create({
+      unit_amount: amount,
+      currency: 'usd',
+      recurring: {
+        interval: 'month'
+      },
+      product_data: {
+        name: `${plan} Plan`,
+        description: `Heliolus ${plan} subscription plan`
+      },
+      metadata: {
+        plan
+      }
+    });
+
+    console.warn(`⚠️  Created dynamic price ${price.id} for ${plan} plan. Consider creating fixed prices in Stripe Dashboard.`);
+    return price.id;
+  } catch (error) {
+    console.error('Error creating dynamic price:', error);
+    throw new SubscriptionError('Failed to create subscription price');
+  }
+}
+
+/**
+ * Helper: Create dynamic Stripe price for credits
+ */
+async function createDynamicCreditPrice(amount: number, creditAmount: number): Promise<string> {
+  try {
+    const price = await stripe.prices.create({
+      unit_amount: amount,
+      currency: 'usd',
+      product_data: {
+        name: `${creditAmount} Credits`,
+        description: `Purchase ${creditAmount} assessment credits`
+      },
+      metadata: {
+        creditAmount: creditAmount.toString()
+      }
+    });
+
+    console.warn(`⚠️  Created dynamic price ${price.id} for ${creditAmount} credits. Consider creating fixed prices in Stripe Dashboard.`);
+    return price.id;
+  } catch (error) {
+    console.error('Error creating dynamic credit price:', error);
+    throw new SubscriptionError('Failed to create credit price');
+  }
+}

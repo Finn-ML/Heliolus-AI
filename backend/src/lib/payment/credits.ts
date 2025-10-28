@@ -2,7 +2,7 @@
  * Credit management system
  */
 
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient } from '../../generated/prisma/index';
 import {
   CreditManager,
   CreditTransaction,
@@ -12,8 +12,8 @@ import {
   CreditTransactionData,
   CreditResult,
   CreditError
-} from './types.js';
-import { TransactionType } from '../../types/database.js';
+} from './types';
+import { TransactionType } from '../../types/database';
 
 const prisma = new PrismaClient();
 
