@@ -28,6 +28,7 @@ import {
   FileSpreadsheet,
   X,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { documentApi, queryKeys, createMutations } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,10 @@ import { cn } from '@/lib/utils';
 interface DocumentStorageProps {
   organizationId: string | null;
   className?: string;
+  selectionMode?: boolean;
+  selectedDocuments?: string[];
+  onSelectionChange?: (documentIds: string[]) => void;
+  maxSelection?: number;
 }
 
 interface DocumentData {
@@ -50,7 +55,14 @@ interface DocumentData {
   tierConfidenceScore?: number;
 }
 
-const DocumentStorage: React.FC<DocumentStorageProps> = ({ organizationId, className }) => {
+const DocumentStorage: React.FC<DocumentStorageProps> = ({
+  organizationId,
+  className,
+  selectionMode = false,
+  selectedDocuments = [],
+  onSelectionChange,
+  maxSelection = 5
+}) => {
   const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -85,6 +97,30 @@ const DocumentStorage: React.FC<DocumentStorageProps> = ({ organizationId, class
 
   // Extract documents array from paginated response
   const documents = apiResponse?.data || [];
+
+  // Handle document selection toggle
+  const toggleDocumentSelection = (documentId: string) => {
+    if (!onSelectionChange) return;
+
+    const isSelected = selectedDocuments.includes(documentId);
+    let newSelection: string[];
+
+    if (isSelected) {
+      newSelection = selectedDocuments.filter(id => id !== documentId);
+    } else {
+      if (selectedDocuments.length >= maxSelection) {
+        toast({
+          title: 'Selection limit reached',
+          description: `You can select up to ${maxSelection} documents`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      newSelection = [...selectedDocuments, documentId];
+    }
+
+    onSelectionChange(newSelection);
+  };
 
   // Delete document mutation with optimistic updates
   const deleteDocumentMutation = useMutation({
@@ -596,10 +632,20 @@ const DocumentStorage: React.FC<DocumentStorageProps> = ({ organizationId, class
                 return (
                   <div
                     key={document.id}
-                    className="flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-800/50 hover:border-cyan-600/50 transition-all duration-200"
+                    className={cn(
+                      "flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-800/50 hover:border-cyan-600/50 transition-all duration-200",
+                      selectionMode && selectedDocuments.includes(document.id) && "bg-cyan-900/20 border-cyan-600"
+                    )}
                     data-testid={`document-${document.id}`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {selectionMode && (
+                        <Checkbox
+                          checked={selectedDocuments.includes(document.id)}
+                          onCheckedChange={() => toggleDocumentSelection(document.id)}
+                          className="flex-shrink-0"
+                        />
+                      )}
                       <div className="flex-shrink-0 p-1.5 bg-gray-800 rounded-md">
                         {getFileIcon(document.filename, document.mimeType)}
                       </div>
@@ -628,18 +674,20 @@ const DocumentStorage: React.FC<DocumentStorageProps> = ({ organizationId, class
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setDocumentToDelete(document)}
-                        disabled={deleteDocumentMutation.isPending || isUploading}
-                        data-testid={`button-delete-${document.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                      </Button>
-                    </div>
+                    {!selectionMode && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setDocumentToDelete(document)}
+                          disabled={deleteDocumentMutation.isPending || isUploading}
+                          data-testid={`button-delete-${document.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

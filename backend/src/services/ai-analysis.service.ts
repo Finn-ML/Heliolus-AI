@@ -1110,8 +1110,155 @@ Be honest and accurate. If there's no evidence, say so.`,
     // Check if condition keywords are present in evidence
     const keywords = condition.split(/\s+/);
     const matches = keywords.filter(keyword => evidenceText.includes(keyword));
-    
+
     return matches.length >= keywords.length * 0.6; // 60% match threshold
+  }
+
+  /**
+   * Format assessment gaps into professional RFP technical requirements
+   * Transforms raw gap descriptions into client-facing, solution-focused requirements
+   *
+   * @param gaps - Array of gap objects from assessment
+   * @param templateName - Name of the assessment template
+   * @returns Formatted professional requirements text
+   */
+  async formatGapsForRFP(gaps: any[], templateName: string): Promise<string> {
+    await this.ensureOpenAIInitialized();
+
+    if (!this.useOpenAI || !this.openai) {
+      // Fallback: Basic formatting without AI
+      return this.formatGapsBasic(gaps);
+    }
+
+    try {
+      // Prepare gaps data for AI - use correct Gap model fields
+      const gapsData = gaps.slice(0, 10).map((gap, index) => {
+        // Extract question from title (remove "Gap in " prefix)
+        const question = gap.title?.replace(/^Gap in /i, '') || 'Compliance requirement';
+
+        // Get first 2-3 sentences of description for context
+        const descSentences = (gap.description || '').split(/[.!?]+/).filter(s => s.trim().length > 20);
+        const briefDesc = descSentences.slice(0, 2).join('. ') + (descSentences.length > 0 ? '.' : '');
+
+        return {
+          number: index + 1,
+          severity: gap.severity || 'MEDIUM',
+          category: gap.category || 'COMPLIANCE',
+          question: question,
+          context: briefDesc || question,
+          priority: gap.priority || 'MEDIUM',
+          estimatedCost: gap.estimatedCost || 'Not specified',
+          estimatedEffort: gap.estimatedEffort || 'Not specified',
+        };
+      });
+
+      const response = await this.openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional RFP writer specializing in compliance technology solutions. Transform compliance gap questions and analysis into clear, solution-focused technical requirements.
+
+CRITICAL RULES:
+1. Write as requirements for VENDORS TO FULFILL, not questions or assessments
+2. Start with action words: "Solution must...", "Required:", "System should...", "Must provide..."
+3. Focus on CAPABILITIES NEEDED, not problems identified
+4. Be specific and measurable
+5. Keep each requirement to 2-3 sentences maximum
+6. Remove ALL assessment language ("evidence indicates", "gap in", "does not currently", etc.)
+
+FORMAT:
+[SEVERITY] Requirement Title
+Clear description of what the vendor solution must provide or do.
+
+EXAMPLE TRANSFORMATIONS:
+❌ BAD: "Gap in Are fraud detection and AML monitoring systems integrated?"
+✅ GOOD: "[HIGH] Integrated Fraud Detection and AML Monitoring Platform
+Required: Unified system that consolidates fraud detection and AML monitoring into a single platform with real-time data sharing, eliminating batch file transfers and providing complete cross-functional visibility."
+
+❌ BAD: "The evidence indicates there is a lack of integration"
+✅ GOOD: "Solution must provide seamless integration between fraud and AML systems"`,
+          },
+          {
+            role: 'user',
+            content: `Transform these ${templateName} assessment gaps into professional RFP technical requirements. For each gap, create a clear requirement that vendors can respond to:
+
+${JSON.stringify(gapsData, null, 2)}
+
+Output format: Numbered list with [SEVERITY] tags, requirement titles, and 2-3 sentence descriptions of capabilities needed.`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+
+      const formattedRequirements = response.choices[0]?.message?.content?.trim();
+
+      if (!formattedRequirements) {
+        this.logger.warn('OpenAI returned empty response for RFP formatting, using fallback');
+        return this.formatGapsBasic(gaps);
+      }
+
+      return formattedRequirements;
+    } catch (error) {
+      this.logger.error('Error formatting gaps for RFP with AI', { error: error.message });
+      // Fallback to basic formatting
+      return this.formatGapsBasic(gaps);
+    }
+  }
+
+  /**
+   * Basic gap formatting (fallback when AI is unavailable)
+   */
+  private formatGapsBasic(gaps: any[]): string {
+    return gaps
+      .slice(0, 10)
+      .map((gap, index) => {
+        const severity = gap.severity || 'MEDIUM';
+        const description = gap.description || gap.title || 'Compliance gap identified';
+
+        // Extract key points (first 2 sentences)
+        const sentences = description.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        const brief = sentences.slice(0, 2).join('. ') + '.';
+
+        return `${index + 1}. [${severity}] ${this.extractRequirementTitle(brief)}
+   ${this.transformToRequirement(brief)}`;
+      })
+      .join('\n\n');
+  }
+
+  /**
+   * Extract a concise title from gap description
+   */
+  private extractRequirementTitle(description: string): string {
+    // Remove analysis phrases
+    let title = description
+      .replace(/The evidence (indicates|suggests) that/gi, '')
+      .replace(/The documents (provide|contain|show)/gi, '')
+      .replace(/there is (no|limited|insufficient)/gi, 'Requires')
+      .trim();
+
+    // Get first sentence, limit to 80 chars
+    const firstSentence = title.split(/[.!?]/)[0];
+    if (firstSentence.length > 80) {
+      return firstSentence.substring(0, 77) + '...';
+    }
+    return firstSentence;
+  }
+
+  /**
+   * Transform gap description into solution requirement
+   */
+  private transformToRequirement(description: string): string {
+    // Remove analysis language and convert to requirement format
+    return description
+      .replace(/The evidence (indicates|suggests) that /gi, 'Solution must address: ')
+      .replace(/The documents (provide|contain|show)/gi, 'Required: ')
+      .replace(/there is (no|limited|insufficient)/gi, 'Must implement')
+      .replace(/does not currently have/gi, 'requires')
+      .replace(/is not performed regularly/gi, 'must be performed regularly')
+      .replace(/lacks/gi, 'requires')
+      .trim();
   }
 }
 

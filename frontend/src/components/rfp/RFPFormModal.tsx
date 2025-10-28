@@ -2,7 +2,7 @@
  * RFP Form Modal - Create and edit RFPs
  * Features: Auto-fill from assessments, vendor match scoring, document upload, validation
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useCreateRFP } from '@/hooks/useCreateRFP';
 import { assessmentApi, queryKeys } from '@/lib/api';
+import DocumentStorage from '@/components/DocumentStorage';
 import {
   Sparkles,
   Upload,
@@ -112,6 +113,7 @@ export function RFPFormModal({
     setValue,
     watch,
     reset,
+    getValues,
   } = useForm<RFPFormData>({
     resolver: zodResolver(rfpFormSchema),
     defaultValues: {
@@ -125,7 +127,12 @@ export function RFPFormModal({
     },
   });
 
-  const selectedVendorIds = watch('vendorIds') || [];
+  const watchedVendorIds = watch('vendorIds');
+  const selectedVendorIds = Array.isArray(watchedVendorIds) ? watchedVendorIds : [];
+  const watchedDocuments = watch('documents');
+  const selectedDocuments = Array.isArray(watchedDocuments) ? watchedDocuments : [];
+  const timeline = watch('timeline');
+  const budget = watch('budget');
 
   // Fetch vendors on mount or when assessment changes
   useEffect(() => {
@@ -240,11 +247,16 @@ export function RFPFormModal({
       setValue('title', `RFP for ${templateName} Solutions`);
 
       // Generate objectives from assessment context
+      // Note: riskScore is stored as 0-100, we display as 0-10
+      const riskScoreDisplay = results.overallRiskScore != null
+        ? (results.overallRiskScore / 10).toFixed(1)
+        : 'N/A';
+
       const objectives = `
 We are seeking solutions to address compliance requirements identified in our ${templateName} assessment.
 
 Assessment Summary:
-- Overall Risk Score: ${results.riskScore?.toFixed(1) || 'N/A'}/10
+- Overall Risk Score: ${riskScoreDisplay}/10
 - Total Gaps Identified: ${results.gaps?.length || 0}
 - Critical Gaps: ${results.gaps?.filter((g: any) => g.severity === 'CRITICAL').length || 0}
 - Assessment Date: ${new Date(selectedAssessment.completedAt || selectedAssessment.createdAt).toLocaleDateString()}
@@ -253,39 +265,138 @@ Our objective is to implement solutions that address these compliance gaps and i
       `.trim();
       setValue('objectives', objectives);
 
-      // Generate requirements from gaps
+      // Get professionally formatted requirements from backend AI service
       if (results.gaps && results.gaps.length > 0) {
-        const requirements = results.gaps
-          .slice(0, 10) // Top 10 gaps
-          .map((gap: any, index: number) => {
-            const severity = gap.severity || 'MEDIUM';
-            return `${index + 1}. [${severity}] ${gap.description || gap.title}
-   Impact: ${gap.impact || 'Not specified'}
-   Current State: ${gap.currentState || 'Non-compliant'}`;
-          })
-          .join('\n\n');
+        try {
+          const token = localStorage.getItem('token');
+          const rfpRequirementsResponse = await fetch(
+            `/v1/assessments/${selectedAssessment.id}/rfp-requirements`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
 
-        setValue('requirements', `Based on our assessment, we require solutions that address the following compliance gaps:\n\n${requirements}`);
+          if (rfpRequirementsResponse.ok) {
+            const rfpData = await rfpRequirementsResponse.json();
+            const formattedRequirements = rfpData.data?.formattedRequirements;
+
+            if (formattedRequirements) {
+              setValue('requirements', `Based on our ${templateName} assessment, we require solutions that address the following compliance gaps:\n\n${formattedRequirements}`);
+            } else {
+              // Fallback to basic formatting
+              setValue('requirements', `Based on our assessment, we identified ${results.gaps.length} compliance gaps that require solutions. Please refer to the objectives section for details.`);
+            }
+          } else {
+            // Fallback to basic formatting
+            setValue('requirements', `Based on our assessment, we identified ${results.gaps.length} compliance gaps across key areas:\n\n${results.gaps.slice(0, 5).map((g: any, i: number) => `${i + 1}. ${g.title || 'Compliance gap'} (${g.severity || 'MEDIUM'} severity)`).join('\n')}`);
+          }
+        } catch (error) {
+          console.error('Error fetching formatted requirements:', error);
+          // Fallback to basic formatting
+          setValue('requirements', `Based on our assessment, we identified ${results.gaps.length} compliance gaps that require vendor solutions.`);
+        }
       }
 
-      // Set timeline based on critical gaps
-      const criticalCount = results.gaps?.filter((g: any) => g.severity === 'CRITICAL').length || 0;
-      if (criticalCount > 5) {
-        setValue('timeline', '< 3 months');
-      } else if (criticalCount > 0) {
-        setValue('timeline', '3-6 months');
-      } else {
-        setValue('timeline', '6-12 months');
-      }
+      // Fetch strategy matrix for timeline and budget
+      try {
+        const token = localStorage.getItem('token');
+        const strategyMatrixResponse = await fetch(
+          `/v1/assessments/${selectedAssessment.id}/strategy-matrix`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      // Suggest budget based on gap count and severity
-      const gapCount = results.gaps?.length || 0;
-      if (gapCount > 15 || criticalCount > 5) {
-        setValue('budget', '€100K - €500K');
-      } else if (gapCount > 8) {
-        setValue('budget', '€50K - €100K');
-      } else {
-        setValue('budget', '< €50K');
+        if (strategyMatrixResponse.ok) {
+          const strategyData = await strategyMatrixResponse.json();
+          const matrix = strategyData.data;
+
+          // Determine timeline based on which bucket has the most gaps
+          const buckets = [
+            { name: 'immediate', timeline: '< 3 months', gaps: matrix.immediate?.gapCount || 0 },
+            { name: 'nearTerm', timeline: '3-6 months', gaps: matrix.nearTerm?.gapCount || 0 },
+            { name: 'strategic', timeline: '6-12 months', gaps: matrix.strategic?.gapCount || 0 },
+          ];
+
+          const primaryBucket = buckets.reduce((max, bucket) =>
+            bucket.gaps > max.gaps ? bucket : max
+          );
+
+          setValue('timeline', primaryBucket.timeline);
+
+          // Calculate total budget from all buckets
+          const totalBudget = {
+            immediate: matrix.immediate?.estimatedCostRange || '€0',
+            nearTerm: matrix.nearTerm?.estimatedCostRange || '€0',
+            strategic: matrix.strategic?.estimatedCostRange || '€0',
+          };
+
+          // Extract and sum budget values (rough estimate from ranges)
+          const extractBudgetMidpoint = (range: string): number => {
+            const match = range.match(/€(\d+)K-€(\d+)K/);
+            if (match) {
+              const lower = parseInt(match[1]);
+              const upper = parseInt(match[2]);
+              return (lower + upper) / 2;
+            }
+            const singleMatch = range.match(/€(\d+)K/);
+            if (singleMatch) {
+              return parseInt(singleMatch[1]);
+            }
+            return 0;
+          };
+
+          const totalEstimate =
+            extractBudgetMidpoint(totalBudget.immediate) +
+            extractBudgetMidpoint(totalBudget.nearTerm) +
+            extractBudgetMidpoint(totalBudget.strategic);
+
+          // Map to budget ranges
+          if (totalEstimate > 500) {
+            setValue('budget', '> €1M');
+          } else if (totalEstimate > 250) {
+            setValue('budget', '€500K - €1M');
+          } else if (totalEstimate > 100) {
+            setValue('budget', '€100K - €500K');
+          } else if (totalEstimate > 50) {
+            setValue('budget', '€50K - €100K');
+          } else if (totalEstimate > 0) {
+            setValue('budget', '< €50K');
+          } else {
+            setValue('budget', 'Not specified');
+          }
+        } else {
+          // Fallback to basic logic if strategy matrix fails
+          const criticalCount = results.gaps?.filter((g: any) => g.severity === 'CRITICAL').length || 0;
+          if (criticalCount > 5) {
+            setValue('timeline', '< 3 months');
+            setValue('budget', '€100K - €500K');
+          } else if (criticalCount > 0) {
+            setValue('timeline', '3-6 months');
+            setValue('budget', '€50K - €100K');
+          } else {
+            setValue('timeline', '6-12 months');
+            setValue('budget', '< €50K');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching strategy matrix:', error);
+        // Fallback to basic logic
+        const criticalCount = results.gaps?.filter((g: any) => g.severity === 'CRITICAL').length || 0;
+        if (criticalCount > 5) {
+          setValue('timeline', '< 3 months');
+          setValue('budget', '€100K - €500K');
+        } else if (criticalCount > 0) {
+          setValue('timeline', '3-6 months');
+          setValue('budget', '€50K - €100K');
+        } else {
+          setValue('timeline', '6-12 months');
+          setValue('budget', '< €50K');
+        }
       }
 
       toast({
@@ -311,13 +422,13 @@ Our objective is to implement solutions that address these compliance gaps and i
     setTimeout(() => handleAutoFill(), 100);
   };
 
-  const toggleVendor = (vendorId: string) => {
-    const current = selectedVendorIds;
+  const toggleVendor = useCallback((vendorId: string) => {
+    const current = getValues('vendorIds') || [];
     const updated = current.includes(vendorId)
       ? current.filter(id => id !== vendorId)
       : [...current, vendorId];
     setValue('vendorIds', updated);
-  };
+  }, [getValues, setValue]);
 
   const onSubmit = async (data: RFPFormData) => {
     try {
@@ -482,7 +593,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                 <Clock className="h-4 w-4" />
                 <span>Timeline</span>
               </Label>
-              <Select onValueChange={(value) => setValue('timeline', value)}>
+              <Select value={timeline} onValueChange={(value) => setValue('timeline', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select timeline" />
                 </SelectTrigger>
@@ -501,7 +612,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                 <DollarSign className="h-4 w-4" />
                 <span>Budget Range</span>
               </Label>
-              <Select onValueChange={(value) => setValue('budget', value)}>
+              <Select value={budget} onValueChange={(value) => setValue('budget', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select budget range" />
                 </SelectTrigger>
@@ -546,8 +657,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                   vendors.map((vendor) => (
                     <div
                       key={vendor.id}
-                      className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded cursor-pointer"
-                      onClick={() => toggleVendor(vendor.id)}
+                      className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
                     >
                       <Checkbox
                         checked={selectedVendorIds.includes(vendor.id)}
@@ -588,17 +698,30 @@ Our objective is to implement solutions that address these compliance gaps and i
             )}
           </div>
 
-          {/* Document Upload - Placeholder */}
+          {/* Document Selection */}
           <div className="space-y-2">
-            <Label className="flex items-center space-x-2">
-              <Upload className="h-4 w-4" />
-              <span>Supporting Documents (Optional)</span>
+            <Label className="flex items-center justify-between">
+              <span className="flex items-center space-x-2">
+                <Upload className="h-4 w-4" />
+                <span>Select Documents to Attach (Optional)</span>
+              </span>
+              {selectedDocuments.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {selectedDocuments.length} selected
+                </Badge>
+              )}
             </Label>
-            <div className="border-2 border-dashed rounded-md p-8 text-center text-gray-500">
-              <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-              <p className="text-sm">Document upload coming soon</p>
-              <p className="text-xs text-gray-400">Max 5 files, 10MB each (PDF, DOCX, XLSX)</p>
-            </div>
+            <p className="text-xs text-gray-400">
+              Select up to 5 documents to attach to vendor emails
+            </p>
+            <DocumentStorage
+              organizationId={organizationId}
+              className="border rounded-md"
+              selectionMode={true}
+              selectedDocuments={selectedDocuments}
+              onSelectionChange={(documentIds) => setValue('documents', documentIds)}
+              maxSelection={5}
+            />
           </div>
 
           {/* Footer */}

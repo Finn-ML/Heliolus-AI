@@ -307,7 +307,37 @@ export class RFPService extends BaseService {
         orderBy: { createdAt: 'desc' },
       });
 
-      return rfps;
+      // Enrich RFPs with vendor details
+      const enrichedRfps = await Promise.all(
+        rfps.map(async (rfp) => {
+          // Fetch vendor details for this RFP
+          const vendors = await this.prisma.vendor.findMany({
+            where: {
+              id: { in: rfp.vendorIds },
+            },
+            select: {
+              id: true,
+              companyName: true,
+              logo: true,
+              primaryProduct: true,
+            },
+          });
+
+          // Create a vendor map for easy lookup
+          const vendorMap = vendors.reduce((acc, vendor) => {
+            acc[vendor.id] = vendor;
+            return acc;
+          }, {} as Record<string, any>);
+
+          // Return RFP with vendor details attached
+          return {
+            ...rfp,
+            vendors: rfp.vendorIds.map(id => vendorMap[id]).filter(Boolean),
+          };
+        })
+      );
+
+      return enrichedRfps;
     } catch (error) {
       return this.handleDatabaseError(error, 'getUserRFPs');
     }

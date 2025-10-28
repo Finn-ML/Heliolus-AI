@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,61 +25,51 @@ import {
   XCircle,
   AlertCircle,
   Paperclip,
+  Loader2,
 } from 'lucide-react';
+import { useRFPs } from '@/hooks/useRFPs';
+
+interface RfpVendor {
+  id: string;
+  companyName: string;
+  logo: string | null;
+  primaryProduct: string | null;
+}
 
 interface SentRfp {
   id: string;
-  vendor: {
-    name: string;
-    logo: string;
-  };
-  projectName: string;
-  budget: string;
-  timeline: string;
+  title: string;
+  objectives: string;
   requirements: string;
-  additionalInfo: string;
-  attachedFiles: string[];
-  submittedAt: string;
-  status: 'Sent' | 'Under Review' | 'Proposal Received' | 'Rejected' | 'Accepted';
+  timeline: string | null;
+  budget: string | null;
+  status: string;
+  leadStatus: string | null;
+  vendorIds: string[];
+  vendors: RfpVendor[];
+  documents: string[];
+  createdAt: string;
+  sentAt: string | null;
 }
 
 const RfpTracking = () => {
-  const [sentRfps, setSentRfps] = useState<SentRfp[]>([]);
-  const [filteredRfps, setFilteredRfps] = useState<SentRfp[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedRfp, setSelectedRfp] = useState<SentRfp | null>(null);
+  const [selectedRfp, setSelectedRfp] = useState<any | null>(null);
 
-  // Load RFPs from localStorage on component mount
-  useEffect(() => {
-    const storedRfps = JSON.parse(localStorage.getItem('sentRfps') || '[]');
+  // Fetch RFPs from API
+  const { data: rfpsData, isLoading, error } = useRFPs();
+  const sentRfps = rfpsData || [];
 
-    // Add some sample statuses for demonstration
-    const rfpsWithStatus = storedRfps.map((rfp: SentRfp, index: number) => ({
-      ...rfp,
-      status:
-        index % 4 === 0
-          ? 'Proposal Received'
-          : index % 3 === 0
-            ? 'Under Review'
-            : index % 5 === 0
-              ? 'Rejected'
-              : 'Sent',
-    }));
-
-    setSentRfps(rfpsWithStatus);
-    setFilteredRfps(rfpsWithStatus);
-  }, []);
-
-  // Filter RFPs based on search and status
-  useEffect(() => {
+  // Filter RFPs based on search and status (memoized to prevent infinite loops)
+  const filteredRfps = useMemo(() => {
     let filtered = sentRfps;
 
     if (searchTerm) {
       filtered = filtered.filter(
         rfp =>
-          rfp.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          rfp.vendor.name.toLowerCase().includes(searchTerm.toLowerCase())
+          rfp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          rfp.vendors.some(v => v.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -87,36 +77,42 @@ const RfpTracking = () => {
       filtered = filtered.filter(rfp => rfp.status === statusFilter);
     }
 
-    setFilteredRfps(filtered);
+    return filtered;
   }, [searchTerm, statusFilter, sentRfps]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'Sent':
+      case 'DRAFT':
+        return (
+          <Badge variant="outline" className="text-gray-600 border-gray-300">
+            Draft
+          </Badge>
+        );
+      case 'SENT':
         return (
           <Badge variant="secondary" className="text-primary border-primary">
             Sent
           </Badge>
         );
-      case 'Under Review':
+      case 'IN_REVIEW':
         return (
           <Badge variant="outline" className="text-secondary border-secondary">
-            Under Review
+            In Review
           </Badge>
         );
-      case 'Proposal Received':
+      case 'PROPOSAL_RECEIVED':
         return (
           <Badge variant="default" className="text-primary border-primary bg-primary/10">
             Proposal Received
           </Badge>
         );
-      case 'Accepted':
+      case 'ACCEPTED':
         return (
           <Badge variant="default" className="text-primary bg-primary/20">
             Accepted
           </Badge>
         );
-      case 'Rejected':
+      case 'REJECTED':
         return (
           <Badge variant="destructive" className="text-red-600 border-red-300">
             Rejected
@@ -129,18 +125,20 @@ const RfpTracking = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Sent':
+      case 'DRAFT':
+        return <FileText className="h-4 w-4 text-gray-500" />;
+      case 'SENT':
         return <Clock className="h-4 w-4 text-primary" />;
-      case 'Under Review':
+      case 'IN_REVIEW':
         return <AlertCircle className="h-4 w-4 text-secondary" />;
-      case 'Proposal Received':
+      case 'PROPOSAL_RECEIVED':
         return <CheckCircle className="h-4 w-4 text-primary" />;
-      case 'Accepted':
+      case 'ACCEPTED':
         return <CheckCircle className="h-4 w-4 text-primary" />;
-      case 'Rejected':
+      case 'REJECTED':
         return <XCircle className="h-4 w-4 text-destructive" />;
       default:
-        return <Clock className="h-4 w-4 text-primary" />;
+        return <FileText className="h-4 w-4 text-gray-500" />;
     }
   };
 
@@ -154,13 +152,14 @@ const RfpTracking = () => {
 
   const exportToCSV = () => {
     const csvData = filteredRfps.map(rfp => ({
-      'Project Name': rfp.projectName,
-      Vendor: rfp.vendor.name,
-      Budget: rfp.budget,
-      Timeline: rfp.timeline,
+      'Project Name': rfp.title,
+      Vendors: rfp.vendors.map(v => v.companyName).join('; '),
+      Budget: rfp.budget || 'N/A',
+      Timeline: rfp.timeline || 'N/A',
       Status: rfp.status,
-      'Submitted Date': formatDate(rfp.submittedAt),
-      'Attached Files': rfp.attachedFiles.length,
+      'Created Date': formatDate(rfp.createdAt),
+      'Sent Date': rfp.sentAt ? formatDate(rfp.sentAt) : 'Not sent',
+      'Attached Files': rfp.documents.length,
     }));
 
     const csvContent = [
@@ -176,6 +175,31 @@ const RfpTracking = () => {
     link.click();
   };
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your RFPs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+          <p className="text-muted-foreground">Failed to load RFPs</p>
+          <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -183,9 +207,9 @@ const RfpTracking = () => {
         <CardContent className="p-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2">RFP Tracking Dashboard</h2>
-              <p className="text-gray-200">
-                Monitor the status of your {sentRfps.length} sent Request for Proposals
+              <h2 className="text-2xl font-bold text-foreground mb-2">RFP Tracking Dashboard</h2>
+              <p className="text-muted-foreground">
+                Monitor the status of your {sentRfps.length} RFPs
               </p>
             </div>
             <div className="flex space-x-3">
@@ -221,11 +245,12 @@ const RfpTracking = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="Sent">Sent</SelectItem>
-                  <SelectItem value="Under Review">Under Review</SelectItem>
-                  <SelectItem value="Proposal Received">Proposal Received</SelectItem>
-                  <SelectItem value="Accepted">Accepted</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
+                  <SelectItem value="SENT">Sent</SelectItem>
+                  <SelectItem value="IN_REVIEW">In Review</SelectItem>
+                  <SelectItem value="PROPOSAL_RECEIVED">Proposal Received</SelectItem>
+                  <SelectItem value="ACCEPTED">Accepted</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -237,11 +262,11 @@ const RfpTracking = () => {
       {filteredRfps.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">
               {sentRfps.length === 0 ? 'No RFPs Sent Yet' : 'No RFPs Match Your Filters'}
             </h3>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               {sentRfps.length === 0
                 ? 'Start by comparing vendors and sending your first RFP.'
                 : 'Try adjusting your search or filter criteria.'}
@@ -255,31 +280,37 @@ const RfpTracking = () => {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <span className="text-2xl">{rfp.vendor.logo}</span>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{rfp.projectName}</h3>
-                        <p className="text-sm text-gray-600">to {rfp.vendor.name}</p>
+                    <div className="mb-3">
+                      <h3 className="text-lg font-semibold text-foreground mb-2">{rfp.title}</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {rfp.vendors.map((vendor) => (
+                          <div key={vendor.id} className="flex items-center space-x-2 bg-muted px-3 py-1 rounded-full">
+                            {vendor.logo && (
+                              <img src={vendor.logo} alt={vendor.companyName} className="w-4 h-4 rounded" />
+                            )}
+                            <span className="text-sm text-foreground">{vendor.companyName}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                       <div className="flex items-center space-x-2">
-                        <DollarSign className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">{rfp.budget}</span>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">{rfp.budget || 'Not specified'}</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">{rfp.timeline}</span>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">{rfp.timeline || 'Not specified'}</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">{formatDate(rfp.submittedAt)}</span>
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">{formatDate(rfp.createdAt)}</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Paperclip className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">
-                          {rfp.attachedFiles.length} files
+                        <Paperclip className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {rfp.documents.length} file{rfp.documents.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                     </div>
@@ -295,10 +326,10 @@ const RfpTracking = () => {
                         <Eye className="mr-1 h-4 w-4" />
                         View
                       </Button>
-                      {rfp.status === 'Proposal Received' && (
+                      {rfp.status === 'SENT' && (
                         <Button size="sm">
                           <MessageSquare className="mr-1 h-4 w-4" />
-                          Review
+                          Track
                         </Button>
                       )}
                     </div>
@@ -313,16 +344,14 @@ const RfpTracking = () => {
       {/* RFP Detail Modal */}
       {selectedRfp && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <Card className="bg-card rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="flex items-center space-x-2">
-                    <span className="text-2xl">{selectedRfp.vendor.logo}</span>
-                    <span>{selectedRfp.projectName}</span>
-                  </CardTitle>
+                  <CardTitle>{selectedRfp.title}</CardTitle>
                   <CardDescription>
-                    RFP sent to {selectedRfp.vendor.name} on {formatDate(selectedRfp.submittedAt)}
+                    Created on {formatDate(selectedRfp.createdAt)}
+                    {selectedRfp.sentAt && ` • Sent on ${formatDate(selectedRfp.sentAt)}`}
                   </CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedRfp(null)}>
@@ -336,42 +365,57 @@ const RfpTracking = () => {
                 {getStatusBadge(selectedRfp.status)}
               </div>
 
+              <div>
+                <h4 className="font-medium text-foreground mb-2">Vendors</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedRfp.vendors.map((vendor) => (
+                    <div key={vendor.id} className="flex items-center space-x-2 bg-muted px-3 py-2 rounded">
+                      {vendor.logo && (
+                        <img src={vendor.logo} alt={vendor.companyName} className="w-6 h-6 rounded" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{vendor.companyName}</p>
+                        {vendor.primaryProduct && (
+                          <p className="text-xs text-muted-foreground">{vendor.primaryProduct}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-1">Budget Range</h4>
-                  <p className="text-gray-600">{selectedRfp.budget}</p>
+                  <h4 className="font-medium text-foreground mb-1">Budget Range</h4>
+                  <p className="text-muted-foreground">{selectedRfp.budget || 'Not specified'}</p>
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-1">Timeline</h4>
-                  <p className="text-gray-600">{selectedRfp.timeline}</p>
+                  <h4 className="font-medium text-foreground mb-1">Timeline</h4>
+                  <p className="text-muted-foreground">{selectedRfp.timeline || 'Not specified'}</p>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">Requirements</h4>
-                <p className="text-gray-600 text-sm leading-relaxed">{selectedRfp.requirements}</p>
+                <h4 className="font-medium text-foreground mb-2">Objectives</h4>
+                <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap">{selectedRfp.objectives}</p>
               </div>
 
-              {selectedRfp.additionalInfo && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Additional Information</h4>
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {selectedRfp.additionalInfo}
-                  </p>
-                </div>
-              )}
+              <div>
+                <h4 className="font-medium text-foreground mb-2">Requirements</h4>
+                <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap">{selectedRfp.requirements}</p>
+              </div>
 
-              {selectedRfp.attachedFiles.length > 0 && (
+              {selectedRfp.documents.length > 0 && (
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Attached Files</h4>
+                  <h4 className="font-medium text-foreground mb-2">Attached Documents</h4>
                   <div className="space-y-1">
-                    {selectedRfp.attachedFiles.map((filename, index) => (
+                    {selectedRfp.documents.map((docId, index) => (
                       <div
                         key={index}
-                        className="flex items-center space-x-2 p-2 bg-gray-50 rounded"
+                        className="flex items-center space-x-2 p-2 bg-muted rounded"
                       >
-                        <FileText className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-700">{filename}</span>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-foreground">Document {index + 1}</span>
                       </div>
                     ))}
                   </div>
@@ -379,10 +423,9 @@ const RfpTracking = () => {
               )}
 
               <div className="flex space-x-3 pt-4">
-                {selectedRfp.status === 'Proposal Received' && (
+                {selectedRfp.status === 'DRAFT' && (
                   <Button className="flex-1">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Proposal
+                    Send to Vendors
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setSelectedRfp(null)} className="flex-1">

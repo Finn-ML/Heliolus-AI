@@ -203,10 +203,24 @@ export class StrategyMatrixService extends BaseService {
       orderBy: { priorityScore: 'desc' },
     });
 
-    // Partition gaps into buckets based on priorityScore
-    const immediate = gaps.filter((g) => g.priorityScore && g.priorityScore >= 8);
-    const nearTerm = gaps.filter((g) => g.priorityScore && g.priorityScore >= 4 && g.priorityScore < 8);
-    const strategic = gaps.filter((g) => g.priorityScore && g.priorityScore < 4);
+    // Partition gaps into buckets based on priorityScore or priority field
+    const immediate = gaps.filter((g) => {
+      if (g.priorityScore) return g.priorityScore >= 8;
+      // Fallback to string priority field
+      return g.priority === 'IMMEDIATE';
+    });
+
+    const nearTerm = gaps.filter((g) => {
+      if (g.priorityScore) return g.priorityScore >= 4 && g.priorityScore < 8;
+      // Fallback to string priority field
+      return g.priority === 'SHORT_TERM';
+    });
+
+    const strategic = gaps.filter((g) => {
+      if (g.priorityScore) return g.priorityScore < 4;
+      // Fallback to string priority field
+      return g.priority === 'MEDIUM_TERM' || g.priority === 'LONG_TERM';
+    });
 
     // Build each bucket in parallel
     const [immediateBucket, nearTermBucket, strategicBucket] = await Promise.all([

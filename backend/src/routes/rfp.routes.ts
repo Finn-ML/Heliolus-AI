@@ -220,10 +220,28 @@ export default async function rfpRoutes(server: FastifyInstance) {
                   properties: {
                     id: { type: 'string' },
                     title: { type: 'string' },
+                    objectives: { type: 'string' },
+                    requirements: { type: 'string' },
+                    timeline: { type: 'string', nullable: true },
+                    budget: { type: 'string', nullable: true },
                     status: { type: 'string' },
                     leadStatus: { type: 'string', nullable: true },
                     vendorIds: { type: 'array', items: { type: 'string' } },
+                    documents: { type: 'array', items: { type: 'string' } },
+                    vendors: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          companyName: { type: 'string' },
+                          logo: { type: 'string', nullable: true },
+                          primaryProduct: { type: 'string', nullable: true },
+                        },
+                      },
+                    },
                     createdAt: { type: 'string' },
+                    sentAt: { type: 'string', nullable: true },
                   },
                 },
               },

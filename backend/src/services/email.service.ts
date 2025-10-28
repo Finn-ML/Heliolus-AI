@@ -23,6 +23,7 @@ export interface RFPEmailData {
   documentUrls: string[];
   contactEmail: string;
   contactName: string;
+  documentIds?: string[]; // Document IDs to attach to email
 }
 
 export interface VendorInquiryData {
@@ -147,7 +148,12 @@ export class EmailServiceImpl extends BaseService implements EmailService {
     subject: string,
     htmlBody: string,
     textBody: string,
-    retries: number = 3
+    retries: number = 3,
+    attachments?: Array<{
+      Name: string;
+      Content: string;
+      ContentType: string;
+    }>
   ): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -158,6 +164,7 @@ export class EmailServiceImpl extends BaseService implements EmailService {
           HtmlBody: htmlBody,
           TextBody: textBody,
           MessageStream: 'outbound',
+          Attachments: attachments,
         });
 
         this.logger.info('Email sent successfully', {
@@ -472,19 +479,42 @@ export class EmailServiceImpl extends BaseService implements EmailService {
       const htmlBody = this.renderTemplate(htmlTemplate, templateData);
       const textBody = this.renderTemplate(textTemplate, templateData);
 
+      // Prepare document attachments if document IDs provided
+      let attachments: Array<{Name: string; Content: string; ContentType: string}> | undefined;
+
+      if (rfpData.documentIds && rfpData.documentIds.length > 0) {
+        try {
+          attachments = await this.prepareDocumentAttachments(rfpData.documentIds);
+          this.logger.info('Prepared document attachments for RFP email', {
+            documentCount: attachments.length,
+            vendorEmail
+          });
+        } catch (error) {
+          this.logger.error('Failed to prepare document attachments, sending email without attachments', {
+            error,
+            documentIds: rfpData.documentIds
+          });
+          // Continue without attachments rather than failing entirely
+          attachments = undefined;
+        }
+      }
+
       // Use exponential backoff retry logic from sendEmailWithRetry
       await this.sendEmailWithRetry(
         vendorEmail,
         `RFP: ${rfpData.rfpTitle} - ${rfpData.organizationName}`,
         htmlBody,
-        textBody
+        textBody,
+        3,
+        attachments
       );
 
       this.logger.info('RFP email sent to vendor', {
         vendorEmail,
         vendorName,
         rfpTitle: rfpData.rfpTitle,
-        organizationName: rfpData.organizationName
+        organizationName: rfpData.organizationName,
+        attachmentCount: attachments?.length || 0
       });
     } catch (error) {
       this.logger.error('Failed to send RFP to vendor', {
@@ -495,6 +525,83 @@ export class EmailServiceImpl extends BaseService implements EmailService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Prepare document attachments for email
+   * Downloads documents from Replit Object Storage and converts to base64 for Postmark
+   */
+  private async prepareDocumentAttachments(documentIds: string[]): Promise<Array<{
+    Name: string;
+    Content: string;
+    ContentType: string;
+  }>> {
+    const { ObjectStorageService } = await import('../objectStorage.js');
+    const objectStorageService = new ObjectStorageService();
+    const attachments: Array<{Name: string; Content: string; ContentType: string}> = [];
+
+    for (const documentId of documentIds.slice(0, 5)) { // Max 5 attachments
+      try {
+        // Get document metadata
+        const document = await this.prisma.document.findUnique({
+          where: { id: documentId },
+          select: {
+            id: true,
+            filename: true,
+            mimeType: true,
+            s3Key: true,
+            size: true,
+          },
+        });
+
+        if (!document) {
+          this.logger.warn('Document not found for attachment', { documentId });
+          continue;
+        }
+
+        // Skip if document is too large (>10MB for email attachments)
+        if (document.size > 10 * 1024 * 1024) {
+          this.logger.warn('Document too large for email attachment', {
+            documentId,
+            size: document.size,
+            filename: document.filename
+          });
+          continue;
+        }
+
+        // Get presigned download URL from Replit Object Storage
+        const downloadUrl = await objectStorageService.getDocumentDownloadURL(document.s3Key);
+
+        // Download document content
+        const response = await fetch(downloadUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to download document: ${response.statusText}`);
+        }
+
+        const buffer = await response.arrayBuffer();
+        const base64Content = Buffer.from(buffer).toString('base64');
+
+        attachments.push({
+          Name: document.filename,
+          Content: base64Content,
+          ContentType: document.mimeType || 'application/octet-stream',
+        });
+
+        this.logger.info('Document prepared for attachment', {
+          documentId,
+          filename: document.filename,
+          size: document.size
+        });
+      } catch (error) {
+        this.logger.error('Failed to prepare document attachment', {
+          documentId,
+          error
+        });
+        // Continue with other documents
+      }
+    }
+
+    return attachments;
   }
 
   /**

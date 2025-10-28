@@ -1129,6 +1129,118 @@ export default async function assessmentRoutes(server: FastifyInstance) {
     }
   }));
 
+  // GET /assessments/:id/rfp-requirements - Get formatted RFP requirements from gaps
+  server.get('/:id/rfp-requirements', {
+    preHandler: [authenticationMiddleware],
+    schema: {
+      description: 'Get professionally formatted RFP technical requirements from assessment gaps',
+      tags: ['Assessments'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                formattedRequirements: { type: 'string' },
+                assessmentName: { type: 'string' },
+                gapCount: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id: assessmentId } = request.params;
+    const user = request.currentUser!;
+
+    try {
+      // Get assessment with template and gaps
+      const assessment = await prisma.assessment.findUnique({
+        where: { id: assessmentId },
+        include: {
+          template: {
+            select: {
+              name: true,
+            },
+          },
+          gaps: {
+            select: {
+              id: true,
+              category: true,
+              title: true,
+              description: true,
+              severity: true,
+              priority: true,
+              priorityScore: true,
+              estimatedCost: true,
+              estimatedEffort: true,
+            },
+            orderBy: [{ severity: 'desc' }, { priority: 'desc' }],
+          },
+        },
+      });
+
+      if (!assessment) {
+        reply.status(404).send({
+          success: false,
+          error: 'Assessment not found',
+        });
+        return;
+      }
+
+      // Verify user has access to this assessment
+      if (assessment.userId !== user.id && user.role !== 'ADMIN') {
+        if (!assessment.organizationId || assessment.organizationId !== user.organizationId) {
+          reply.status(403).send({
+            success: false,
+            error: 'Access denied',
+          });
+          return;
+        }
+      }
+
+      const templateName = assessment.template?.name || 'Compliance';
+
+      // Format gaps using AI service
+      const { aiAnalysisService } = await import('../services/ai-analysis.service.js');
+      const formattedRequirements = await aiAnalysisService.formatGapsForRFP(
+        assessment.gaps || [],
+        templateName
+      );
+
+      reply.status(200).send({
+        success: true,
+        data: {
+          formattedRequirements,
+          assessmentName: templateName,
+          gapCount: assessment.gaps?.length || 0,
+        },
+      });
+    } catch (error: any) {
+      request.log.error({
+        error: error.message,
+        stack: error.stack,
+        assessmentId
+      }, 'Error formatting RFP requirements');
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to format RFP requirements',
+        details: error.message,
+      });
+    }
+  }));
+
   // POST /assessments/:id/execute - Execute AI Assessment Analysis
   server.post('/:id/execute', {
     schema: {
