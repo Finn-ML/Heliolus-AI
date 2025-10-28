@@ -7,11 +7,13 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 // import { zodToJsonSchema } from 'zod-to-json-schema'; // Causes Fastify schema issues
 import { vendorService } from '../services';
+import { emailService } from '../services/email.service';
 import { VendorMatchingService } from '../services/vendor-matching.service';
 import { StrategyMatrixService } from '../services/strategy-matrix.service';
 import { PrioritiesService } from '../services/priorities.service';
 import { VendorCategory, PricingModel, ContactType, ContactStatus } from '../types/database';
 import { asyncHandler, authenticationMiddleware } from '../middleware';
+import { env } from '../config/env.validation';
 import crypto from 'crypto';
 
 // Request/Response schemas matching the contract tests
@@ -100,11 +102,139 @@ const VendorMatchResponseSchema = z.object({
   reasoning: z.array(z.string()),
 });
 
+const VendorRegistrationRequestSchema = z.object({
+  companyName: z.string().min(1, 'Company name is required'),
+  website: z.string().url('Valid website URL required'),
+  description: z.string().min(1, 'Description is required'),
+  foundedYear: z.string().optional(),
+  headquarters: z.string().optional(),
+  employeeCount: z.string().optional(),
+  category: z.string().min(1, 'Category is required'),
+  pricing: z.string().optional(),
+  implementationTime: z.string().optional(),
+  features: z.array(z.string()).default([]),
+  certifications: z.array(z.string()).default([]),
+  clientTypes: z.array(z.string()).default([]),
+  supportedRegions: z.array(z.string()).default([]),
+  integrations: z.array(z.string()).default([]),
+  contactName: z.string().min(1, 'Contact name is required'),
+  contactEmail: z.string().email('Valid contact email required'),
+  contactPhone: z.string().optional(),
+  casStudies: z.string().optional(),
+});
+
 type ContactVendorRequest = z.infer<typeof ContactVendorRequestSchema>;
 type CompareVendorsRequest = z.infer<typeof CompareVendorsRequestSchema>;
+type VendorRegistrationRequest = z.infer<typeof VendorRegistrationRequestSchema>;
 
 export default async function vendorRoutes(server: FastifyInstance) {
-  
+
+  // POST /vendors/register - Vendor Registration (Public endpoint)
+  server.post('/register', {
+    schema: {
+      description: 'Submit vendor registration application',
+      tags: ['Vendors'],
+      body: {
+        type: 'object',
+        properties: {
+          companyName: { type: 'string', minLength: 1 },
+          website: { type: 'string', format: 'uri' },
+          description: { type: 'string', minLength: 1 },
+          foundedYear: { type: 'string' },
+          headquarters: { type: 'string' },
+          employeeCount: { type: 'string' },
+          category: { type: 'string', minLength: 1 },
+          pricing: { type: 'string' },
+          implementationTime: { type: 'string' },
+          features: { type: 'array', items: { type: 'string' } },
+          certifications: { type: 'array', items: { type: 'string' } },
+          clientTypes: { type: 'array', items: { type: 'string' } },
+          supportedRegions: { type: 'array', items: { type: 'string' } },
+          integrations: { type: 'array', items: { type: 'string' } },
+          contactName: { type: 'string', minLength: 1 },
+          contactEmail: { type: 'string', format: 'email' },
+          contactPhone: { type: 'string' },
+          casStudies: { type: 'string' },
+        },
+        required: ['companyName', 'website', 'description', 'category', 'contactName', 'contactEmail']
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+          required: ['success', 'message']
+        },
+        400: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            code: { type: 'string' },
+            statusCode: { type: 'number' },
+            timestamp: { type: 'string' },
+          },
+        },
+        500: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            code: { type: 'string' },
+            statusCode: { type: 'number' },
+            timestamp: { type: 'string' },
+          },
+        },
+      },
+    },
+    // No authentication required - public endpoint
+  }, asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const data = request.body as VendorRegistrationRequest;
+
+    try {
+      // Validate the request body using Zod
+      const validatedData = VendorRegistrationRequestSchema.parse(data);
+
+      // Get admin email from environment
+      const adminEmail = env.POSTMARK_FROM_EMAIL;
+
+      // Send email notification to admin
+      await emailService.sendVendorRegistrationNotification(adminEmail, validatedData);
+
+      request.log.info('Vendor registration application submitted', {
+        companyName: validatedData.companyName,
+        contactEmail: validatedData.contactEmail,
+      });
+
+      reply.status(200).send({
+        success: true,
+        message: 'Your vendor application has been submitted successfully. We will review it and contact you within 2-3 business days.',
+      });
+
+    } catch (error: any) {
+      request.log.error('Failed to submit vendor registration', { error, data });
+
+      // Handle validation errors
+      if (error.name === 'ZodError') {
+        reply.status(400).send({
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.errors,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      reply.status(500).send({
+        message: 'Failed to submit vendor registration. Please try again later.',
+        code: 'REGISTRATION_FAILED',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }));
+
   // GET /vendors - List Vendors (Public endpoint for marketplace)
   server.get('/', {
     schema: {
