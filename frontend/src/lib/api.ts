@@ -1120,6 +1120,110 @@ export const adminAnalyticsApi = {
   },
 };
 
+// Admin Leads API
+export const adminLeadsApi = {
+  // Get all leads with filters
+  getLeads: async (filters?: {
+    type?: 'ALL' | 'PREMIUM' | 'BASIC';
+    status?: string[];
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (filters?.type) searchParams.set('type', filters.type);
+    if (filters?.status) filters.status.forEach(s => searchParams.append('status', s));
+    if (filters?.startDate) searchParams.set('startDate', filters.startDate);
+    if (filters?.endDate) searchParams.set('endDate', filters.endDate);
+    if (filters?.page) searchParams.set('page', filters.page.toString());
+    if (filters?.limit) searchParams.set('limit', filters.limit.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/leads?${queryString}` : '/admin/leads';
+
+    const response = await apiRequest<ApiResponse<{
+      leads: any[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>>(endpoint);
+    return response.data;
+  },
+
+  // Get single lead by ID
+  getLead: async (leadId: string, leadType: 'PREMIUM' | 'BASIC') => {
+    const response = await apiRequest<ApiResponse<any>>(`/admin/leads/${leadId}?type=${leadType}`);
+    return response.data;
+  },
+
+  // Update lead status
+  updateLeadStatus: async (leadId: string, leadType: 'PREMIUM' | 'BASIC', status: string) => {
+    const response = await apiRequest<ApiResponse<any>>(`/admin/leads/${leadId}?type=${leadType}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    return response.data;
+  },
+
+  // Get lead analytics
+  getLeadAnalytics: async () => {
+    const response = await apiRequest<ApiResponse<{
+      totalLeads: number;
+      premiumLeads: number;
+      basicLeads: number;
+      conversionRate: number;
+      byStatus: Record<string, number>;
+      byMonth: Array<{ month: string; premium: number; basic: number }>;
+    }>>('/admin/leads/analytics');
+    return response.data;
+  },
+
+  // Export leads to CSV
+  exportLeads: async (filters?: {
+    type?: 'ALL' | 'PREMIUM' | 'BASIC';
+    status?: string[];
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (filters?.type) searchParams.set('type', filters.type);
+    if (filters?.status) filters.status.forEach(s => searchParams.append('status', s));
+    if (filters?.startDate) searchParams.set('startDate', filters.startDate);
+    if (filters?.endDate) searchParams.set('endDate', filters.endDate);
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/leads/export?${queryString}` : '/admin/leads/export';
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}${getApiPrefix()}${endpoint}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const filename = `leads-export-${new Date().toISOString().split('T')[0]}.csv`;
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('[API] Error exporting leads:', error);
+      throw error;
+    }
+  },
+};
+
 // Error handling utilities
 export class ApiError extends Error {
   constructor(
