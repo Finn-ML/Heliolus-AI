@@ -37,6 +37,7 @@ import { PriorityBoostChart } from '@/components/vendor/PriorityBoostChart';
 import { MatchReasonsList } from '@/components/vendor/MatchReasonsList';
 import { PriorityBadge } from '@/components/vendor/PriorityBadge';
 import { FeatureCoverageList } from '@/components/vendor/FeatureCoverageList';
+import { ComparativeInsights } from '@/components/vendor/ComparativeInsights';
 import { Progress } from '@/components/ui/progress';
 
 interface VendorComparisonProps {
@@ -137,6 +138,18 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
           <p className="text-gray-400">Personalized match scores based on your assessment</p>
         </div>
       </motion.div>
+
+      {/* Epic 13 - Story 13.4: Comparative Insights Summary */}
+      <div className="max-w-7xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <ComparativeInsights
+            vendor1={vendor1}
+            match1={match1}
+            vendor2={vendor2}
+            match2={match2}
+          />
+        </motion.div>
+      </div>
 
       {/* Match Score Comparison */}
       <div className="max-w-7xl mx-auto">
