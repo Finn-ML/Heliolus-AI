@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   ArrowLeft,
   Check,
@@ -24,8 +26,11 @@ import {
   BarChart3,
   Sparkles,
   ChevronRight,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getCurrentUserId } from '@/lib/api';
 
 interface VendorComparisonProps {
   vendors: any[];
@@ -34,6 +39,123 @@ interface VendorComparisonProps {
 
 const VendorComparison: React.FC<VendorComparisonProps> = ({ vendors, onBack }) => {
   // Ensure we have exactly 2 vendors for comparison
+  const [vendor1, vendor2] = vendors.slice(0, 2);
+
+  // Epic 13 - Story 13.1: Subscription plan detection
+  const { data: billingInfo } = useQuery({
+    queryKey: ['subscription', 'billing-info'],
+    queryFn: async () => {
+      const userId = getCurrentUserId();
+      if (!userId) return null;
+      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
+
+  const currentPlan = billingInfo?.data?.plan || 'FREE';
+  const isPremium = currentPlan === 'PREMIUM' || currentPlan === 'ENTERPRISE';
+  const hasMatchData = vendors[0]?.matchDetails && vendors[1]?.matchDetails;
+
+  // Banner dismissal state
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    return localStorage.getItem('dismissedPremiumComparisonBanner') === 'true';
+  });
+
+  const handleDismissBanner = () => {
+    localStorage.setItem('dismissedPremiumComparisonBanner', 'true');
+    setBannerDismissed(true);
+  };
+
+  // For Story 13.1: Render premium view if user is premium AND has match data
+  // Otherwise render static view
+  if (isPremium && hasMatchData) {
+    return <PremiumComparisonView vendors={vendors} onBack={onBack} />;
+  }
+
+  // Render static comparison view (existing functionality)
+  return <StaticComparisonView
+    vendors={vendors}
+    onBack={onBack}
+    isPremium={isPremium}
+    bannerDismissed={bannerDismissed}
+    onDismissBanner={handleDismissBanner}
+  />;
+};
+
+// Epic 13 - Story 13.2: Stub for Premium Comparison View (to be implemented in Story 13.2)
+const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBack }) => {
+  const [vendor1, vendor2] = vendors.slice(0, 2);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black p-6">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-7xl mx-auto mb-8"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Marketplace
+          </Button>
+
+          {/* Premium Badge */}
+          <Badge className="bg-gradient-to-r from-cyan-400 to-purple-400 text-white px-4 py-2 text-sm font-semibold">
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Premium Intelligence
+          </Badge>
+        </div>
+
+        <div className="text-center">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 via-blue-400 to-pink-400 bg-clip-text text-transparent">
+            AI-Powered Vendor Comparison
+          </h1>
+          <p className="text-gray-400">Premium features - Detailed implementation in Story 13.2</p>
+        </div>
+      </motion.div>
+
+      {/* Stub content - to be replaced in Story 13.2 */}
+      <div className="max-w-7xl mx-auto">
+        <Card className="bg-gray-900/50 border-cyan-500/30 p-8 text-center">
+          <Sparkles className="h-16 w-16 text-cyan-400 mx-auto mb-4" />
+          <p className="text-white text-xl mb-2">Premium Comparison View</p>
+          <p className="text-gray-400">
+            Comparing {vendor1.name} vs {vendor2.name}
+          </p>
+          <p className="text-gray-500 text-sm mt-4">
+            Full implementation in Story 13.2: Match Score Visualization
+          </p>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// Epic 13 - Story 13.1: Static Comparison View (existing functionality extracted)
+interface StaticComparisonViewProps {
+  vendors: any[];
+  onBack: () => void;
+  isPremium: boolean;
+  bannerDismissed: boolean;
+  onDismissBanner: () => void;
+}
+
+const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
+  vendors,
+  onBack,
+  isPremium,
+  bannerDismissed,
+  onDismissBanner
+}) => {
   const [vendor1, vendor2] = vendors.slice(0, 2);
 
   const comparisonCategories = [
@@ -312,6 +434,45 @@ const VendorComparison: React.FC<VendorComparisonProps> = ({ vendors, onBack }) 
           </motion.div>
         </div>
       </div>
+
+      {/* Epic 13 - Story 13.1: Upgrade Banner for Free Users */}
+      {!isPremium && !bannerDismissed && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-7xl mx-auto mb-6"
+        >
+          <Alert className="bg-gradient-to-r from-cyan-900/30 to-purple-900/30 border-cyan-500/50 relative">
+            <div className="flex items-start gap-4">
+              <Sparkles className="h-6 w-6 text-cyan-400 mt-1 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white mb-1">
+                  Unlock Premium Comparison
+                </h3>
+                <AlertDescription className="text-gray-300 mb-3">
+                  Get AI-powered insights, match scores, gap coverage analysis, and personalized vendor recommendations based on your assessment.
+                </AlertDescription>
+                <div className="flex gap-3">
+                  <Button
+                    className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-700 hover:to-purple-700 text-white"
+                    onClick={() => window.location.href = '/pricing'}
+                  >
+                    View Pricing
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-gray-400 hover:text-white"
+                    onClick={onDismissBanner}
+                  >
+                    Maybe Later
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Alert>
+        </motion.div>
+      )}
 
       {/* Comparison Matrix */}
       <div className="max-w-7xl mx-auto">
