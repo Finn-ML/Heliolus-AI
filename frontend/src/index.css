@@ -81,6 +81,19 @@
     color: white !important;
   }
 
+  /* Exception for legal agreements section */
+  .legal-agreements-section,
+  .legal-agreements-section *,
+  .legal-agreements-section h4,
+  .legal-agreements-section label,
+  .legal-agreements-section div {
+    color: #111827 !important;
+  }
+
+  .legal-agreements-section a {
+    color: #2563eb !important;
+  }
+
   /* Card content text */
   .card, .card-content, .card-header, .card-title, .card-description {
     color: white !important;

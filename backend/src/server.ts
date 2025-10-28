@@ -39,6 +39,9 @@ import userRoutes from './routes/user.routes';
 import templateRoutes from './routes/template.routes';
 import anonymousRoutes from './routes/anonymous.routes';
 import claimRoutes from './routes/claim.routes';
+import planRoutes from './routes/plan.routes';
+import couponRoutes from './routes/coupon.routes';
+import publicPlansRoutes from './routes/public-plans.routes';
 
 export interface AppConfig {
   port: number;
@@ -262,6 +265,9 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     await server.register(webhookRoutes, { prefix: '/webhooks' });
     await server.register(adminRoutes, { prefix: '/admin' });
     await server.register(userRoutes, { prefix: '/user' });
+    await server.register(planRoutes, { prefix: '/admin/plans' });
+    await server.register(couponRoutes, { prefix: '/admin/coupons' });
+    await server.register(publicPlansRoutes, { prefix: '/public/plans' });
 
     // Create single Prisma client instance for anonymous and claim routes
     const { PrismaClient } = await import('./generated/prisma/index.js');
@@ -281,10 +287,24 @@ async function setupRoutes(server: FastifyInstance): Promise<void> {
     }, { prefix: '/anon' });
 
     // Templates: prefer DB-backed routes if enabled; fallback to mocks for compatibility
+    console.log('DEBUG: process.env.USE_DB_TEMPLATES =', process.env.USE_DB_TEMPLATES);
     const useDbTemplates = process.env.USE_DB_TEMPLATES === 'true';
+    console.log('DEBUG: useDbTemplates =', useDbTemplates);
     if (useDbTemplates) {
-      await server.register(templateRoutes, { prefix: '/templates' });
-    } else {
+      console.log('DEBUG: Registering database-backed template routes...');
+      try {
+        // Test route to verify Fastify routing works
+        server.get('/test-templates', async (request, reply) => {
+          reply.send({ success: true, message: 'Test route works!' });
+        });
+
+        await server.register(templateRoutes, { prefix: '/templates' });
+        console.log('DEBUG: Template routes registered successfully!');
+      } catch (error) {
+        console.error('DEBUG: Template routes registration failed:', error);
+        throw error;
+      }
+    } else{
       // Direct template routes for frontend compatibility (mock data)
       const MOCK_TEMPLATES = [
       {

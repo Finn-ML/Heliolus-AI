@@ -62,19 +62,19 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Settings,
   GripVertical,
   Package,
 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 
 interface Question {
   id: string;
   question: string;
-  type: 'text' | 'select' | 'multiselect' | 'boolean' | 'scale';
+  type: 'text' | 'boolean' | 'scale';
   required: boolean;
   aiPrompt?: string;
-  options?: string[];
   order: number;
+  weight?: number;
 }
 
 interface Section {
@@ -82,6 +82,7 @@ interface Section {
   name: string;
   description: string;
   order: number;
+  weight?: number;
   questions: Question[];
 }
 
@@ -120,6 +121,11 @@ const TemplateManagement = () => {
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [expandedTemplates, setExpandedTemplates] = useState<string[]>([]);
 
+  // Pending weight changes cache: { itemId: newWeight }
+  const [pendingWeightChanges, setPendingWeightChanges] = useState<Map<string, number>>(new Map());
+  // Track which sections have pending changes: Set of sectionIds
+  const [sectionsWithPendingChanges, setSectionsWithPendingChanges] = useState<Set<string>>(new Set());
+
   // Dialog states
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
@@ -136,7 +142,7 @@ const TemplateManagement = () => {
       id: Date.now().toString(),
       name: '',
       description: '',
-      framework: '',
+      framework: '', // Keep for compatibility with Template interface
       status: 'draft',
       sections: [],
       aiEnabled: false,
@@ -145,6 +151,11 @@ const TemplateManagement = () => {
       lastModified: new Date().toISOString().split('T')[0],
       usageCount: 0,
     });
+    setIsTemplateDialogOpen(true);
+  };
+
+  const handleEditTemplate = (template: Template) => {
+    setEditingTemplate(template);
     setIsTemplateDialogOpen(true);
   };
 
@@ -176,6 +187,13 @@ const TemplateManagement = () => {
     setIsQuestionDialogOpen(true);
   };
 
+  const handleEditQuestion = (template: Template, section: Section, question: Question) => {
+    setSelectedTemplate(template);
+    setEditingSection(section);
+    setEditingQuestion(question);
+    setIsQuestionDialogOpen(true);
+  };
+
   const handleDeleteTemplate = (templateId: string) => {
     if (confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
       deleteTemplate.mutate(templateId);
@@ -192,6 +210,135 @@ const TemplateManagement = () => {
     if (confirm('Are you sure you want to delete this question?')) {
       deleteQuestion.mutate(questionId);
     }
+  };
+
+  // Helper: Get effective weight (pending or current)
+  const getEffectiveWeight = (itemId: string, currentWeight: number): number => {
+    return pendingWeightChanges.get(itemId) ?? currentWeight;
+  };
+
+  // Auto-balancing weight handlers - now only update local state
+  const handleSectionWeightChange = (template: Template, sectionId: string, newWeight: number) => {
+    const sections = template.sections;
+    if (sections.length <= 1) return; // Can't rebalance with one section
+
+    const remaining = 1.0 - newWeight;
+    const otherSectionsCount = sections.length - 1;
+    const redistributedWeight = remaining / otherSectionsCount;
+
+    // Update pending changes map for all sections
+    setPendingWeightChanges(prev => {
+      const updated = new Map(prev);
+      for (const section of sections) {
+        const updatedWeight = section.id === sectionId ? newWeight : redistributedWeight;
+        updated.set(section.id, Math.max(0.01, Math.min(0.99, updatedWeight)));
+      }
+      return updated;
+    });
+
+    // Mark section as having pending changes
+    setSectionsWithPendingChanges(prev => new Set(prev).add(sectionId));
+  };
+
+  const handleQuestionWeightChange = (section: Section, questionId: string, newWeight: number) => {
+    const questions = section.questions;
+    if (questions.length <= 1) return; // Can't rebalance with one question
+
+    const remaining = 1.0 - newWeight;
+    const otherQuestionsCount = questions.length - 1;
+    const redistributedWeight = remaining / otherQuestionsCount;
+
+    // Update pending changes map for all questions
+    setPendingWeightChanges(prev => {
+      const updated = new Map(prev);
+      for (const question of questions) {
+        const updatedWeight = question.id === questionId ? newWeight : redistributedWeight;
+        updated.set(question.id, Math.max(0.01, Math.min(0.99, updatedWeight)));
+      }
+      return updated;
+    });
+
+    // Mark section as having pending changes
+    setSectionsWithPendingChanges(prev => new Set(prev).add(section.id));
+  };
+
+  // Save all pending weight changes for a section
+  const saveSectionWeights = async (template: Template, section: Section) => {
+    const updates: Promise<any>[] = [];
+
+    // Save section weight if changed
+    const sectionWeight = pendingWeightChanges.get(section.id);
+    if (sectionWeight !== undefined) {
+      updates.push(
+        updateSection.mutateAsync({
+          id: section.id,
+          data: { weight: sectionWeight },
+        })
+      );
+    }
+
+    // Save all question weights if changed
+    for (const question of section.questions) {
+      const questionWeight = pendingWeightChanges.get(question.id);
+      if (questionWeight !== undefined) {
+        updates.push(
+          updateQuestion.mutateAsync({
+            id: question.id,
+            data: { weight: questionWeight },
+          })
+        );
+      }
+    }
+
+    // Execute all updates
+    if (updates.length > 0) {
+      try {
+        await Promise.all(updates);
+
+        // Clear pending changes for this section and its questions
+        setPendingWeightChanges(prev => {
+          const updated = new Map(prev);
+          updated.delete(section.id);
+          section.questions.forEach(q => updated.delete(q.id));
+          return updated;
+        });
+
+        // Remove section from pending changes set
+        setSectionsWithPendingChanges(prev => {
+          const updated = new Set(prev);
+          updated.delete(section.id);
+          return updated;
+        });
+      } catch (error) {
+        console.error('Failed to save weights:', error);
+      }
+    }
+  };
+
+  // Discard pending weight changes for a section
+  const discardSectionWeights = (section: Section) => {
+    setPendingWeightChanges(prev => {
+      const updated = new Map(prev);
+      updated.delete(section.id);
+      section.questions.forEach(q => updated.delete(q.id));
+      return updated;
+    });
+
+    setSectionsWithPendingChanges(prev => {
+      const updated = new Set(prev);
+      updated.delete(section.id);
+      return updated;
+    });
+  };
+
+  // Get count of pending changes for a section
+  const getPendingChangesCount = (section: Section): number => {
+    let count = 0;
+    if (pendingWeightChanges.has(section.id)) count++;
+    section.questions.forEach(q => {
+      if (pendingWeightChanges.has(q.id)) count++;
+    });
+    return count;
   };
 
   const getStatusColor = (status: string) => {
@@ -283,7 +430,7 @@ const TemplateManagement = () => {
                       ? '...'
                       : templates.reduce(
                           (sum, t) =>
-                            sum + t.sections.reduce((sSum, s) => sSum + s.questions.length, 0),
+                            sum + (t.sections || []).reduce((sSum, s) => sSum + ((s.questions || []).length), 0),
                           0
                         )}
                   </div>
@@ -307,7 +454,7 @@ const TemplateManagement = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {isStatsLoading ? '...' : templates.reduce((sum, t) => sum + t.usageCount, 0)}
+                    {isStatsLoading ? '...' : templates.reduce((sum, t) => sum + (t.usageCount || 0), 0)}
                   </div>
                   <p className="text-xs text-muted-foreground">Assessments completed</p>
                 </CardContent>
@@ -351,13 +498,13 @@ const TemplateManagement = () => {
                         <p className="text-sm text-muted-foreground mt-1">{template.description}</p>
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           <span>Framework: {template.framework}</span>
-                          <span>{template.sections.length} sections</span>
+                          <span>{(template.sections || []).length} sections</span>
                           <span>
-                            {template.sections.reduce((sum, s) => sum + s.questions.length, 0)}{' '}
+                            {(template.sections || []).reduce((sum, s) => sum + ((s.questions || []).length), 0)}{' '}
                             questions
                           </span>
                           <span>{template.creditCost} credits</span>
-                          <span>{template.usageCount} uses</span>
+                          <span>{template.usageCount || 0} uses</span>
                         </div>
                       </div>
                     </div>
@@ -369,17 +516,13 @@ const TemplateManagement = () => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditTemplate(template)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Edit Template
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Copy className="h-4 w-4 mr-2" />
                           Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Settings className="h-4 w-4 mr-2" />
-                          Configure AI
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -398,26 +541,79 @@ const TemplateManagement = () => {
                   <CardContent className="border-t bg-muted/20">
                     <div className="space-y-4 pt-4">
                       {/* Sections */}
-                      {template.sections.map((section, sectionIndex) => (
-                        <div key={section.id} className="border rounded-lg bg-background">
-                          <div className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-2">
-                                <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5" />
-                                <div className="flex-1">
-                                  <h4 className="font-medium flex items-center gap-2">
-                                    <Package className="h-4 w-4" />
-                                    Section {sectionIndex + 1}: {section.name}
-                                  </h4>
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {section.description}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {section.questions.length} questions
-                                  </p>
+                      {template.sections.map((section, sectionIndex) => {
+                        const pendingCount = getPendingChangesCount(section);
+                        const hasPendingChanges = pendingCount > 0;
+
+                        return (
+                          <div key={section.id} className="border rounded-lg bg-background">
+                            <div className="p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start gap-2">
+                                  <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                  <div className="flex-1">
+                                    <h4 className="font-medium flex items-center gap-2">
+                                      <Package className="h-4 w-4" />
+                                      Section {sectionIndex + 1}: {section.name}
+                                      {hasPendingChanges && (
+                                        <Badge variant="outline" className="bg-yellow-500/20 text-yellow-600 border-yellow-500/50">
+                                          {pendingCount} unsaved
+                                        </Badge>
+                                      )}
+                                    </h4>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {section.description}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {(section.questions || []).length} questions
+                                    </p>
+                                    {/* Section Weight Slider */}
+                                    {template.sections.length > 1 && (
+                                      <div className="mt-3 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <Label className="text-xs">Section Weight</Label>
+                                          <span className="text-xs font-medium">
+                                            {getEffectiveWeight(section.id, (section as any).weight || 1.0).toFixed(2)}
+                                          </span>
+                                        </div>
+                                        <Slider
+                                          value={[getEffectiveWeight(section.id, (section as any).weight || 1.0) * 100]}
+                                          onValueChange={(value) =>
+                                            handleSectionWeightChange(template, section.id, value[0] / 100)
+                                          }
+                                          min={1}
+                                          max={99}
+                                          step={1}
+                                          className="w-full"
+                                        />
+                                      </div>
+                                    )}
+                                    {/* Save/Discard Buttons */}
+                                    {hasPendingChanges && (
+                                      <div className="mt-3 flex items-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          onClick={() => saveSectionWeights(template, section)}
+                                          disabled={updateSection.isPending || updateQuestion.isPending}
+                                          className="bg-green-600 hover:bg-green-700"
+                                        >
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Save Weights
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => discardSectionWeights(section)}
+                                        >
+                                          <XCircle className="h-3 w-3 mr-1" />
+                                          Discard
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -474,24 +670,43 @@ const TemplateManagement = () => {
                                               AI
                                             </Badge>
                                           )}
+                                          <Badge
+                                            variant="secondary"
+                                            className={`text-xs ${pendingWeightChanges.has(question.id) ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/50' : ''}`}
+                                          >
+                                            Weight: {getEffectiveWeight(question.id, (question as any).weight || 1.0).toFixed(2)}
+                                          </Badge>
                                         </div>
                                         <p className="text-sm mt-1">{question.question}</p>
-                                        {question.options && (
-                                          <div className="flex flex-wrap gap-1 mt-2">
-                                            {question.options.map((option, i) => (
-                                              <Badge
-                                                key={i}
-                                                variant="secondary"
-                                                className="text-xs"
-                                              >
-                                                {option}
-                                              </Badge>
-                                            ))}
+                                        {/* Question Weight Slider */}
+                                        {section.questions.length > 1 && (
+                                          <div className="mt-2 space-y-1">
+                                            <div className="flex items-center justify-between">
+                                              <Label className="text-xs">Weight</Label>
+                                              <span className="text-xs font-medium">
+                                                {getEffectiveWeight(question.id, (question as any).weight || 1.0).toFixed(2)}
+                                              </span>
+                                            </div>
+                                            <Slider
+                                              value={[getEffectiveWeight(question.id, (question as any).weight || 1.0) * 100]}
+                                              onValueChange={(value) =>
+                                                handleQuestionWeightChange(section, question.id, value[0] / 100)
+                                              }
+                                              min={1}
+                                              max={99}
+                                              step={1}
+                                              className="w-full"
+                                            />
                                           </div>
                                         )}
                                       </div>
                                       <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          onClick={() => handleEditQuestion(template, section, question)}
+                                        >
                                           <Edit className="h-3 w-3" />
                                         </Button>
                                         <Button
@@ -516,7 +731,8 @@ const TemplateManagement = () => {
                             )}
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
 
                       {/* Add Section Button */}
                       <Button
@@ -542,50 +758,24 @@ const TemplateManagement = () => {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
-                {editingTemplate?.usageCount ? 'Edit Template' : 'Create New Template'}
+                {editingTemplate && templates.some(t => t.id === editingTemplate.id) ? 'Edit Template' : 'Create New Template'}
               </DialogTitle>
               <DialogDescription>Configure the assessment template details</DialogDescription>
             </DialogHeader>
             {editingTemplate && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Template Name</Label>
-                    <Input
-                      value={editingTemplate.name}
-                      onChange={e =>
-                        setEditingTemplate({
-                          ...editingTemplate,
-                          name: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., SOC 2 Readiness Assessment"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Framework</Label>
-                    <Select
-                      value={editingTemplate.framework}
-                      onValueChange={value =>
-                        setEditingTemplate({
-                          ...editingTemplate,
-                          framework: value,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select framework" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="SOC 2">SOC 2</SelectItem>
-                        <SelectItem value="ISO 27001">ISO 27001</SelectItem>
-                        <SelectItem value="HIPAA">HIPAA</SelectItem>
-                        <SelectItem value="GDPR">GDPR</SelectItem>
-                        <SelectItem value="PCI DSS">PCI DSS</SelectItem>
-                        <SelectItem value="NIST">NIST</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Template Name</Label>
+                  <Input
+                    value={editingTemplate.name}
+                    onChange={e =>
+                      setEditingTemplate({
+                        ...editingTemplate,
+                        name: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., SOC 2 Readiness Assessment"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -671,7 +861,9 @@ const TemplateManagement = () => {
                 onClick={() => {
                   if (!editingTemplate) return;
 
-                  if (editingTemplate.usageCount > 0) {
+                  const isEditing = templates.some(t => t.id === editingTemplate.id);
+
+                  if (isEditing) {
                     // Update existing template
                     updateTemplate.mutate(
                       {
@@ -679,7 +871,7 @@ const TemplateManagement = () => {
                         data: {
                           name: editingTemplate.name,
                           description: editingTemplate.description,
-                          category: editingTemplate.framework as any,
+                          category: editingTemplate.framework || 'DATA_PRIVACY' as any, // Use existing framework or default
                           creditCost: editingTemplate.creditCost,
                           isActive: editingTemplate.status === 'active',
                         },
@@ -698,7 +890,7 @@ const TemplateManagement = () => {
                         name: editingTemplate.name,
                         slug: editingTemplate.name.toLowerCase().replace(/\s+/g, '-'),
                         description: editingTemplate.description,
-                        category: editingTemplate.framework as any,
+                        category: 'DATA_PRIVACY' as any, // Default category since field is removed from UI
                         creditCost: editingTemplate.creditCost,
                         isActive: editingTemplate.status === 'active',
                       },
@@ -714,7 +906,7 @@ const TemplateManagement = () => {
               >
                 {createTemplate.isPending || updateTemplate.isPending
                   ? 'Saving...'
-                  : editingTemplate?.usageCount
+                  : templates.some(t => t.id === editingTemplate?.id)
                     ? 'Update'
                     : 'Create'}{' '}
                 Template
@@ -826,8 +1018,13 @@ const TemplateManagement = () => {
         <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add Question</DialogTitle>
-              <DialogDescription>Add a question to {editingSection?.name}</DialogDescription>
+              <DialogTitle>
+                {editingQuestion?.id?.startsWith('c') ? 'Edit Question' : 'Add Question'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingQuestion?.id?.startsWith('c') ? 'Update question in' : 'Add a question to'}{' '}
+                {editingSection?.name}
+              </DialogDescription>
             </DialogHeader>
             {editingQuestion && (
               <div className="space-y-4">
@@ -863,8 +1060,6 @@ const TemplateManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="text">Text</SelectItem>
-                        <SelectItem value="select">Single Select</SelectItem>
-                        <SelectItem value="multiselect">Multi Select</SelectItem>
                         <SelectItem value="boolean">Yes/No</SelectItem>
                         <SelectItem value="scale">Scale (1-10)</SelectItem>
                       </SelectContent>
@@ -886,21 +1081,6 @@ const TemplateManagement = () => {
                     </div>
                   </div>
                 </div>
-
-                {(editingQuestion.type === 'select' || editingQuestion.type === 'multiselect') && (
-                  <div className="space-y-2">
-                    <Label>Options (comma-separated)</Label>
-                    <Input
-                      placeholder="Option 1, Option 2, Option 3"
-                      onChange={e =>
-                        setEditingQuestion({
-                          ...editingQuestion,
-                          options: e.target.value.split(',').map(o => o.trim()),
-                        })
-                      }
-                    />
-                  </div>
-                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="question-weight">Weight (0-100)</Label>
@@ -972,34 +1152,66 @@ const TemplateManagement = () => {
                 Cancel
               </Button>
               <Button
-                disabled={createQuestion.isPending}
+                disabled={createQuestion.isPending || updateQuestion.isPending}
                 onClick={() => {
                   if (!editingQuestion || !editingSection) return;
 
-                  createQuestion.mutate(
-                    {
-                      sectionId: editingSection.id,
-                      data: {
-                        text: editingQuestion.question,
-                        type: editingQuestion.type.toUpperCase() as any,
-                        order: editingQuestion.order,
-                        required: editingQuestion.required,
-                        options: editingQuestion.options,
-                        aiPromptHint: editingQuestion.aiPrompt,
-                        weight: (editingQuestion as any).weight || 1.0,
+                  const isEditing = editingQuestion.id?.startsWith('c');
+
+                  if (isEditing) {
+                    // Update existing question
+                    updateQuestion.mutate(
+                      {
+                        id: editingQuestion.id,
+                        data: {
+                          text: editingQuestion.question,
+                          type: editingQuestion.type.toUpperCase() as any,
+                          order: editingQuestion.order,
+                          required: editingQuestion.required,
+                          aiPromptHint: editingQuestion.aiPrompt,
+                          weight: (editingQuestion as any).weight || 1.0,
+                        },
                       },
-                    },
-                    {
-                      onSuccess: () => {
-                        setIsQuestionDialogOpen(false);
-                        setEditingQuestion(null);
-                        setEditingSection(null);
+                      {
+                        onSuccess: () => {
+                          setIsQuestionDialogOpen(false);
+                          setEditingQuestion(null);
+                          setEditingSection(null);
+                        },
+                      }
+                    );
+                  } else {
+                    // Create new question
+                    createQuestion.mutate(
+                      {
+                        sectionId: editingSection.id,
+                        data: {
+                          text: editingQuestion.question,
+                          type: editingQuestion.type.toUpperCase() as any,
+                          order: editingQuestion.order,
+                          required: editingQuestion.required,
+                          aiPromptHint: editingQuestion.aiPrompt,
+                          weight: (editingQuestion as any).weight || 1.0,
+                        },
                       },
-                    }
-                  );
+                      {
+                        onSuccess: () => {
+                          setIsQuestionDialogOpen(false);
+                          setEditingQuestion(null);
+                          setEditingSection(null);
+                        },
+                      }
+                    );
+                  }
                 }}
               >
-                {createQuestion.isPending ? 'Adding...' : 'Add Question'}
+                {createQuestion.isPending || updateQuestion.isPending
+                  ? editingQuestion?.id?.startsWith('c')
+                    ? 'Updating...'
+                    : 'Adding...'
+                  : editingQuestion?.id?.startsWith('c')
+                    ? 'Update Question'
+                    : 'Add Question'}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -47,6 +47,7 @@ import { DocumentPreprocessingService } from './document-preprocessing.service';
 import { AIAnalysisService } from './ai-analysis.service';
 import { answerService } from './answer.service';
 import { RiskAnalysisAIService, KeyFinding, MitigationStrategy } from './risk-analysis-ai.service';
+import { WeightedScoringService } from './weighted-scoring.service';
 
 // Validation schemas
 const CreateAssessmentSchema = z.object({
@@ -2246,7 +2247,8 @@ export class AssessmentService extends BaseService {
   }
 
   /**
-   * Calculate comprehensive risk score
+   * Calculate comprehensive risk score using weighted scoring
+   * Uses section and question weights configured in the template
    */
   private async calculateComprehensiveRiskScore({
     questionAnalyses,
@@ -2260,43 +2262,70 @@ export class AssessmentService extends BaseService {
     companyData: any;
   }): Promise<{ overallScore: number; breakdown: any }> {
     const sectionScores = {};
-    const weights = ASSESSMENT_CONFIG.scoring.weights;
 
-    // Calculate section scores
+    // Calculate weighted score for each section
     for (const section of template.sections) {
       const sectionAnalyses = questionAnalyses.filter(
         analysis => analysis.sectionId === section.id
       );
 
       if (sectionAnalyses.length === 0) {
-        sectionScores[section.id] = { score: 0, weight: 0 };
+        sectionScores[section.id] = {
+          score: 0,
+          scaledScore: 0,
+          weight: section.weight || 1.0,
+          questionCount: 0,
+          averageConfidence: 0,
+        };
         continue;
       }
 
-      const totalScore = sectionAnalyses.reduce((sum, analysis) => sum + analysis.score, 0);
-      const maxScore = sectionAnalyses.length * 5; // Assuming 5-point scale
-      const sectionScore = (totalScore / maxScore) * 100;
+      // Get question weights for this section
+      const questionWeights = section.questions.map(q => q.weight || 1.0);
+      const totalQuestionWeight = questionWeights.reduce((sum, w) => sum + w, 0);
+
+      // Calculate weighted sum of question scores
+      let weightedSum = 0;
+      let totalConfidence = 0;
+
+      for (const analysis of sectionAnalyses) {
+        const question = section.questions.find(q => q.id === analysis.questionId);
+        const questionWeight = question?.weight || 1.0;
+        // Normalize weight (in case weights don't sum to 1.0)
+        const normalizedWeight = questionWeight / totalQuestionWeight;
+
+        weightedSum += analysis.score * normalizedWeight;
+        totalConfidence += analysis.confidence;
+      }
+
+      // Section score is on 0-5 scale (from weighted sum)
+      const sectionScore = weightedSum;
+      // Scale to 0-100 for display
+      const scaledScore = (sectionScore / 5) * 100;
 
       sectionScores[section.id] = {
-        score: sectionScore,
-        weight: 1 / template.sections.length, // Equal weighting for now
+        score: scaledScore,
+        scaledScore: scaledScore,
+        weight: section.weight || 1.0,
         questionCount: sectionAnalyses.length,
-        averageConfidence: sectionAnalyses.reduce(
-          (sum, analysis) => sum + analysis.confidence, 0
-        ) / sectionAnalyses.length,
+        averageConfidence: totalConfidence / sectionAnalyses.length,
       };
     }
 
-    // Calculate weighted overall score
+    // Calculate weighted overall score using section weights
+    const sectionWeights = template.sections.map(s => s.weight || 1.0);
+    const totalSectionWeight = sectionWeights.reduce((sum, w) => sum + w, 0);
+
     let overallScore = 0;
-    let totalWeight = 0;
 
-    Object.values(sectionScores).forEach((sectionData: any) => {
-      overallScore += sectionData.score * sectionData.weight;
-      totalWeight += sectionData.weight;
-    });
-
-    overallScore = totalWeight > 0 ? overallScore / totalWeight : 0;
+    for (const section of template.sections) {
+      const sectionData = sectionScores[section.id];
+      if (sectionData) {
+        // Normalize section weight
+        const normalizedWeight = (section.weight || 1.0) / totalSectionWeight;
+        overallScore += sectionData.scaledScore * normalizedWeight;
+      }
+    }
 
     // Apply company context adjustments
     if (companyData) {
@@ -2306,6 +2335,12 @@ export class AssessmentService extends BaseService {
         overallScore = Math.min(100, overallScore + 5);
       }
     }
+
+    this.logger.info('Weighted scoring completed', {
+      overallScore: Math.round(overallScore),
+      sectionCount: template.sections.length,
+      weightingUsed: 'section and question weights',
+    });
 
     return {
       overallScore: Math.round(overallScore),

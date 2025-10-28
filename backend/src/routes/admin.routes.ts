@@ -2121,6 +2121,105 @@ export default async function adminRoutes(server: FastifyInstance) {
   // TEMPLATE MANAGEMENT ROUTES
   // ============================================================================
 
+  // GET /admin/templates - List all templates with full details (sections + questions)
+  server.get('/templates', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { TemplateService } = await import('../services');
+      const templateService = new TemplateService();
+
+      const currentUser = (request as any).currentUser;
+      const context = {
+        userId: currentUser?.id,
+        userRole: currentUser?.role,
+        organizationId: currentUser?.organizationId,
+      };
+
+      // First, get the list of template IDs
+      const listResult = await templateService.listTemplates({
+        page: 1,
+        limit: 100,
+        includeInactive: true,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      }, context);
+
+      if (!listResult.success || !listResult.data) {
+        reply.code(500).send({
+          success: false,
+          message: listResult.message || 'Failed to fetch templates',
+        });
+        return;
+      }
+
+      // Fetch full details for each template (including questions)
+      const templateIds = (listResult.data.data || []).map((t: any) => t.id);
+      const fullTemplatesPromises = templateIds.map((id: string) =>
+        templateService.getTemplateById(id, true, context)
+      );
+      const fullTemplatesResults = await Promise.all(fullTemplatesPromises);
+
+      // Transform templates to include full sections and questions
+      const templates = fullTemplatesResults
+        .filter((result: any) => result.success && result.data)
+        .map((result: any) => {
+          const t = result.data;
+        const totalQuestions = (t.sections || []).reduce(
+          (sum: number, s: any) => sum + (Array.isArray(s.questions) ? s.questions.length : 0),
+          0
+        );
+        const estimatedMinutes = totalQuestions > 0 ? Math.max(15, Math.min(90, totalQuestions * 2)) : 30;
+
+        return {
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          category: t.category,
+          description: t.description,
+          version: t.version,
+          isActive: t.isActive,
+          estimatedMinutes,
+          creditCost: t.creditCost,
+          totalQuestions,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          sections: (t.sections || []).map((s: any) => ({
+            id: s.id,
+            name: s.title,
+            description: s.description,
+            order: s.order,
+            weight: s.weight,
+            questions: (s.questions || []).map((q: any) => ({
+              id: q.id,
+              question: q.text,
+              type: q.type?.toLowerCase(),
+              required: q.required,
+              aiPrompt: q.aiPromptHint,
+              order: q.order,
+              weight: q.weight,
+            })),
+          })),
+          aiEnabled: totalQuestions > 0 && (t.sections || []).some((s: any) =>
+            (s.questions || []).some((q: any) => q.aiPromptHint)
+          ),
+          framework: t.category,
+          status: t.isActive ? 'active' : 'draft',
+          usageCount: 0, // TODO: Add actual usage count from assessments
+        };
+      });
+
+      reply.code(200).send({
+        success: true,
+        data: templates,
+      });
+    } catch (error: any) {
+      request.log.error({ error }, 'Failed to list templates');
+      reply.code(500).send({
+        success: false,
+        message: 'Failed to fetch templates',
+      });
+    }
+  });
+
   // POST /admin/templates - Create new template
   server.post('/templates', {
     schema: {

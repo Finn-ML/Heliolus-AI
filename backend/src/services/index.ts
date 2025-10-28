@@ -12,6 +12,7 @@ export { UserService } from './user.service';
 export { DocumentService } from './document.service';
 export { EmailServiceImpl, emailService, type EmailService, type EmailTemplateData } from './email.service';
 export { AnalyticsService } from './analytics.service';
+export { TemplateService } from './template.service';
 
 // Create service instances
 import { SubscriptionService } from './subscription.service';
@@ -20,12 +21,14 @@ import { DocumentService } from './document.service';
 import { emailService } from './email.service';
 import { VendorService } from './vendor.service';
 import { AnalyticsService } from './analytics.service';
+import { TemplateService } from './template.service';
 
 export const subscriptionService = new SubscriptionService();
 export const userService = new UserService();
 export const documentService = new DocumentService();
 export const vendorService = new VendorService();
 export const analyticsService = new AnalyticsService();
+export const templateService = new TemplateService();
 // export { OrganizationService, organizationService } from './organization.service';
 // export { AssessmentService, assessmentService } from './assessment.service';
 // export { ReportService, reportService } from './report.service';
@@ -46,6 +49,7 @@ export const services = {
   document: documentService,
   email: emailService,
   analytics: analyticsService,
+  template: templateService,
   // organization: organizationService,
   // assessment: assessmentService,
   vendor: vendorService,
@@ -58,7 +62,7 @@ export const services = {
  */
 export async function initializeServices(): Promise<void> {
   console.log('🔧 Initializing services...');
-  
+
   // Run health checks on available services
   const healthChecks = await Promise.allSettled([
     services.subscription.healthCheck(),
@@ -66,10 +70,11 @@ export async function initializeServices(): Promise<void> {
     services.document.healthCheck(),
     services.email.healthCheck(),
     services.analytics.healthCheck(),
+    services.template.healthCheck(),
   ]);
 
-  const serviceNames = ['subscription', 'user', 'document', 'email', 'analytics'];
-  
+  const serviceNames = ['subscription', 'user', 'document', 'email', 'analytics', 'template'];
+
   healthChecks.forEach((result, index) => {
     const serviceName = serviceNames[index];
     if (result.status === 'fulfilled') {
@@ -88,7 +93,7 @@ export async function initializeServices(): Promise<void> {
  */
 export async function cleanupServices(): Promise<void> {
   console.log('🧹 Cleaning up services...');
-  
+
   // Cleanup available services
   await Promise.all([
     services.subscription.cleanup(),
@@ -96,6 +101,7 @@ export async function cleanupServices(): Promise<void> {
     services.document.cleanup(),
     services.email.cleanup(),
     services.analytics.cleanup(),
+    services.template.cleanup(),
   ]);
 
   console.log('✅ Services cleaned up successfully!');

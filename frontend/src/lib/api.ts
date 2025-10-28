@@ -984,11 +984,11 @@ export const adminTemplateApi = {
   },
 
   getTemplates: async (): Promise<ApiResponse<AssessmentTemplate[]>> => {
-    return await apiRequest<ApiResponse<AssessmentTemplate[]>>('/templates');
+    return await apiRequest<ApiResponse<AssessmentTemplate[]>>('/admin/templates');
   },
 
   getTemplate: async (id: string): Promise<ApiResponse<AssessmentTemplate>> => {
-    return await apiRequest<ApiResponse<AssessmentTemplate>>(`/templates/${id}`);
+    return await apiRequest<ApiResponse<AssessmentTemplate>>(`/admin/templates/${id}`);
   },
 
   getTemplateStats: async (): Promise<ApiResponse<TemplateStats>> => {
@@ -1042,6 +1042,251 @@ export const adminTemplateApi = {
       method: 'POST',
       body: JSON.stringify({ questions }),
     });
+  },
+};
+
+// Plan Management API Types
+export interface Plan {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  stripeProductId?: string;
+  stripeMonthlyPriceId?: string;
+  stripeAnnualPriceId?: string;
+  monthlyCredits: number;
+  assessmentCredits: number;
+  maxAssessments: number;
+  maxUsers: number;
+  features: string[];
+  trialDays: number;
+  isActive: boolean;
+  isPublic: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlanData {
+  slug: string;
+  name: string;
+  description?: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency?: string;
+  monthlyCredits?: number;
+  assessmentCredits?: number;
+  maxAssessments?: number;
+  maxUsers?: number;
+  features?: string[];
+  trialDays?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
+  displayOrder?: number;
+  createInStripe?: boolean;
+}
+
+export interface UpdatePlanData {
+  name?: string;
+  description?: string;
+  monthlyPrice?: number;
+  annualPrice?: number;
+  monthlyCredits?: number;
+  assessmentCredits?: number;
+  maxAssessments?: number;
+  maxUsers?: number;
+  features?: string[];
+  trialDays?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
+  displayOrder?: number;
+  syncToStripe?: boolean;
+}
+
+// Coupon Management API Types
+export interface Coupon {
+  id: string;
+  code: string;
+  name?: string;
+  description?: string;
+  stripeCouponId?: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number;
+  currency: string;
+  isActive: boolean;
+  maxRedemptions?: number;
+  timesRedeemed: number;
+  validFrom: string;
+  validUntil?: string;
+  applicablePlans: string[];
+  minimumAmount?: number;
+  newCustomersOnly: boolean;
+  durationInMonths?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCouponData {
+  code: string;
+  name?: string;
+  description?: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number;
+  currency?: string;
+  validFrom?: string;
+  validUntil?: string;
+  maxRedemptions?: number;
+  applicablePlans?: string[];
+  minimumAmount?: number;
+  newCustomersOnly?: boolean;
+  durationInMonths?: number;
+  isActive?: boolean;
+  createInStripe?: boolean;
+}
+
+export interface UpdateCouponData {
+  name?: string;
+  description?: string;
+  validUntil?: string;
+  maxRedemptions?: number;
+  isActive?: boolean;
+}
+
+export interface ValidateCouponData {
+  code: string;
+  planSlug?: string;
+  amount?: number;
+  isNewCustomer?: boolean;
+}
+
+export interface CouponValidationResult {
+  valid: boolean;
+  coupon?: Coupon;
+  reason?: string;
+  discountAmount?: number;
+}
+
+// Admin Plan API (requires ADMIN role)
+export const adminPlanApi = {
+  listPlans: async (params?: {
+    activeOnly?: boolean;
+    publicOnly?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse<{ data: Plan[]; pagination: any }>> => {
+    const searchParams = new URLSearchParams();
+    if (params?.activeOnly) searchParams.set('activeOnly', 'true');
+    if (params?.publicOnly) searchParams.set('publicOnly', 'true');
+    if (params?.page) searchParams.set('page', params.page.toString());
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/plans?${queryString}` : '/admin/plans';
+
+    return await apiRequest<ApiResponse<{ data: Plan[]; pagination: any }>>(endpoint);
+  },
+
+  getPlan: async (id: string): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>(`/admin/plans/${id}`);
+  },
+
+  getPlanBySlug: async (slug: string): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>(`/admin/plans/slug/${slug}`);
+  },
+
+  createPlan: async (data: CreatePlanData): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>('/admin/plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updatePlan: async (id: string, data: UpdatePlanData): Promise<ApiResponse<Plan>> => {
+    return await apiRequest<ApiResponse<Plan>>(`/admin/plans/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePlan: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/plans/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Admin Coupon API (requires ADMIN role)
+export const adminCouponApi = {
+  listCoupons: async (params?: {
+    activeOnly?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse<{ data: Coupon[]; pagination: any }>> => {
+    const searchParams = new URLSearchParams();
+    if (params?.activeOnly) searchParams.set('activeOnly', 'true');
+    if (params?.page) searchParams.set('page', params.page.toString());
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `/admin/coupons?${queryString}` : '/admin/coupons';
+
+    return await apiRequest<ApiResponse<{ data: Coupon[]; pagination: any }>>(endpoint);
+  },
+
+  getCoupon: async (id: string): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>(`/admin/coupons/${id}`);
+  },
+
+  getCouponByCode: async (code: string): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>(`/admin/coupons/code/${code}`);
+  },
+
+  createCoupon: async (data: CreateCouponData): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>('/admin/coupons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCoupon: async (id: string, data: UpdateCouponData): Promise<ApiResponse<Coupon>> => {
+    return await apiRequest<ApiResponse<Coupon>>(`/admin/coupons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCoupon: async (id: string): Promise<ApiResponse<void>> => {
+    return await apiRequest<ApiResponse<void>>(`/admin/coupons/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  validateCoupon: async (data: ValidateCouponData): Promise<ApiResponse<CouponValidationResult>> => {
+    return await apiRequest<ApiResponse<CouponValidationResult>>('/admin/coupons/validate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ===== PUBLIC PLAN API (No Auth Required) =====
+export const publicPlanApi = {
+  listPlans: async (): Promise<ApiResponse<Plan[]>> => {
+    const response = await fetch(`${API_BASE_URL}/public/plans`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch plans: ${response.statusText}`);
+    }
+
+    return await response.json();
   },
 };
 

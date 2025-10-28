@@ -605,7 +605,6 @@ export class TemplateService extends BaseService {
           type: validatedData.type,
           order: validatedData.order,
           required: validatedData.required,
-          options: validatedData.options || [],
           helpText: validatedData.helpText || null,
           aiPromptHint: validatedData.aiPromptHint || null,
           scoringRules: validatedData.scoringRules || undefined,
@@ -691,7 +690,6 @@ export class TemplateService extends BaseService {
               type: questionData.type,
               order: questionData.order,
               required: questionData.required,
-              options: questionData.options || [],
               helpText: questionData.helpText || null,
               aiPromptHint: questionData.aiPromptHint || null,
               scoringRules: questionData.scoringRules || undefined,
@@ -878,7 +876,6 @@ export class TemplateService extends BaseService {
           text: validatedData.text,
           type: validatedData.type,
           required: validatedData.required,
-          options: validatedData.options,
           helpText: validatedData.helpText,
           aiPromptHint: validatedData.aiPromptHint,
           weight: validatedData.weight,
@@ -1015,18 +1012,8 @@ export class TemplateService extends BaseService {
         }
       });
 
-      // Get average completion times for completed assessments
-      const completionTimes = await this.prisma.assessment.groupBy({
-        by: ['templateId'],
-        where: {
-          status: 'COMPLETED',
-          completedAt: { not: null },
-        },
-        _avg: {
-          // Note: We'd need a computed field for duration in minutes
-          // For now, we'll skip this or calculate it client-side
-        },
-      });
+      // Note: Average completion times would require a computed duration field
+      // For now, we calculate completion metrics client-side if needed
 
       // Calculate most and least popular templates
       const templatesWithUsage = templates.map(t => ({
@@ -1372,7 +1359,6 @@ export class TemplateService extends BaseService {
               text: q.text,
               type: q.type,
               required: q.required,
-              options: q.options,
               validation: q.validation,
               helpText: q.helpText,
               order: idx + 1,
@@ -1422,7 +1408,6 @@ export class TemplateService extends BaseService {
             text: source.text,
             type: source.type,
             required: source.required,
-            options: source.options,
             validation: source.validation,
             helpText: source.helpText,
             order: (maxOrder?.order || 0) + 1,

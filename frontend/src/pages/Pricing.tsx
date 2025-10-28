@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getCurrentUserId } from '@/lib/api';
+import { getCurrentUserId, publicPlanApi } from '@/lib/api';
 
 interface PricingFeature {
   text: string;
@@ -101,8 +101,16 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => (
 export default function Pricing() {
   const navigate = useNavigate();
 
+  // Fetch plans from database
+  const { data: plansResponse, isLoading: isLoadingPlans } = useQuery({
+    queryKey: ['public-plans'],
+    queryFn: async () => {
+      return await publicPlanApi.listPlans();
+    },
+  });
+
   // Fetch current subscription for authenticated users
-  const { data: billingInfo, isLoading } = useQuery({
+  const { data: billingInfo, isLoading: isLoadingSubscription } = useQuery({
     queryKey: ['subscription', 'billing-info'],
     queryFn: async () => {
       const userId = getCurrentUserId();
@@ -126,76 +134,81 @@ export default function Pricing() {
   });
 
   const currentPlan = billingInfo?.data?.plan || null;
+  const dbPlans = plansResponse?.data || [];
 
-  const pricingTiers: PricingTier[] = [
-    {
-      name: 'Freemium',
-      price: 'Free',
-      description: 'Get started with basic compliance assessment',
-      features: [
-        { text: 'Compliance Score', included: true },
-        { text: 'Gap Analysis', included: false, note: 'Blurred' },
-        { text: 'Strategy Matrix', included: false, note: 'Blurred' },
-        { text: 'Vendor Browse', included: true },
-        { text: 'AI Vendor Matching', included: false },
-        { text: '2 Assessments Total', included: true },
-        { text: 'Downloadable Reports', included: false },
-      ],
-      cta: {
+  // Map database plans to PricingTier format
+  const pricingTiers: PricingTier[] = dbPlans.map((plan: any) => {
+    const isFreemium = plan.slug === 'freemium';
+    const isPremium = plan.slug === 'premium';
+    const isEnterprise = plan.slug === 'enterprise';
+
+    // Format price
+    let price = 'Free';
+    let priceSubtext: string | undefined;
+
+    if (plan.monthlyPrice > 0) {
+      price = `€${plan.monthlyPrice}`;
+      if (plan.annualPrice > 0) {
+        const monthlySavings = ((plan.monthlyPrice * 12 - plan.annualPrice) / (plan.monthlyPrice * 12) * 100).toFixed(0);
+        priceSubtext = `per month, or €${plan.annualPrice}/year (save ${monthlySavings}%)`;
+      }
+    } else if (isEnterprise) {
+      price = 'Custom';
+    }
+
+    // Convert features to PricingFeature format
+    const features: PricingFeature[] = (plan.features || []).map((feature: string) => ({
+      text: feature,
+      included: !feature.includes('Blurred'),
+      note: feature.includes('Blurred') ? 'Blurred' : undefined,
+    }));
+
+    // Determine CTA
+    let cta;
+    if (isFreemium) {
+      cta = {
         text: 'Get Started',
         action: () => navigate('/register'),
-        variant: 'outline',
-      },
-      currentPlan: currentPlan === 'FREE',
-    },
-    {
-      name: 'Premium',
-      price: '€599',
-      priceSubtext: 'per month, or €6,490/year (save 10%)',
-      description: 'Full compliance analysis with AI-powered insights',
-      features: [
-        { text: 'All Freemium features unlocked', included: true },
-        { text: 'Full Gap Analysis', included: true },
-        { text: 'Strategy Matrix & Priorities', included: true },
-        { text: 'AI Vendor Matching', included: true },
-        { text: '2 Assessments per month included', included: true },
-        { text: 'Additional assessments: €299 each', included: true },
-        { text: 'Downloadable PDF Reports', included: true },
-        { text: 'Lead Tracking', included: true },
-      ],
-      cta: {
+        variant: 'outline' as const,
+      };
+    } else if (isPremium) {
+      cta = {
         text: 'Upgrade to Premium',
-        action: () => navigate('/checkout?plan=premium&cycle=monthly'),
-      },
-      highlighted: true,
-      badge: 'Most Popular',
-      currentPlan: currentPlan === 'PREMIUM',
-    },
-    {
-      name: 'Enterprise',
-      price: 'Custom',
-      description: 'Unlimited assessments with dedicated support',
-      features: [
-        { text: 'Everything in Premium', included: true },
-        { text: 'Unlimited Assessments', included: true },
-        { text: 'Custom Billing Arrangements', included: true },
-        { text: 'Dedicated Account Manager', included: true },
-        { text: 'Priority Support', included: true },
-        { text: 'Custom Integrations', included: true },
-      ],
-      cta: {
+        action: () => navigate(`/checkout?plan=${plan.slug}&cycle=monthly`),
+      };
+    } else {
+      cta = {
         text: 'Contact Sales',
         action: () => (window.location.href = 'mailto:sales@heliolus.com'),
-        variant: 'outline',
-      },
-      currentPlan: currentPlan === 'ENTERPRISE',
-    },
-  ];
+        variant: 'outline' as const,
+      };
+    }
 
-  if (isLoading) {
+    return {
+      name: plan.name,
+      price,
+      priceSubtext,
+      description: plan.description || '',
+      features,
+      cta,
+      highlighted: isPremium,
+      badge: isPremium ? 'Most Popular' : undefined,
+      currentPlan: currentPlan === plan.slug.toUpperCase(),
+    };
+  });
+
+  if (isLoadingPlans || isLoadingSubscription) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <p className="text-muted-foreground">Loading pricing information...</p>
+      </div>
+    );
+  }
+
+  if (!dbPlans || dbPlans.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p className="text-muted-foreground">No pricing plans available at this time.</p>
       </div>
     );
   }

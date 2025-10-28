@@ -74,9 +74,6 @@ function toFrontendTemplate(template: any) {
         text: q.text,
         type: mapQuestionType(q.type),
         required: q.required ?? false,
-        options: Array.isArray(q.options)
-          ? q.options.map((opt: string, i: number) => ({ id: `${q.id}-opt-${i}`, text: opt, value: opt, order: i }))
-          : undefined,
         validation: q.validation || undefined,
         helpText: q.helpText || undefined,
         order: q.order ?? index,

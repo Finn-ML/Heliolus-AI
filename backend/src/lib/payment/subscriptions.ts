@@ -14,12 +14,28 @@ import {
   SubscriptionError
 } from './types';
 import { stripeProvider } from './stripe';
-import { PAYMENT_CONFIG } from './config';
 import { SubscriptionPlan, SubscriptionStatus, TransactionType } from '../../types/database';
 
+// Read config directly to avoid circular dependency
+const STRIPE_CONFIG = {
+  secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
+  apiVersion: '2025-08-27.basil' as const
+};
+
+const PAYMENT_CONFIG = {
+  subscriptions: {
+    plans: {
+      FREE: { price: 0, credits: 10, features: ['basic_assessments'] },
+      PREMIUM: { price: 59900, credits: 100, features: ['advanced_assessments', 'ai_analysis', 'priority_support'] },
+      ENTERPRISE: { price: 0, credits: 1000, features: ['all_features', 'custom_templates', 'dedicated_support'] }
+    },
+    trialPeriodDays: 14
+  }
+};
+
 const prisma = new PrismaClient();
-const stripe = new Stripe(PAYMENT_CONFIG.stripe.secretKey, {
-  apiVersion: PAYMENT_CONFIG.stripe.apiVersion
+const stripe = new Stripe(STRIPE_CONFIG.secretKey, {
+  apiVersion: STRIPE_CONFIG.apiVersion
 });
 
 /**
