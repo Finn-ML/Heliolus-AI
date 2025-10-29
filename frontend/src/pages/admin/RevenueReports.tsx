@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import AdminLayout from '@/components/AdminLayout';
+import { adminAnalyticsApi } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,45 +51,98 @@ import {
   Package,
 } from 'lucide-react';
 
-// Mock data
-const revenueData = [
-  { month: 'Jan', revenue: 12500, subscriptions: 8500, credits: 3200, assessments: 800 },
-  { month: 'Feb', revenue: 15200, subscriptions: 9200, credits: 4800, assessments: 1200 },
-  { month: 'Mar', revenue: 18900, subscriptions: 10500, credits: 6800, assessments: 1600 },
-  { month: 'Apr', revenue: 22300, subscriptions: 12000, credits: 8500, assessments: 1800 },
-  { month: 'May', revenue: 25600, subscriptions: 13500, credits: 9800, assessments: 2300 },
-  { month: 'Jun', revenue: 28900, subscriptions: 15000, credits: 11200, assessments: 2700 },
-];
-
-const revenueByProduct = [
-  { name: 'Enterprise Plans', value: 45000, color: '#F345B8' },
-  { name: 'Professional Plans', value: 32000, color: '#3BE2E9' },
-  { name: 'Starter Plans', value: 18000, color: '#939393' },
-  { name: 'Credit Purchases', value: 25000, color: '#4ade80' },
-  { name: 'One-time Assessments', value: 8900, color: '#f59e0b' },
-];
-
-const topCustomers = [
-  { name: 'TechCorp Solutions', revenue: 12500, growth: 15.2, assessments: 145 },
-  { name: 'SecurePoint Inc', revenue: 10200, growth: 8.7, assessments: 98 },
-  { name: 'DataGuard Systems', revenue: 8900, growth: -2.3, assessments: 76 },
-  { name: 'CloudSafe Pro', revenue: 7600, growth: 22.1, assessments: 64 },
-  { name: 'ComplianceHub', revenue: 6800, growth: 12.5, assessments: 52 },
-];
-
 const RevenueReports = () => {
   const [timeRange, setTimeRange] = useState('month');
   const [reportType, setReportType] = useState('overview');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
-  const avgMonthlyRevenue = totalRevenue / revenueData.length;
-  const lastMonthGrowth = (
-    ((revenueData[5].revenue - revenueData[4].revenue) / revenueData[4].revenue) *
-    100
-  ).toFixed(1);
-  const totalCustomers = 234;
-  const totalAssessments = 892;
+  // Fetch revenue overview data
+  const { data: overview, isLoading: overviewLoading, error: overviewError } = useQuery({
+    queryKey: ['revenue-analytics', 'overview'],
+    queryFn: () => adminAnalyticsApi.getRevenueAnalytics({ view: 'overview' }),
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+  });
+
+  // Fetch revenue trends data
+  const { data: trends, isLoading: trendsLoading } = useQuery({
+    queryKey: ['revenue-analytics', 'trends'],
+    queryFn: () => adminAnalyticsApi.getRevenueAnalytics({ view: 'trends' }),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  // Fetch top customers data
+  const { data: customers, isLoading: customersLoading } = useQuery({
+    queryKey: ['revenue-analytics', 'customers'],
+    queryFn: () => adminAnalyticsApi.getRevenueAnalytics({ view: 'customers' }),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  // Fetch revenue breakdown data
+  const { data: breakdown, isLoading: breakdownLoading } = useQuery({
+    queryKey: ['revenue-analytics', 'breakdown'],
+    queryFn: () => adminAnalyticsApi.getRevenueAnalytics({ view: 'breakdown' }),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  // Transform trends data for chart (format month names)
+  const revenueData = trends?.trends?.map((item: any) => ({
+    month: new Date(item.month + '-01').toLocaleDateString('en-US', { month: 'short' }),
+    revenue: item.revenue,
+    mrr: item.mrr,
+    arr: item.arr,
+    invoiceCount: item.invoiceCount,
+  })) || [];
+
+  // Transform breakdown data for pie chart
+  const revenueByProduct = breakdown?.breakdown?.map((item: any, index: number) => ({
+    name: `${item.plan} ${item.billingCycle}`,
+    value: item.revenue,
+    color: ['#F345B8', '#3BE2E9', '#939393', '#4ade80', '#f59e0b'][index % 5],
+  })) || [];
+
+  // Transform customers data for table
+  const topCustomers = customers?.customers?.slice(0, 5).map((item: any) => ({
+    name: item.organizationName,
+    revenue: item.revenue,
+    invoiceCount: item.invoiceCount,
+  })) || [];
+
+  // Loading state
+  if (overviewLoading || trendsLoading || customersLoading || breakdownLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-4 text-muted-foreground">Loading revenue analytics...</p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // Error state
+  if (overviewError) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-red-500">Failed to load revenue data</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {overviewError instanceof Error ? overviewError.message : 'Unknown error'}
+            </p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // Extract metrics from overview
+  const totalRevenue = overview?.totalRevenue || 0;
+  const revenueGrowth = overview?.revenueGrowth || 0;
+  const currentMRR = overview?.currentMRR || 0;
+  const payingCustomers = overview?.payingCustomers || 0;
+  const activeSubscriptions = overview?.activeSubscriptions || 0;
 
   const handleExportPDF = () => {
     setIsGenerating(true);
@@ -148,48 +203,54 @@ const RevenueReports = () => {
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalRevenue.toLocaleString()}</div>
+              <div className="text-2xl font-bold">€{totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500 inline-flex items-center">
-                  <ArrowUpRight className="h-3 w-3 mr-1" />+{lastMonthGrowth}%
-                </span>{' '}
-                from last month
+                {revenueGrowth >= 0 ? (
+                  <span className="text-green-500 inline-flex items-center">
+                    <ArrowUpRight className="h-3 w-3 mr-1" />+{revenueGrowth.toFixed(1)}%
+                  </span>
+                ) : (
+                  <span className="text-red-500 inline-flex items-center">
+                    <ArrowDownRight className="h-3 w-3 mr-1" />{revenueGrowth.toFixed(1)}%
+                  </span>
+                )}{' '}
+                from previous period
               </p>
             </CardContent>
           </Card>
 
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Monthly Avg</CardTitle>
+              <CardTitle className="text-sm font-medium">MRR</CardTitle>
               <TrendingUp className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${Math.round(avgMonthlyRevenue).toLocaleString()}
+                €{currentMRR.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <p className="text-xs text-muted-foreground">6-month average</p>
+              <p className="text-xs text-muted-foreground">Monthly Recurring Revenue</p>
             </CardContent>
           </Card>
 
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+              <CardTitle className="text-sm font-medium">Paying Customers</CardTitle>
               <Users className="h-4 w-4 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalCustomers}</div>
-              <p className="text-xs text-muted-foreground">+18 new this month</p>
+              <div className="text-2xl font-bold">{payingCustomers}</div>
+              <p className="text-xs text-muted-foreground">Active organizations</p>
             </CardContent>
           </Card>
 
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Assessments</CardTitle>
+              <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
               <Package className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalAssessments}</div>
-              <p className="text-xs text-muted-foreground">Completed this period</p>
+              <div className="text-2xl font-bold">{activeSubscriptions}</div>
+              <p className="text-xs text-muted-foreground">Current billing period</p>
             </CardContent>
           </Card>
         </div>
@@ -217,23 +278,23 @@ const RevenueReports = () => {
                   stroke="#3BE2E9"
                   strokeWidth={3}
                   dot={{ fill: '#3BE2E9' }}
-                  name="Total Revenue"
+                  name="Total Revenue (€)"
                 />
                 <Line
                   type="monotone"
-                  dataKey="subscriptions"
+                  dataKey="mrr"
                   stroke="#F345B8"
                   strokeWidth={2}
                   dot={{ fill: '#F345B8' }}
-                  name="Subscriptions"
+                  name="MRR (€)"
                 />
                 <Line
                   type="monotone"
-                  dataKey="credits"
+                  dataKey="invoiceCount"
                   stroke="#4ade80"
                   strokeWidth={2}
                   dot={{ fill: '#4ade80' }}
-                  name="Credit Sales"
+                  name="Invoice Count"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -298,44 +359,41 @@ const RevenueReports = () => {
                   <TableRow>
                     <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">Growth</TableHead>
+                    <TableHead className="text-right">Invoices</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {topCustomers.map((customer, index) => (
-                    <TableRow key={customer.name}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold text-muted-foreground">
-                            {index + 1}
-                          </span>
-                          <div>
-                            <p className="font-medium">{customer.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {customer.assessments} assessments
-                            </p>
+                  {topCustomers.length > 0 ? (
+                    topCustomers.map((customer, index) => (
+                      <TableRow key={customer.name}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <p className="font-medium">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {customer.invoiceCount} invoices
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        ${customer.revenue.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span
-                          className={`inline-flex items-center ${
-                            customer.growth > 0 ? 'text-green-500' : 'text-red-500'
-                          }`}
-                        >
-                          {customer.growth > 0 ? (
-                            <ArrowUpRight className="h-3 w-3 mr-1" />
-                          ) : (
-                            <ArrowDownRight className="h-3 w-3 mr-1" />
-                          )}
-                          {Math.abs(customer.growth)}%
-                        </span>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          €{customer.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {customer.invoiceCount}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                        No customer data available
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

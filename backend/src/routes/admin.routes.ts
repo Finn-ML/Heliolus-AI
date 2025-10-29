@@ -1395,6 +1395,71 @@ export default async function adminRoutes(server: FastifyInstance) {
     reply.code(200).send(result.data);
   }));
 
+  // GET /admin/analytics/revenue - Get revenue analytics
+  server.get('/analytics/revenue', {
+    schema: {
+      description: 'Get revenue analytics for admin dashboard',
+      tags: ['Admin', 'Analytics'],
+      querystring: {
+        type: 'object',
+        properties: {
+          view: {
+            type: 'string',
+            enum: ['overview', 'trends', 'customers', 'breakdown'],
+            description: 'Analytics view type'
+          },
+          startDate: { type: 'string', format: 'date' },
+          endDate: { type: 'string', format: 'date' }
+        },
+        required: ['view']
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: { type: 'object' }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      view: 'overview' | 'trends' | 'customers' | 'breakdown';
+      startDate?: string;
+      endDate?: string;
+    }
+  }>, reply: FastifyReply) => {
+    const { view, startDate, endDate } = request.query;
+
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    // Parse dates if provided
+    const parsedStartDate = startDate ? new Date(startDate) : undefined;
+    const parsedEndDate = endDate ? new Date(endDate) : undefined;
+
+    const result = await analyticsService.getRevenueAnalytics(
+      context,
+      view,
+      parsedStartDate,
+      parsedEndDate
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
   // ============================================================================
   // VENDOR MANAGEMENT ENDPOINTS
   // ============================================================================

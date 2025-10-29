@@ -547,22 +547,38 @@ export class HeliolusWebhookHandler implements WebhookHandler {
   // Helper methods
 
   private async upsertInvoiceFromStripe(stripeInvoice: Stripe.Invoice): Promise<any> {
+    // Find the subscription in our database
+    const subscription = stripeInvoice.subscription ?
+      await prisma.subscription.findFirst({
+        where: { stripeSubscriptionId: stripeInvoice.subscription as string },
+        select: { id: true }
+      }) : null;
+
+    // Calculate period dates from Stripe invoice
+    const periodStart = stripeInvoice.period_start
+      ? new Date(stripeInvoice.period_start * 1000)
+      : new Date();
+    const periodEnd = stripeInvoice.period_end
+      ? new Date(stripeInvoice.period_end * 1000)
+      : new Date();
+
     const invoiceData = {
       stripeInvoiceId: stripeInvoice.id,
-      stripeCustomerId: stripeInvoice.customer as string,
-      subscriptionId: stripeInvoice.subscription ? 
-        (await prisma.subscription.findFirst({
-          where: { stripeSubscriptionId: stripeInvoice.subscription as string },
-          select: { id: true }
-        }))?.id : null,
-      amount: stripeInvoice.amount_due,
-      currency: stripeInvoice.currency,
+      subscriptionId: subscription?.id || null,
+      // Generate invoice number from Stripe or fallback to ID
+      number: stripeInvoice.number || `INV-${stripeInvoice.id.substring(3, 11)}`,
+      // Convert amount from cents to euros (Stripe uses cents, DB uses Float euros)
+      amount: stripeInvoice.amount_due / 100,
+      currency: stripeInvoice.currency.toUpperCase(),
       status: this.mapStripeInvoiceStatus(stripeInvoice.status),
-      description: stripeInvoice.description,
-      dueDate: stripeInvoice.due_date ? new Date(stripeInvoice.due_date * 1000) : null,
-      paidAt: stripeInvoice.status_transitions.paid_at ? 
-        new Date(stripeInvoice.status_transitions.paid_at * 1000) : null,
-      metadata: stripeInvoice.metadata ? JSON.stringify(stripeInvoice.metadata) : null
+      periodStart,
+      periodEnd,
+      dueDate: stripeInvoice.due_date
+        ? new Date(stripeInvoice.due_date * 1000)
+        : periodEnd,
+      paidAt: stripeInvoice.status_transitions.paid_at
+        ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+        : null
     };
 
     return await prisma.invoice.upsert({

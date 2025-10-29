@@ -4,6 +4,7 @@
  */
 
 import { stripeProvider } from './stripe';
+import { webhookHandler } from './webhooks';
 import Stripe from 'stripe';
 
 // Get Stripe config directly from environment to avoid circular dependency
@@ -172,6 +173,7 @@ export async function getStripeInvoice(invoiceId: string): Promise<{
 
 /**
  * Process Stripe webhook
+ * Delegates to the full webhook handler for comprehensive event processing
  */
 export async function processStripeWebhook(
   payload: string | Buffer,
@@ -182,24 +184,13 @@ export async function processStripeWebhook(
   data?: any;
 }> {
   try {
-    // Verify webhook signature
-    const event = stripe.webhooks.constructEvent(
-      payload,
-      signature,
-      STRIPE_CONFIG.webhookSecret
-    );
+    // Use the full webhook handler for comprehensive processing
+    const result = await webhookHandler.handleWebhook(payload, signature);
 
-    console.log(`Received Stripe webhook: ${event.type}`);
-
-    // For now, just acknowledge receipt
-    // Full webhook processing can be implemented later
     return {
-      success: true,
-      data: {
-        eventId: event.id,
-        type: event.type,
-        received: true
-      }
+      success: result.success,
+      message: result.error,
+      data: result.data
     };
   } catch (error: any) {
     console.error('Webhook processing error:', error);

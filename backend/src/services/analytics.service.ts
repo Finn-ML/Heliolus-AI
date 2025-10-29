@@ -1057,4 +1057,324 @@ export class AnalyticsService extends BaseService {
       this.handleDatabaseError(error, 'exportAnalytics');
     }
   }
+
+  /**
+   * Get revenue analytics for admin dashboard
+   *
+   * @param context - Authentication context
+   * @param view - Analytics view type (overview | trends | customers | breakdown)
+   * @param startDate - Optional start date filter
+   * @param endDate - Optional end date filter
+   * @returns Revenue analytics data
+   */
+  async getRevenueAnalytics(
+    context: any,
+    view: 'overview' | 'trends' | 'customers' | 'breakdown',
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<any> {
+    try {
+      // Require admin permission
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Default date range: last 12 months
+      const end = endDate || new Date();
+      const start = startDate || new Date(end.getFullYear(), end.getMonth() - 12, end.getDate());
+
+      this.logger.info('Getting revenue analytics', {
+        view,
+        startDate: start,
+        endDate: end,
+        userId: context.userId
+      });
+
+      let data: any;
+
+      switch (view) {
+        case 'overview':
+          data = await this.getRevenueOverview(start, end);
+          break;
+        case 'trends':
+          data = await this.getRevenueTrends(start, end);
+          break;
+        case 'customers':
+          data = await this.getRevenueByCustomer(start, end);
+          break;
+        case 'breakdown':
+          data = await this.getRevenueBreakdown(start, end);
+          break;
+        default:
+          throw this.createError(`Invalid view type: ${view}`, 400, 'INVALID_VIEW_TYPE');
+      }
+
+      return this.createResponse(true, data);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getRevenueAnalytics');
+    }
+  }
+
+  /**
+   * Get revenue overview with key metrics
+   */
+  private async getRevenueOverview(startDate: Date, endDate: Date): Promise<any> {
+    // Get all PAID invoices in date range
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        status: InvoiceStatus.PAID,
+        paidAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: {
+          include: {
+            user: {
+              include: {
+                Organization: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Calculate total revenue
+    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
+
+    // Get unique paying customers (organizations)
+    const uniqueCustomers = new Set(
+      invoices
+        .map(inv => inv.subscription.user.Organization?.id)
+        .filter(Boolean)
+    );
+
+    // Calculate MRR (normalize all subscriptions to monthly)
+    const mrrContributions = invoices.map(inv => {
+      const billingCycle = inv.subscription.billingCycle;
+      if (billingCycle === BillingCycle.MONTHLY) {
+        return inv.amount;
+      } else if (billingCycle === BillingCycle.ANNUAL) {
+        return inv.amount / 12; // Annual normalized to monthly
+      }
+      return 0;
+    });
+
+    const currentMRR = mrrContributions.reduce((sum, mrr) => sum + mrr, 0);
+
+    // Calculate ARR (MRR × 12)
+    const currentARR = currentMRR * 12;
+
+    // Get active subscriptions count
+    const activeSubscriptions = await this.prisma.subscription.count({
+      where: {
+        status: SubscriptionStatus.ACTIVE,
+        billingCycle: { not: null }
+      }
+    });
+
+    // Calculate previous period for growth comparison
+    const periodLength = endDate.getTime() - startDate.getTime();
+    const previousStart = new Date(startDate.getTime() - periodLength);
+    const previousEnd = startDate;
+
+    const previousInvoices = await this.prisma.invoice.findMany({
+      where: {
+        status: InvoiceStatus.PAID,
+        paidAt: {
+          gte: previousStart,
+          lt: previousEnd
+        }
+      }
+    });
+
+    const previousRevenue = previousInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+
+    // Calculate growth percentage
+    const revenueGrowth = previousRevenue > 0
+      ? ((totalRevenue - previousRevenue) / previousRevenue) * 100
+      : 0;
+
+    return {
+      totalRevenue,
+      revenueGrowth,
+      currentMRR,
+      currentARR,
+      activeSubscriptions,
+      payingCustomers: uniqueCustomers.size,
+      invoiceCount: invoices.length,
+      averageInvoiceValue: invoices.length > 0 ? totalRevenue / invoices.length : 0
+    };
+  }
+
+  /**
+   * Get revenue trends over time (monthly breakdown)
+   */
+  private async getRevenueTrends(startDate: Date, endDate: Date): Promise<any> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        status: InvoiceStatus.PAID,
+        paidAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: true
+      },
+      orderBy: {
+        paidAt: 'asc'
+      }
+    });
+
+    // Group by month
+    const monthlyData = new Map<string, { revenue: number; invoices: number; mrr: number }>();
+
+    invoices.forEach(invoice => {
+      const month = invoice.paidAt
+        ? `${invoice.paidAt.getFullYear()}-${String(invoice.paidAt.getMonth() + 1).padStart(2, '0')}`
+        : 'unknown';
+
+      if (!monthlyData.has(month)) {
+        monthlyData.set(month, { revenue: 0, invoices: 0, mrr: 0 });
+      }
+
+      const data = monthlyData.get(month)!;
+      data.revenue += invoice.amount;
+      data.invoices += 1;
+
+      // Add MRR contribution
+      if (invoice.subscription.billingCycle === BillingCycle.MONTHLY) {
+        data.mrr += invoice.amount;
+      } else if (invoice.subscription.billingCycle === BillingCycle.ANNUAL) {
+        data.mrr += invoice.amount / 12;
+      }
+    });
+
+    // Convert to array and sort by month
+    const trends = Array.from(monthlyData.entries())
+      .map(([month, data]) => ({
+        month,
+        revenue: data.revenue,
+        invoiceCount: data.invoices,
+        mrr: data.mrr,
+        arr: data.mrr * 12
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    return { trends };
+  }
+
+  /**
+   * Get revenue by customer (top customers by revenue)
+   */
+  private async getRevenueByCustomer(startDate: Date, endDate: Date): Promise<any> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        status: InvoiceStatus.PAID,
+        paidAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: {
+          include: {
+            user: {
+              include: {
+                Organization: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Group by organization
+    const customerData = new Map<string, {
+      organizationId: string;
+      organizationName: string;
+      revenue: number;
+      invoiceCount: number;
+    }>();
+
+    invoices.forEach(invoice => {
+      const org = invoice.subscription.user.Organization;
+      if (!org) return;
+
+      if (!customerData.has(org.id)) {
+        customerData.set(org.id, {
+          organizationId: org.id,
+          organizationName: org.name,
+          revenue: 0,
+          invoiceCount: 0
+        });
+      }
+
+      const data = customerData.get(org.id)!;
+      data.revenue += invoice.amount;
+      data.invoiceCount += 1;
+    });
+
+    // Convert to array and sort by revenue (descending)
+    const customers = Array.from(customerData.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 20); // Top 20 customers
+
+    return { customers };
+  }
+
+  /**
+   * Get revenue breakdown by subscription plan
+   */
+  private async getRevenueBreakdown(startDate: Date, endDate: Date): Promise<any> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        status: InvoiceStatus.PAID,
+        paidAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: true
+      }
+    });
+
+    // Group by plan
+    const planData = new Map<string, { revenue: number; invoiceCount: number; subscriptionCount: Set<string> }>();
+
+    invoices.forEach(invoice => {
+      const plan = invoice.subscription.plan;
+      const cycle = invoice.subscription.billingCycle || 'UNKNOWN';
+      const key = `${plan}_${cycle}`;
+
+      if (!planData.has(key)) {
+        planData.set(key, { revenue: 0, invoiceCount: 0, subscriptionCount: new Set() });
+      }
+
+      const data = planData.get(key)!;
+      data.revenue += invoice.amount;
+      data.invoiceCount += 1;
+      data.subscriptionCount.add(invoice.subscription.id);
+    });
+
+    // Convert to array
+    const breakdown = Array.from(planData.entries())
+      .map(([key, data]) => {
+        const [plan, cycle] = key.split('_');
+        return {
+          plan,
+          billingCycle: cycle,
+          revenue: data.revenue,
+          invoiceCount: data.invoiceCount,
+          subscriptionCount: data.subscriptionCount.size,
+          averageRevenue: data.revenue / data.invoiceCount
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return { breakdown };
+  }
 }
