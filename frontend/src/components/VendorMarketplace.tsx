@@ -612,7 +612,7 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
                             className="w-full h-full object-cover rounded-lg"
                           />
                         ) : (
-                          vendor.name.substring(0, 2).toUpperCase()
+                          vendor.name?.substring(0, 2).toUpperCase() || 'V'
                         )}
                       </div>
                     </div>
@@ -799,7 +799,7 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
           open={contactModalOpen}
           onOpenChange={setContactModalOpen}
           vendorId={contactVendor.id}
-          vendorName={contactVendor.companyName}
+          vendorName={contactVendor.name}
         />
       )}
     </div>

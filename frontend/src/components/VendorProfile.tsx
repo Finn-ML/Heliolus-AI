@@ -560,7 +560,7 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
           open={contactModalOpen}
           onOpenChange={setContactModalOpen}
           vendorId={vendor.id}
-          vendorName={vendor.companyName}
+          vendorName={vendor.name}
         />
       </div>
     </div>

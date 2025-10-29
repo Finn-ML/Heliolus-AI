@@ -45,7 +45,7 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
       const winner = match1.totalScore > match2.totalScore ? 'vendor1' : 'vendor2';
       insights.push({
         type: 'overall',
-        message: `${winner === 'vendor1' ? vendor1.companyName : vendor2.companyName} scores ${scorePercent.toFixed(0)}% higher overall`,
+        message: `${winner === 'vendor1' ? vendor1.name : vendor2.name} scores ${scorePercent.toFixed(0)}% higher overall`,
         advantage: winner,
         icon: TrendingUp,
       });
@@ -62,7 +62,7 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
           : 'vendor2';
       insights.push({
         type: 'gaps',
-        message: `${winner === 'vendor1' ? vendor1.companyName : vendor2.companyName} addresses more of your critical compliance gaps`,
+        message: `${winner === 'vendor1' ? vendor1.name : vendor2.name} addresses more of your critical compliance gaps`,
         advantage: winner,
         icon: CheckCircle,
       });
@@ -72,14 +72,14 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
     if (match1.priorityBoost.topPriorityBoost > match2.priorityBoost.topPriorityBoost) {
       insights.push({
         type: 'priority',
-        message: `${vendor1.companyName} better aligns with your top priorities`,
+        message: `${vendor1.name} better aligns with your top priorities`,
         advantage: 'vendor1',
         icon: Sparkles,
       });
     } else if (match2.priorityBoost.topPriorityBoost > match1.priorityBoost.topPriorityBoost) {
       insights.push({
         type: 'priority',
-        message: `${vendor2.companyName} better aligns with your top priorities`,
+        message: `${vendor2.name} better aligns with your top priorities`,
         advantage: 'vendor2',
         icon: Sparkles,
       });
@@ -92,7 +92,7 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
       const diff = vendor2MissingCount - vendor1MissingCount;
       insights.push({
         type: 'features',
-        message: `${vendor1.companyName} has ${diff} more of your must-have features`,
+        message: `${vendor1.name} has ${diff} more of your must-have features`,
         advantage: 'vendor1',
         icon: CheckCircle,
       });
@@ -100,7 +100,7 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
       const diff = vendor1MissingCount - vendor2MissingCount;
       insights.push({
         type: 'features',
-        message: `${vendor2.companyName} has ${diff} more of your must-have features`,
+        message: `${vendor2.name} has ${diff} more of your must-have features`,
         advantage: 'vendor2',
         icon: CheckCircle,
       });
@@ -110,8 +110,8 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
     if (match1.baseScore.priceScore > match2.baseScore.priceScore) {
       const msg =
         match1.baseScore.priceScore === 20
-          ? `${vendor1.companyName} is within your budget`
-          : `${vendor1.companyName} is closer to your budget`;
+          ? `${vendor1.name} is within your budget`
+          : `${vendor1.name} is closer to your budget`;
       insights.push({
         type: 'budget',
         message: msg,
@@ -121,8 +121,8 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
     } else if (match2.baseScore.priceScore > match1.baseScore.priceScore) {
       const msg =
         match2.baseScore.priceScore === 20
-          ? `${vendor2.companyName} is within your budget`
-          : `${vendor2.companyName} is closer to your budget`;
+          ? `${vendor2.name} is within your budget`
+          : `${vendor2.name} is closer to your budget`;
       insights.push({
         type: 'budget',
         message: msg,
@@ -135,14 +135,14 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
     if (match1.priorityBoost.speedBoost > match2.priorityBoost.speedBoost) {
       insights.push({
         type: 'speed',
-        message: `${vendor1.companyName} offers faster implementation`,
+        message: `${vendor1.name} offers faster implementation`,
         advantage: 'vendor1',
         icon: Clock,
       });
     } else if (match2.priorityBoost.speedBoost > match1.priorityBoost.speedBoost) {
       insights.push({
         type: 'speed',
-        message: `${vendor2.companyName} offers faster implementation`,
+        message: `${vendor2.name} offers faster implementation`,
         advantage: 'vendor2',
         icon: Clock,
       });
@@ -152,14 +152,14 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
     if (match1.priorityBoost.deploymentBoost > match2.priorityBoost.deploymentBoost) {
       insights.push({
         type: 'deployment',
-        message: `${vendor1.companyName} matches your deployment preferences`,
+        message: `${vendor1.name} matches your deployment preferences`,
         advantage: 'vendor1',
         icon: Cloud,
       });
     } else if (match2.priorityBoost.deploymentBoost > match1.priorityBoost.deploymentBoost) {
       insights.push({
         type: 'deployment',
-        message: `${vendor2.companyName} matches your deployment preferences`,
+        message: `${vendor2.name} matches your deployment preferences`,
         advantage: 'vendor2',
         icon: Cloud,
       });
@@ -177,19 +177,19 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
 
     if (vendor1Advantages > vendor2Advantages) {
       return {
-        vendor: vendor1.companyName,
+        vendor: vendor1.name,
         confidence: 'stronger',
         color: 'text-cyan-400',
       };
     } else if (vendor2Advantages > vendor1Advantages) {
       return {
-        vendor: vendor2.companyName,
+        vendor: vendor2.name,
         confidence: 'stronger',
         color: 'text-pink-400',
       };
     } else {
       return {
-        vendor: match1.totalScore > match2.totalScore ? vendor1.companyName : vendor2.companyName,
+        vendor: match1.totalScore > match2.totalScore ? vendor1.name : vendor2.name,
         confidence: 'slight',
         color: match1.totalScore > match2.totalScore ? 'text-cyan-400' : 'text-pink-400',
       };
@@ -252,7 +252,7 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
                     : 'bg-red-500/20 text-red-400 border-red-500/50'
                 }
               >
-                {vendor1.companyName.substring(0, 12)}
+                {vendor1.name?.substring(0, 12) || 'Vendor 1'}
               </Badge>
               <Badge
                 className={
@@ -263,7 +263,7 @@ export const ComparativeInsights: React.FC<ComparativeInsightsProps> = ({
                     : 'bg-red-500/20 text-red-400 border-red-500/50'
                 }
               >
-                {vendor2.companyName.substring(0, 12)}
+                {vendor2.name?.substring(0, 12) || 'Vendor 2'}
               </Badge>
             </div>
           </div>

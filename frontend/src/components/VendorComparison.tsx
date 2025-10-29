@@ -28,9 +28,13 @@ import {
   ChevronRight,
   CheckCircle,
   AlertCircle,
+  FileText,
+  MessageCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { getCurrentUserId } from '@/lib/api';
+import { getCurrentUserId, subscriptionApi, organizationApi } from '@/lib/api';
+import { RFPFormModal } from '@/components/rfp/RFPFormModal';
+import { ContactVendorModal } from '@/components/vendor/ContactVendorModal';
 import { MatchQualityBadge } from '@/components/vendor/MatchQualityBadge';
 import { BaseScoreChart } from '@/components/vendor/BaseScoreChart';
 import { PriorityBoostChart } from '@/components/vendor/PriorityBoostChart';
@@ -50,24 +54,30 @@ const VendorComparison: React.FC<VendorComparisonProps> = ({ vendors, onBack }) 
   const [vendor1, vendor2] = vendors.slice(0, 2);
 
   // Epic 13 - Story 13.1: Subscription plan detection
-  const { data: billingInfo } = useQuery({
-    queryKey: ['subscription', 'billing-info'],
-    queryFn: async () => {
-      const userId = getCurrentUserId();
-      if (!userId) return null;
-      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!response.ok) return null;
-      return response.json();
-    },
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: subscriptionApi.getCurrentSubscription,
     enabled: !!localStorage.getItem('token'),
     retry: false,
   });
 
-  const currentPlan = billingInfo?.data?.plan || 'FREE';
+  // Fetch organization for RFP functionality
+  const { data: organization } = useQuery({
+    queryKey: ['organization', 'my'],
+    queryFn: organizationApi.getMyOrganization,
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
+
+  const currentPlan = subscription?.plan || 'FREE';
   const isPremium = currentPlan === 'PREMIUM' || currentPlan === 'ENTERPRISE';
   const hasMatchData = vendors[0]?.matchDetails && vendors[1]?.matchDetails;
+
+  // Modal state
+  const [rfpModalOpen, setRfpModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [selectedVendorForContact, setSelectedVendorForContact] = useState<any>(null);
+  const [selectedVendorsForRfp, setSelectedVendorsForRfp] = useState<string[]>([]);
 
   // Banner dismissal state
   const [bannerDismissed, setBannerDismissed] = useState(() => {
@@ -79,24 +89,73 @@ const VendorComparison: React.FC<VendorComparisonProps> = ({ vendors, onBack }) 
     setBannerDismissed(true);
   };
 
+  // Handler for Draft RFP button (premium users)
+  const handleDraftRfp = (vendorIds: string[]) => {
+    setSelectedVendorsForRfp(vendorIds);
+    setRfpModalOpen(true);
+  };
+
+  // Handler for Contact Vendor button (free users)
+  const handleContactVendor = (vendor: any) => {
+    setSelectedVendorForContact(vendor);
+    setContactModalOpen(true);
+  };
+
   // For Story 13.1: Render premium view if user is premium AND has match data
   // Otherwise render static view
   if (isPremium && hasMatchData) {
-    return <PremiumComparisonView vendors={vendors} onBack={onBack} />;
+    return (
+      <>
+        <PremiumComparisonView
+          vendors={vendors}
+          onBack={onBack}
+          onDraftRfp={handleDraftRfp}
+        />
+        {/* RFP Form Modal */}
+        {organization?.id && (
+          <RFPFormModal
+            open={rfpModalOpen}
+            onOpenChange={setRfpModalOpen}
+            organizationId={organization.id}
+            preSelectedVendorIds={selectedVendorsForRfp}
+          />
+        )}
+      </>
+    );
   }
 
   // Render static comparison view (existing functionality)
-  return <StaticComparisonView
-    vendors={vendors}
-    onBack={onBack}
-    isPremium={isPremium}
-    bannerDismissed={bannerDismissed}
-    onDismissBanner={handleDismissBanner}
-  />;
+  return (
+    <>
+      <StaticComparisonView
+        vendors={vendors}
+        onBack={onBack}
+        isPremium={isPremium}
+        bannerDismissed={bannerDismissed}
+        onDismissBanner={handleDismissBanner}
+        onContactVendor={handleContactVendor}
+      />
+      {/* Contact Vendor Modal */}
+      {selectedVendorForContact && (
+        <ContactVendorModal
+          open={contactModalOpen}
+          onOpenChange={setContactModalOpen}
+          vendorId={selectedVendorForContact.id}
+          vendorName={selectedVendorForContact.name}
+        />
+      )}
+    </>
+  );
 };
 
 // Epic 13 - Story 13.2: Premium Comparison View with Match Score Visualization
-const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBack }) => {
+interface PremiumComparisonViewProps {
+  vendors: any[];
+  onBack: () => void;
+  onDraftRfp: (vendorIds: string[]) => void;
+}
+
+const PremiumComparisonView: React.FC<PremiumComparisonViewProps> = ({ vendors, onBack, onDraftRfp }) => {
   const [vendor1, vendor2] = vendors.slice(0, 2);
 
   // Get match details from vendors
@@ -174,17 +233,17 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
                       {vendor1.logo ? (
                         <img
                           src={vendor1.logo}
-                          alt={vendor1.companyName}
+                          alt={vendor1.name}
                           className="w-full h-full object-cover rounded-xl"
                         />
                       ) : (
                         <span className="text-xl font-bold text-cyan-400">
-                          {vendor1.companyName.substring(0, 2).toUpperCase()}
+                          {vendor1.name?.substring(0, 2).toUpperCase() || 'V1'}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white">{vendor1.companyName}</h3>
+                      <h3 className="text-xl font-bold text-white">{vendor1.name}</h3>
                       {vendor1.rating && (
                         <div className="flex items-center gap-1 mt-1">
                           <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
@@ -293,17 +352,17 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
                       {vendor2.logo ? (
                         <img
                           src={vendor2.logo}
-                          alt={vendor2.companyName}
+                          alt={vendor2.name}
                           className="w-full h-full object-cover rounded-xl"
                         />
                       ) : (
                         <span className="text-xl font-bold text-pink-400">
-                          {vendor2.companyName.substring(0, 2).toUpperCase()}
+                          {vendor2.name?.substring(0, 2).toUpperCase() || 'V2'}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white">{vendor2.companyName}</h3>
+                      <h3 className="text-xl font-bold text-white">{vendor2.name}</h3>
                       {vendor2.rating && (
                         <div className="flex items-center gap-1 mt-1">
                           <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
@@ -401,20 +460,22 @@ const PremiumComparisonView: React.FC<VendorComparisonProps> = ({ vendors, onBac
           className="mt-8 grid grid-cols-2 gap-4"
         >
           <Button
+            onClick={() => onDraftRfp([vendor1.id])}
             className="bg-cyan-600 hover:bg-cyan-700 text-white"
             size="lg"
-            data-testid="button-request-demo-vendor1"
+            data-testid="button-draft-rfp-vendor1"
           >
-            Request Demo - {vendor1.companyName}
-            <ChevronRight className="ml-2 h-4 w-4" />
+            <FileText className="mr-2 h-5 w-5" />
+            Draft RFP - {vendor1.name}
           </Button>
           <Button
+            onClick={() => onDraftRfp([vendor2.id])}
             className="bg-pink-600 hover:bg-pink-700 text-white"
             size="lg"
-            data-testid="button-request-demo-vendor2"
+            data-testid="button-draft-rfp-vendor2"
           >
-            Request Demo - {vendor2.companyName}
-            <ChevronRight className="ml-2 h-4 w-4" />
+            <FileText className="mr-2 h-5 w-5" />
+            Draft RFP - {vendor2.name}
           </Button>
         </motion.div>
       </div>
@@ -429,6 +490,7 @@ interface StaticComparisonViewProps {
   isPremium: boolean;
   bannerDismissed: boolean;
   onDismissBanner: () => void;
+  onContactVendor: (vendor: any) => void;
 }
 
 const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
@@ -436,7 +498,8 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
   onBack,
   isPremium,
   bannerDismissed,
-  onDismissBanner
+  onDismissBanner,
+  onContactVendor
 }) => {
   const [vendor1, vendor2] = vendors.slice(0, 2);
 
@@ -636,17 +699,17 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
                       {vendor1.logo ? (
                         <img
                           src={vendor1.logo}
-                          alt={vendor1.companyName}
+                          alt={vendor1.name}
                           className="w-full h-full object-cover rounded-xl"
                         />
                       ) : (
                         <span className="text-2xl font-bold text-cyan-400">
-                          {vendor1.companyName.substring(0, 2).toUpperCase()}
+                          {vendor1.name?.substring(0, 2).toUpperCase() || 'V1'}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-1">{vendor1.companyName}</h2>
+                      <h2 className="text-2xl font-bold text-white mb-1">{vendor1.name}</h2>
                       {vendor1.rating && (
                         <div className="flex items-center gap-2">
                           <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
@@ -686,17 +749,17 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
                       {vendor2.logo ? (
                         <img
                           src={vendor2.logo}
-                          alt={vendor2.companyName}
+                          alt={vendor2.name}
                           className="w-full h-full object-cover rounded-xl"
                         />
                       ) : (
                         <span className="text-2xl font-bold text-pink-400">
-                          {vendor2.companyName.substring(0, 2).toUpperCase()}
+                          {vendor2.name?.substring(0, 2).toUpperCase() || 'V2'}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-1">{vendor2.companyName}</h2>
+                      <h2 className="text-2xl font-bold text-white mb-1">{vendor2.name}</h2>
                       {vendor2.rating && (
                         <div className="flex items-center gap-2">
                           <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
@@ -838,20 +901,22 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
       >
         <div className="grid grid-cols-2 gap-4">
           <Button
+            onClick={() => onContactVendor(vendor1)}
             className="bg-cyan-600 hover:bg-cyan-700 text-white"
             size="lg"
-            data-testid="button-request-demo-vendor1"
+            data-testid="button-contact-vendor1"
           >
-            Request Demo - {vendor1.companyName}
-            <ChevronRight className="ml-2 h-4 w-4" />
+            <MessageCircle className="mr-2 h-5 w-5" />
+            Contact Vendor - {vendor1.name}
           </Button>
           <Button
+            onClick={() => onContactVendor(vendor2)}
             className="bg-pink-600 hover:bg-pink-700 text-white"
             size="lg"
-            data-testid="button-request-demo-vendor2"
+            data-testid="button-contact-vendor2"
           >
-            Request Demo - {vendor2.companyName}
-            <ChevronRight className="ml-2 h-4 w-4" />
+            <MessageCircle className="mr-2 h-5 w-5" />
+            Contact Vendor - {vendor2.name}
           </Button>
         </div>
       </motion.div>
