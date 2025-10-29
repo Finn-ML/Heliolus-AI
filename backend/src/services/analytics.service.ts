@@ -5,7 +5,7 @@
 
 import { Prisma } from '../generated/prisma';
 import { BaseService, ServiceContext } from './base.service';
-import { ApiResponse, AssessmentStatus, UserRole } from '../types/database';
+import { ApiResponse, AssessmentStatus, UserRole, InvoiceStatus, SubscriptionStatus } from '../types/database';
 
 // Type definitions
 interface AssessmentMetrics {
@@ -1132,7 +1132,7 @@ export class AnalyticsService extends BaseService {
           include: {
             user: {
               include: {
-                Organization: true
+                organization: true
               }
             }
           }
@@ -1283,7 +1283,7 @@ export class AnalyticsService extends BaseService {
           include: {
             user: {
               include: {
-                Organization: true
+                organization: true
               }
             }
           }
