@@ -8,6 +8,9 @@ import {
   UpdateAssessmentRequest,
   TemplateFilters,
   FreemiumRestrictions,
+  Gap,
+  Severity,
+  Priority,
 } from '@/types/assessment';
 import { StrategyMatrix, VendorMatchesResponse } from '@/types/vendor-matching.types';
 
@@ -577,6 +580,26 @@ export const assessmentApi = {
         method: 'POST',
       }
     );
+    return response.data;
+  },
+
+  // Get assessment gaps (Epic 13 - Story 13.3)
+  getGaps: async (
+    assessmentId: string,
+    filters?: {
+      severity?: Severity;
+      category?: string;
+      priority?: Priority;
+    }
+  ): Promise<Gap[]> => {
+    const params = new URLSearchParams();
+    if (filters?.severity) params.append('severity', filters.severity);
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.priority) params.append('priority', filters.priority);
+
+    const queryString = params.toString();
+    const url = `/assessments/${assessmentId}/gaps${queryString ? '?' + queryString : ''}`;
+    const response = await apiRequest<ApiResponse<Gap[]>>(url);
     return response.data;
   },
 };
