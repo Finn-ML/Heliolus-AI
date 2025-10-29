@@ -35,9 +35,6 @@ import { AdminLogin } from '@/components/AdminLogin';
 import AdminDashboardNew from './pages/admin/Dashboard';
 import VendorManagement from './pages/admin/VendorManagement';
 import UserManagement from './pages/admin/UserManagement';
-import CreditBalances from './pages/admin/CreditBalances';
-import CreditTransactions from './pages/admin/CreditTransactions';
-import TemplateCosts from './pages/admin/TemplateCosts';
 import TemplateManagement from './pages/admin/TemplateManagement';
 import RevenueReports from './pages/admin/RevenueReports';
 import Subscriptions from './pages/admin/Subscriptions';
@@ -148,30 +145,6 @@ const App = () => (
                   element={
                     <AdminRoute>
                       <UserManagement />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/credits"
-                  element={
-                    <AdminRoute>
-                      <CreditBalances />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/transactions"
-                  element={
-                    <AdminRoute>
-                      <CreditTransactions />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/template-costs"
-                  element={
-                    <AdminRoute>
-                      <TemplateCosts />
                     </AdminRoute>
                   }
                 />
