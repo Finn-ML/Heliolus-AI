@@ -127,24 +127,58 @@ const VendorOnboarding: React.FC<VendorOnboardingProps> = ({ onComplete, onCance
       return;
     }
 
-    // Save to localStorage (in a real app, this would be sent to a server)
-    const existingVendors = JSON.parse(localStorage.getItem('pendingVendors') || '[]');
-    const newVendor = {
-      ...formData,
-      id: Date.now().toString(),
-      status: 'pending',
-      submittedAt: new Date().toISOString(),
-    };
+    try {
+      // Submit to backend API
+      const response = await fetch('/api/v1/vendors/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          website: formData.website,
+          description: formData.description,
+          foundedYear: formData.foundedYear,
+          headquarters: formData.headquarters,
+          employeeCount: formData.employeeCount,
+          category: formData.category,
+          pricing: formData.pricing,
+          implementationTime: formData.implementationTime,
+          features: formData.features,
+          certifications: formData.certifications,
+          clientTypes: formData.clientTypes,
+          supportedRegions: formData.supportedRegions,
+          integrations: formData.integrations,
+          contactName: formData.contactName,
+          contactEmail: formData.contactEmail,
+          contactPhone: formData.contactPhone,
+          casStudies: formData.casStudies,
+        }),
+      });
 
-    localStorage.setItem('pendingVendors', JSON.stringify([...existingVendors, newVendor]));
+      const result = await response.json();
 
-    toast({
-      title: 'Application Submitted!',
-      description:
-        "Your vendor application has been submitted for review. We'll contact you within 2-3 business days.",
-    });
-
-    onComplete();
+      if (response.ok && result.success) {
+        toast({
+          title: 'Application Submitted!',
+          description: result.message || "Your vendor application has been submitted for review. We'll contact you within 2-3 business days.",
+        });
+        onComplete();
+      } else {
+        toast({
+          title: 'Submission Failed',
+          description: result.message || 'Failed to submit your application. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error submitting vendor registration:', error);
+      toast({
+        title: 'Submission Failed',
+        description: 'An error occurred while submitting your application. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const renderStep1 = () => (

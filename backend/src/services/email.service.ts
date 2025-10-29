@@ -35,6 +35,27 @@ export interface VendorInquiryData {
   timeline?: string;
 }
 
+export interface VendorRegistrationData {
+  companyName: string;
+  website: string;
+  description: string;
+  foundedYear?: string;
+  headquarters?: string;
+  employeeCount?: string;
+  category: string;
+  pricing?: string;
+  implementationTime?: string;
+  features: string[];
+  certifications: string[];
+  clientTypes: string[];
+  supportedRegions: string[];
+  integrations: string[];
+  contactName: string;
+  contactEmail: string;
+  contactPhone?: string;
+  casStudies?: string;
+}
+
 export interface EmailService {
   sendVerificationEmail(email: string, token: string, name?: string): Promise<void>;
   sendWelcomeEmail(email: string, name: string): Promise<void>;
@@ -45,6 +66,7 @@ export interface EmailService {
   sendAccountStatusChangeEmail(email: string, name: string, status: string): Promise<void>;
   sendRFPToVendor(vendorEmail: string, vendorName: string, rfpData: RFPEmailData): Promise<void>;
   sendVendorInquiry(vendorEmail: string, vendorName: string, inquiryData: VendorInquiryData): Promise<void>;
+  sendVendorRegistrationNotification(adminEmail: string, registrationData: VendorRegistrationData): Promise<void>;
 }
 
 interface PostmarkError {
@@ -648,6 +670,198 @@ export class EmailServiceImpl extends BaseService implements EmailService {
         error
       });
       // Don't throw - vendor contact should succeed even if email fails
+    }
+  }
+
+  /**
+   * Send vendor registration notification to admin
+   */
+  async sendVendorRegistrationNotification(adminEmail: string, registrationData: VendorRegistrationData): Promise<void> {
+    try {
+      // Create a formatted HTML email body
+      const htmlBody = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+            h1 { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+            h2 { color: #1e40af; margin-top: 25px; }
+            .section { margin: 20px 0; padding: 15px; background-color: #f9fafb; border-radius: 5px; }
+            .field { margin: 10px 0; }
+            .label { font-weight: bold; color: #4b5563; }
+            .value { color: #111827; }
+            .list { list-style-type: disc; padding-left: 20px; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>New Vendor Registration Application</h1>
+
+            <div class="section">
+              <h2>Company Information</h2>
+              <div class="field">
+                <span class="label">Company Name:</span>
+                <span class="value">${registrationData.companyName}</span>
+              </div>
+              <div class="field">
+                <span class="label">Website:</span>
+                <span class="value">${registrationData.website}</span>
+              </div>
+              <div class="field">
+                <span class="label">Description:</span>
+                <p class="value">${registrationData.description}</p>
+              </div>
+              ${registrationData.foundedYear ? `<div class="field"><span class="label">Founded:</span> <span class="value">${registrationData.foundedYear}</span></div>` : ''}
+              ${registrationData.headquarters ? `<div class="field"><span class="label">Headquarters:</span> <span class="value">${registrationData.headquarters}</span></div>` : ''}
+              ${registrationData.employeeCount ? `<div class="field"><span class="label">Employee Count:</span> <span class="value">${registrationData.employeeCount}</span></div>` : ''}
+            </div>
+
+            <div class="section">
+              <h2>Solution Information</h2>
+              <div class="field">
+                <span class="label">Primary Category:</span>
+                <span class="value">${registrationData.category}</span>
+              </div>
+              ${registrationData.pricing ? `<div class="field"><span class="label">Pricing:</span> <span class="value">${registrationData.pricing}</span></div>` : ''}
+              ${registrationData.implementationTime ? `<div class="field"><span class="label">Implementation Time:</span> <span class="value">${registrationData.implementationTime}</span></div>` : ''}
+              ${registrationData.features.length > 0 ? `
+                <div class="field">
+                  <span class="label">Key Features:</span>
+                  <ul class="list">
+                    ${registrationData.features.map(f => `<li>${f}</li>`).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+              ${registrationData.certifications.length > 0 ? `
+                <div class="field">
+                  <span class="label">Certifications:</span>
+                  <ul class="list">
+                    ${registrationData.certifications.map(c => `<li>${c}</li>`).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="section">
+              <h2>Target Market</h2>
+              ${registrationData.clientTypes.length > 0 ? `
+                <div class="field">
+                  <span class="label">Client Types:</span>
+                  <ul class="list">
+                    ${registrationData.clientTypes.map(c => `<li>${c}</li>`).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+              ${registrationData.supportedRegions.length > 0 ? `
+                <div class="field">
+                  <span class="label">Supported Regions:</span>
+                  <ul class="list">
+                    ${registrationData.supportedRegions.map(r => `<li>${r}</li>`).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+              ${registrationData.integrations.length > 0 ? `
+                <div class="field">
+                  <span class="label">Integrations:</span>
+                  <ul class="list">
+                    ${registrationData.integrations.map(i => `<li>${i}</li>`).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="section">
+              <h2>Contact Information</h2>
+              <div class="field">
+                <span class="label">Name:</span>
+                <span class="value">${registrationData.contactName}</span>
+              </div>
+              <div class="field">
+                <span class="label">Email:</span>
+                <span class="value"><a href="mailto:${registrationData.contactEmail}">${registrationData.contactEmail}</a></span>
+              </div>
+              ${registrationData.contactPhone ? `<div class="field"><span class="label">Phone:</span> <span class="value">${registrationData.contactPhone}</span></div>` : ''}
+            </div>
+
+            ${registrationData.casStudies ? `
+              <div class="section">
+                <h2>Case Studies</h2>
+                <p class="value">${registrationData.casStudies}</p>
+              </div>
+            ` : ''}
+
+            <div class="footer">
+              <p>This is an automated notification from the Heliolus vendor registration system.</p>
+              <p>Submitted on: ${new Date().toLocaleString()}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Create plain text version
+      const textBody = `
+New Vendor Registration Application
+=====================================
+
+COMPANY INFORMATION
+-------------------
+Company Name: ${registrationData.companyName}
+Website: ${registrationData.website}
+Description: ${registrationData.description}
+${registrationData.foundedYear ? `Founded: ${registrationData.foundedYear}` : ''}
+${registrationData.headquarters ? `Headquarters: ${registrationData.headquarters}` : ''}
+${registrationData.employeeCount ? `Employee Count: ${registrationData.employeeCount}` : ''}
+
+SOLUTION INFORMATION
+--------------------
+Primary Category: ${registrationData.category}
+${registrationData.pricing ? `Pricing: ${registrationData.pricing}` : ''}
+${registrationData.implementationTime ? `Implementation Time: ${registrationData.implementationTime}` : ''}
+${registrationData.features.length > 0 ? `Key Features:\n${registrationData.features.map(f => `  - ${f}`).join('\n')}` : ''}
+${registrationData.certifications.length > 0 ? `Certifications:\n${registrationData.certifications.map(c => `  - ${c}`).join('\n')}` : ''}
+
+TARGET MARKET
+-------------
+${registrationData.clientTypes.length > 0 ? `Client Types:\n${registrationData.clientTypes.map(c => `  - ${c}`).join('\n')}` : ''}
+${registrationData.supportedRegions.length > 0 ? `Supported Regions:\n${registrationData.supportedRegions.map(r => `  - ${r}`).join('\n')}` : ''}
+${registrationData.integrations.length > 0 ? `Integrations:\n${registrationData.integrations.map(i => `  - ${i}`).join('\n')}` : ''}
+
+CONTACT INFORMATION
+-------------------
+Name: ${registrationData.contactName}
+Email: ${registrationData.contactEmail}
+${registrationData.contactPhone ? `Phone: ${registrationData.contactPhone}` : ''}
+
+${registrationData.casStudies ? `CASE STUDIES\n------------\n${registrationData.casStudies}` : ''}
+
+---
+This is an automated notification from the Heliolus vendor registration system.
+Submitted on: ${new Date().toLocaleString()}
+      `;
+
+      await this.sendEmailWithRetry(
+        adminEmail,
+        `New Vendor Registration: ${registrationData.companyName}`,
+        htmlBody,
+        textBody
+      );
+
+      this.logger.info('Vendor registration notification sent to admin', {
+        adminEmail,
+        companyName: registrationData.companyName,
+        contactEmail: registrationData.contactEmail
+      });
+    } catch (error) {
+      this.logger.error('Failed to send vendor registration notification', {
+        adminEmail,
+        companyName: registrationData.companyName,
+        error
+      });
+      throw error;
     }
   }
 
