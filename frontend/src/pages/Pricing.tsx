@@ -116,18 +116,25 @@ export default function Pricing() {
       const userId = getCurrentUserId();
       if (!userId) return null;
 
-      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      try {
+        const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (!response.ok) {
-        // If error, just return null (user might not have subscription yet)
+        if (!response.ok) {
+          // If error (including 404 for no subscription), just return null
+          return null;
+        }
+
+        return response.json();
+      } catch (error) {
+        // On any error, return null instead of throwing
+        console.warn('Failed to fetch billing info:', error);
         return null;
       }
-
-      return response.json();
     },
     enabled: !!localStorage.getItem('token'), // Only fetch if logged in
     retry: false, // Don't retry on error

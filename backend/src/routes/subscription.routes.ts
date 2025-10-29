@@ -633,7 +633,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
 
     try {
       // Use subscription service to get billing info
-      const subscription = await subscriptionService.getSubscriptionDetails(userId);
+      const subscription = await subscriptionService.getSubscriptionByUserId(userId);
 
       if (!subscription) {
         reply.status(404).send({
