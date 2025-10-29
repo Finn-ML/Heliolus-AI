@@ -262,48 +262,66 @@ export default async function adminRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     const { role, status, search, page = 1, limit = 20 } = request.query;
 
-    const { UserService } = await import('../services');
-    const userService = new UserService();
+    // Build where clause for filtering
+    const where: any = {};
 
-    // Build query options for filtering
-    const queryOptions: any = { page, limit };
-    
     // Add filters
     if (role) {
-      queryOptions.where = { ...queryOptions.where, role };
+      where.role = role;
     }
     if (status) {
-      queryOptions.where = { ...queryOptions.where, status };
+      where.status = status;
     }
     if (search) {
-      queryOptions.where = {
-        ...queryOptions.where,
-        OR: [
-          { email: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { organization: { name: { contains: search, mode: 'insensitive' } } }
-        ]
-      };
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { organization: { name: { contains: search, mode: 'insensitive' } } }
+      ];
     }
 
-    // Transform request.currentUser to ServiceContext format
-    const currentUser = (request as any).currentUser;
-    const context = {
-      userId: currentUser?.id,
-      userRole: currentUser?.role,
-      organizationId: currentUser?.organizationId,
-    };
-    
-    
-    const result = await userService.listUsers(queryOptions, context);
-    
-    if (!result.success) {
-      return reply.code((result as any).statusCode || 500).send(result);
-    }
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Query users with organization and subscription data
+    const [users, total] = await Promise.all([
+      request.server.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          status: true,
+          emailVerified: true,
+          createdAt: true,
+          lastLogin: true,
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          subscription: {
+            select: {
+              id: true,
+              plan: true,
+              status: true,
+              creditsBalance: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      request.server.prisma.user.count({ where }),
+    ]);
 
     // Transform data for admin UI
-    const transformedUsers = result.data?.data.map(user => ({
+    const transformedUsers = users.map(user => ({
       id: user.id,
       email: user.email,
       firstName: user.firstName,
@@ -313,25 +331,28 @@ export default async function adminRoutes(server: FastifyInstance) {
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,
       lastLogin: user.lastLogin,
-      organization: user.organizationId ? {
-        id: user.organizationId,
-        name: user.organizationId, // Will be populated by organization relation
+      organization: user.organization ? {
+        id: user.organization.id,
+        name: user.organization.name,
         verified: true,
       } : null,
-      subscription: user.role === UserRole.USER ? {
-        plan: 'FREE', // Default plan
-        active: user.status === 'ACTIVE',
+      subscription: user.subscription ? {
+        plan: user.subscription.plan,
+        active: user.subscription.status === 'ACTIVE',
+        creditsBalance: user.subscription.creditsBalance,
       } : null,
     }));
+
+    const totalPages = Math.ceil(total / limit);
 
     reply.code(200).send({
       success: true,
       data: transformedUsers,
       pagination: {
-        page: result.data?.page || 1,
-        limit: result.data?.limit || 20,
-        total: result.data?.total || 0,
-        totalPages: result.data?.totalPages || 1,
+        page,
+        limit,
+        total,
+        totalPages,
       },
     });
   }));
