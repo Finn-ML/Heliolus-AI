@@ -163,35 +163,37 @@ export class BillingService extends BaseService {
     // Mock Stripe invoice ID (real implementation would get from Stripe)
     const stripeInvoiceId = `in_mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Calculate due date (typically 30 days from invoice date)
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
+    // Calculate period dates
+    const periodStart = subscription.currentPeriodStart || this.now();
+    const periodEnd = subscription.currentPeriodEnd || new Date(periodStart.getTime() + (subscription.billingCycle === 'MONTHLY' ? 30 : 365) * 24 * 60 * 60 * 1000);
 
-    // Create invoice record
+    // Calculate due date (typically 7 days after period end)
+    const dueDate = new Date(periodEnd);
+    dueDate.setDate(dueDate.getDate() + 7);
+
+    // Generate invoice number
+    const invoiceNumber = `INV-${Date.now()}-${subscription.id.substring(0, 8)}`;
+
+    // Create invoice record (schema-compliant)
     await tx.invoice.create({
       data: {
         subscriptionId: subscription.id,
-        userId: subscription.userId,
         stripeInvoiceId,
+        number: invoiceNumber,
         amount: amountInEuros,
-        currency: 'eur',
+        currency: 'EUR',
         status: InvoiceStatus.PAID, // Mock as paid for MVP (Stripe webhook would update this)
-        description: `${subscription.billingCycle} subscription renewal`,
-        invoiceDate: this.now(),
+        periodStart,
+        periodEnd,
         dueDate,
         paidAt: this.now(), // Mock as immediately paid
-        metadata: {
-          billingCycle: subscription.billingCycle,
-          plan: subscription.plan,
-          amountInCents,
-          userEmail: subscription.user.email,
-        },
       },
     });
 
     this.logger.info('Invoice generated', {
       subscriptionId: subscription.id,
       stripeInvoiceId,
+      invoiceNumber,
       amount: amountInEuros,
       billingCycle: subscription.billingCycle,
     });
