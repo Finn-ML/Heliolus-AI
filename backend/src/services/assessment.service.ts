@@ -1798,6 +1798,7 @@ export class AssessmentService extends BaseService {
   /**
    * Generate risks from assessment answers
    * Enhanced with fallback category logic to ensure risks are always generated
+   * CRITICAL FIX: Consider gaps when determining risk severity
    */
   private async generateRisksFromAnswers(assessmentId: string, answers: any[]): Promise<any[]> {
     const risks = [];
@@ -1805,6 +1806,26 @@ export class AssessmentService extends BaseService {
     this.logger.info('Starting generateRisksFromAnswers', {
       assessmentId,
       answerCount: answers.length,
+    });
+
+    // CRITICAL FIX: Get gaps for this assessment to properly assess risk severity
+    const gaps = await this.prisma.gap.findMany({
+      where: { assessmentId },
+      select: {
+        severity: true,
+        category: true,
+      },
+    });
+
+    const criticalGapCount = gaps.filter(g => g.severity === 'CRITICAL').length;
+    const highGapCount = gaps.filter(g => g.severity === 'HIGH').length;
+    const totalGapCount = gaps.length;
+
+    this.logger.info('Loaded gaps for risk severity adjustment', {
+      assessmentId,
+      totalGaps: totalGapCount,
+      criticalGaps: criticalGapCount,
+      highGaps: highGapCount,
     });
 
     // Group answers by category to identify systemic risks
@@ -1842,11 +1863,36 @@ export class AssessmentService extends BaseService {
 
       if (avgScore < 3) {
         const riskCategory = this.mapCategoryToRiskCategory(category);
-        const likelihood = this.calculateRiskLikelihood({ score: avgScore }, {});
-        const impact = this.calculateRiskImpact({ score: avgScore }, {});
-        const riskLevel = this.calculateRiskLevel({ score: avgScore });
 
-        this.logger.info('Creating risk for low-scoring category', {
+        // CRITICAL FIX: Adjust risk severity based on gap count, not just question scores
+        // If we have many critical gaps, risks should be HIGH/CRITICAL even if avg score is moderate
+        let likelihood: Likelihood;
+        let impact: Impact;
+        let riskLevel: RiskLevel;
+
+        if (criticalGapCount >= 30) {
+          // Massive critical gaps = CRITICAL risk
+          likelihood = Likelihood.CERTAIN;
+          impact = Impact.CATASTROPHIC;
+          riskLevel = RiskLevel.CRITICAL;
+        } else if (criticalGapCount >= 15 || (criticalGapCount >= 10 && highGapCount >= 10)) {
+          // Many critical gaps = HIGH risk
+          likelihood = Likelihood.LIKELY;
+          impact = Impact.MAJOR;
+          riskLevel = RiskLevel.HIGH;
+        } else if (criticalGapCount >= 5 || highGapCount >= 10) {
+          // Some critical/high gaps = MEDIUM-HIGH risk
+          likelihood = Likelihood.POSSIBLE;
+          impact = Impact.MODERATE;
+          riskLevel = RiskLevel.MEDIUM;
+        } else {
+          // Few gaps = use original logic based on scores
+          likelihood = this.calculateRiskLikelihood({ score: avgScore }, {});
+          impact = this.calculateRiskImpact({ score: avgScore }, {});
+          riskLevel = this.calculateRiskLevel({ score: avgScore });
+        }
+
+        this.logger.info('Creating risk for low-scoring category (gap-adjusted)', {
           assessmentId,
           category,
           avgScore,
@@ -1854,12 +1900,14 @@ export class AssessmentService extends BaseService {
           likelihood,
           impact,
           riskLevel,
+          criticalGaps: criticalGapCount,
+          adjustment: criticalGapCount >= 15 ? 'severity increased due to gap count' : 'normal',
         });
 
         risks.push({
           category: riskCategory,
           title: `Risk in ${category}`,
-          description: `Low compliance scores indicate potential risk in ${category} controls`,
+          description: `Low compliance scores indicate potential risk in ${category} controls. ${criticalGapCount} critical gaps identified.`,
           likelihood,
           impact,
           riskLevel,
@@ -1873,33 +1921,54 @@ export class AssessmentService extends BaseService {
     if (risks.length === 0 && answers.length > 0) {
       const overallAvgScore = answers.reduce((sum, a) => sum + a.score, 0) / answers.length;
 
-      if (overallAvgScore < 3) {
-        // More balanced approach: low scores indicate risk but not worst-case scenario
-        // Control effectiveness now handles the mitigation assessment
-        const likelihood = overallAvgScore < 1 ? Likelihood.LIKELY :
-                          overallAvgScore < 2 ? Likelihood.LIKELY : Likelihood.POSSIBLE;
-        const impact = overallAvgScore < 1 ? Impact.MAJOR :
-                      overallAvgScore < 2 ? Impact.MAJOR : Impact.MODERATE;
-        const riskLevel = overallAvgScore < 1 ? RiskLevel.HIGH :
-                         overallAvgScore < 2 ? RiskLevel.HIGH : RiskLevel.MEDIUM;
+      if (overallAvgScore < 3 || criticalGapCount >= 5) {
+        // CRITICAL FIX: Adjust fallback risk severity based on gap count
+        let likelihood: Likelihood;
+        let impact: Impact;
+        let riskLevel: RiskLevel;
 
-        this.logger.info('No category-specific risks generated, creating general operational risk', {
+        if (criticalGapCount >= 30) {
+          likelihood = Likelihood.CERTAIN;
+          impact = Impact.CATASTROPHIC;
+          riskLevel = RiskLevel.CRITICAL;
+        } else if (criticalGapCount >= 15 || (criticalGapCount >= 10 && highGapCount >= 10)) {
+          likelihood = Likelihood.LIKELY;
+          impact = Impact.MAJOR;
+          riskLevel = RiskLevel.HIGH;
+        } else if (criticalGapCount >= 5 || highGapCount >= 10) {
+          likelihood = Likelihood.POSSIBLE;
+          impact = Impact.MODERATE;
+          riskLevel = RiskLevel.MEDIUM;
+        } else {
+          // Few gaps = use original logic based on scores
+          likelihood = overallAvgScore < 1 ? Likelihood.LIKELY :
+                      overallAvgScore < 2 ? Likelihood.LIKELY : Likelihood.POSSIBLE;
+          impact = overallAvgScore < 1 ? Impact.MAJOR :
+                  overallAvgScore < 2 ? Impact.MAJOR : Impact.MODERATE;
+          riskLevel = overallAvgScore < 1 ? RiskLevel.HIGH :
+                     overallAvgScore < 2 ? RiskLevel.HIGH : RiskLevel.MEDIUM;
+        }
+
+        this.logger.info('No category-specific risks generated, creating general operational risk (gap-adjusted)', {
           assessmentId,
           overallAvgScore,
           answerCount: answers.length,
+          criticalGaps: criticalGapCount,
+          highGaps: highGapCount,
           likelihood,
           impact,
           riskLevel,
+          adjustment: criticalGapCount >= 15 ? 'severity increased due to gap count' : 'normal',
         });
 
         risks.push({
           category: RiskCategory.OPERATIONAL,
           title: 'General Compliance Risk',
-          description: `Assessment indicates compliance gaps requiring attention. Average score: ${overallAvgScore.toFixed(1)}/5`,
+          description: `Assessment indicates compliance gaps requiring attention. Average score: ${overallAvgScore.toFixed(1)}/5. ${criticalGapCount} critical gaps identified.`,
           likelihood,
           impact,
           riskLevel,
-          mitigationStrategy: 'Review low-scoring areas and implement appropriate remediation measures',
+          mitigationStrategy: `Review and address ${criticalGapCount} critical gaps. Implement appropriate remediation measures.`,
           controlEffectiveness: Math.round(overallAvgScore * 20), // Convert 0-5 score to 0-100%
         });
       }
