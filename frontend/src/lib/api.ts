@@ -1602,7 +1602,7 @@ export const adminPlanApi = {
 
 export const publicPlanApi = {
   listPlans: async (): Promise<ApiResponse<Plan[]>> => {
-    const response = await fetch(`${API_BASE_URL}/public/plans`, {
+    const response = await fetch(`${API_BASE_URL}/v1/public/plans`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
