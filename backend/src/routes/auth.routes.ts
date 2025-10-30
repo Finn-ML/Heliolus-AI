@@ -335,6 +335,12 @@ export default async function authRoutes(server: FastifyInstance) {
         return;
       }
 
+      // Update lastLogin timestamp
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() }
+      });
+
       // DEBUG: Log organization data
       console.log('[AUTH LOGIN] User:', user.email);
       console.log('[AUTH LOGIN] Organization:', user.organization);
