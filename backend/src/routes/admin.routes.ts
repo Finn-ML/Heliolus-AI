@@ -11,6 +11,9 @@ import { VendorService } from '../services/vendor.service';
 import { AdminCreditService } from '../services/admin-credit.service';
 import { LeadService, LeadType } from '../services/lead.service.js';
 import { LeadStatus } from '../generated/prisma/index.js';
+import { PrismaClient } from '../generated/prisma';
+
+const prisma = new PrismaClient();
 
 // Request/Response schemas
 const AdminDashboardSchema = {
@@ -286,7 +289,7 @@ export default async function adminRoutes(server: FastifyInstance) {
 
     // Query users with organization and subscription data
     const [users, total] = await Promise.all([
-      request.server.prisma.user.findMany({
+      prisma.user.findMany({
         where,
         skip,
         take: limit,
@@ -317,7 +320,7 @@ export default async function adminRoutes(server: FastifyInstance) {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      request.server.prisma.user.count({ where }),
+      prisma.user.count({ where }),
     ]);
 
     // Transform data for admin UI
