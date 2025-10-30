@@ -1299,10 +1299,6 @@ const AssessmentExecution = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-white">Overall Progress</CardTitle>
-                  <CardDescription className="text-gray-400">
-                    Estimated time remaining:{' '}
-                    {Math.max(0, Math.ceil((100 - progressPercentage) / 10))} minutes
-                  </CardDescription>
                 </div>
                 <div className="text-2xl font-bold text-cyan-400">{progressPercentage}%</div>
               </div>
@@ -1396,39 +1392,6 @@ const AssessmentExecution = () => {
             })}
           </div>
 
-          {/* AI Insights Preview */}
-          {progressPercentage > 50 && (
-            <Card className="mt-8 bg-gradient-to-r from-cyan-900/30 to-pink-900/30 border-cyan-800/50 backdrop-blur-sm">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-yellow-400" />
-                  <CardTitle className="text-white">AI Insights Preview</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-                    <p className="text-gray-300 text-sm">
-                      Detected {Math.floor(progressPercentage / 10)} critical compliance gaps
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" />
-                    <p className="text-gray-300 text-sm">
-                      Risk score trending at {Math.floor(progressPercentage * 0.7)}%
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                    <p className="text-gray-300 text-sm">
-                      Generating {Math.floor(progressPercentage / 8)} strategic recommendations
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Status Messages */}
           {currentStatus === 'FAILED' && (
