@@ -15,6 +15,9 @@ import { VendorCategory, PricingModel, ContactType, ContactStatus } from '../typ
 import { asyncHandler, authenticationMiddleware } from '../middleware';
 import { env } from '../config/env.validation';
 import crypto from 'crypto';
+import { PrismaClient } from '../generated/prisma/index.js';
+
+const prisma = new PrismaClient();
 
 // Request/Response schemas matching the contract tests
 const VendorCategorySchema = z.enum([
@@ -444,7 +447,7 @@ export default async function vendorRoutes(server: FastifyInstance) {
 
     try {
       // Increment vendor click count
-      const vendor = await server.prisma.vendor.update({
+      const vendor = await prisma.vendor.update({
         where: { id: params.id },
         data: { clickCount: { increment: 1 } },
         select: { id: true, companyName: true, clickCount: true }
