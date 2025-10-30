@@ -31,6 +31,7 @@ import { useLeads, useLeadAnalytics, LeadType, LeadStatus } from '@/hooks/useLea
 import { LeadDetailsModal } from '@/components/admin/LeadDetailsModal';
 import { adminLeadsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import AdminLayout from '@/components/AdminLayout';
 
 const LEAD_STATUSES: { value: LeadStatus; label: string; color: string }[] = [
   { value: 'NEW', label: 'New', color: 'bg-blue-500/10 text-blue-300 border-blue-500/30' },
@@ -139,9 +140,10 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-6">
-      {/* Header */}
-      <Card className="bg-gradient-to-r from-card/50 to-card/80 backdrop-blur-sm border-cyan-500/20">
+    <AdminLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <Card className="bg-gradient-to-r from-card/50 to-card/80 backdrop-blur-sm border-cyan-500/20">
         <CardContent className="p-6">
           <div className="flex justify-between items-center">
             <div>
@@ -418,6 +420,7 @@ export default function LeadsPage() {
           leadType={selectedLead.type}
         />
       )}
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
