@@ -31,6 +31,8 @@ import Pricing from './pages/Pricing';
 import Checkout from './pages/Checkout';
 import SubscriptionSuccess from './pages/SubscriptionSuccess';
 import SubscriptionCancel from './pages/SubscriptionCancel';
+import CreditsSuccess from './pages/CreditsSuccess';
+import CreditsCancel from './pages/CreditsCancel';
 import { AdminLogin } from '@/components/AdminLogin';
 
 // Admin Pages
@@ -130,6 +132,22 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <SubscriptionCancel />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/credits/success"
+                  element={
+                    <ProtectedRoute>
+                      <CreditsSuccess />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/credits/cancel"
+                  element={
+                    <ProtectedRoute>
+                      <CreditsCancel />
                     </ProtectedRoute>
                   }
                 />

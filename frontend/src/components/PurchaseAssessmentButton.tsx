@@ -40,7 +40,7 @@ export function PurchaseAssessmentButton() {
   const currentPlan = billingInfo?.data?.plan;
   const currentCredits = billingInfo?.data?.creditsBalance || 0;
 
-  // Purchase mutation
+  // Purchase mutation - now redirects to Stripe checkout
   const purchaseMutation = useMutation({
     mutationFn: async () => {
       const userId = getCurrentUserId();
@@ -53,7 +53,7 @@ export function PurchaseAssessmentButton() {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
-          stripePriceId: 'price_additional_assessment', // Mock price ID
+          stripePriceId: import.meta.env.VITE_STRIPE_ADDITIONAL_ASSESSMENT_PRICE_ID || 'price_1SO0CzPmfCF9xav3sEbxBFLc',
         }),
       });
 
@@ -65,15 +65,18 @@ export function PurchaseAssessmentButton() {
       return response.json();
     },
     onSuccess: (data) => {
-      // Invalidate billing info to refresh credits balance
-      queryClient.invalidateQueries({ queryKey: ['subscription', 'billing-info'] });
-
-      toast({
-        title: 'Purchase Successful!',
-        description: `${data.data.creditsAdded || 50} credits added to your account.`,
-      });
-
-      setShowConfirmModal(false);
+      // Redirect to Stripe checkout
+      if (data.data?.checkoutUrl) {
+        window.location.href = data.data.checkoutUrl;
+      } else {
+        // Fallback for old response format (if credits were added directly)
+        queryClient.invalidateQueries({ queryKey: ['subscription', 'billing-info'] });
+        toast({
+          title: 'Purchase Successful!',
+          description: `${data.data.creditsAdded || 50} credits added to your account.`,
+        });
+        setShowConfirmModal(false);
+      }
     },
     onError: (error: Error) => {
       toast({
