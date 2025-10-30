@@ -29,6 +29,8 @@ import AssessmentPriorities from './pages/AssessmentPriorities';
 import NotFound from './pages/NotFound';
 import Pricing from './pages/Pricing';
 import Checkout from './pages/Checkout';
+import SubscriptionSuccess from './pages/SubscriptionSuccess';
+import SubscriptionCancel from './pages/SubscriptionCancel';
 import { AdminLogin } from '@/components/AdminLogin';
 
 // Admin Pages
@@ -112,6 +114,22 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Checkout />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/subscription/success"
+                  element={
+                    <ProtectedRoute>
+                      <SubscriptionSuccess />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/subscription/cancel"
+                  element={
+                    <ProtectedRoute>
+                      <SubscriptionCancel />
                     </ProtectedRoute>
                   }
                 />
