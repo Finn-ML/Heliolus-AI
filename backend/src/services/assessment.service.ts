@@ -1443,33 +1443,8 @@ export class AssessmentService extends BaseService {
         try {
           // Analyze gaps based on low-scoring questions
           const gaps = await this.generateGapsFromAnswers(assessmentId, answers);
-          
-          // Analyze risks based on assessment results
-          const risks = await this.generateRisksFromAnswers(assessmentId, answers);
 
-          this.logger.info('Risks generated from answers', {
-            assessmentId,
-            riskCount: risks.length,
-            risks: risks.map(r => ({
-              category: r.category,
-              title: r.title,
-              likelihood: r.likelihood,
-              impact: r.impact,
-              riskLevel: r.riskLevel,
-            })),
-          });
-
-          // Calculate real risk score using the assessment library
-          riskScore = calculateRiskScore(gaps, risks);
-
-          this.logger.info('Risk score calculated', {
-            assessmentId,
-            riskScore,
-            gapCount: gaps.length,
-            riskCount: risks.length
-          });
-
-          // Store gaps and risks
+          // CRITICAL FIX: Store gaps BEFORE generating risks so risk generation can query them
           for (const gap of gaps) {
             // Map gap category to VendorCategory enum (Story 1.1)
             const mappedCategory = this.mapGapCategoryToVendorCategory(gap.category);
@@ -1500,6 +1475,32 @@ export class AssessmentService extends BaseService {
             });
           }
 
+          // Now generate risks - they can query the gaps we just saved
+          const risks = await this.generateRisksFromAnswers(assessmentId, answers);
+
+          this.logger.info('Risks generated from answers', {
+            assessmentId,
+            riskCount: risks.length,
+            risks: risks.map(r => ({
+              category: r.category,
+              title: r.title,
+              likelihood: r.likelihood,
+              impact: r.impact,
+              riskLevel: r.riskLevel,
+            })),
+          });
+
+          // Calculate real risk score using the assessment library
+          riskScore = calculateRiskScore(gaps, risks);
+
+          this.logger.info('Risk score calculated', {
+            assessmentId,
+            riskScore,
+            gapCount: gaps.length,
+            riskCount: risks.length
+          });
+
+          // Store risks
           for (const risk of risks) {
             this.logger.info('Processing individual risk for creation', {
               assessmentId,
