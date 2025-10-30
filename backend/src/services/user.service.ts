@@ -599,6 +599,16 @@ export class UserService extends BaseService {
                 country: true,
               },
             },
+            subscription: {
+              select: {
+                id: true,
+                plan: true,
+                status: true,
+                creditsBalance: true,
+                creditsUsed: true,
+                creditsPurchased: true,
+              },
+            },
           },
         }),
         this.prisma.user.count({ where: queryOptions.where }),

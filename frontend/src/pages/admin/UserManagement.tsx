@@ -79,6 +79,7 @@ interface UserAccount {
   subscription?: {
     plan: string;
     active: boolean;
+    creditsBalance: number;
   } | null;
 }
 
@@ -404,6 +405,7 @@ const UserManagement = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Organization</TableHead>
                   <TableHead>Plan</TableHead>
+                  <TableHead>Credits</TableHead>
                   <TableHead>Last Login</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -435,6 +437,9 @@ const UserManagement = () => {
                         <div className="h-4 w-16 bg-muted animate-pulse rounded" />
                       </TableCell>
                       <TableCell>
+                        <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                      </TableCell>
+                      <TableCell>
                         <div className="h-4 w-20 bg-muted animate-pulse rounded" />
                       </TableCell>
                       <TableCell>
@@ -447,13 +452,13 @@ const UserManagement = () => {
                   ))
                 ) : error ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <div className="text-red-500">Failed to load users: {error.message}</div>
                     </TableCell>
                   </TableRow>
                 ) : users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <div className="text-muted-foreground">No users found</div>
                     </TableCell>
                   </TableRow>
@@ -497,6 +502,12 @@ const UserManagement = () => {
                       <TableCell>{user.organization?.name || '-'}</TableCell>
                       <TableCell>
                         {user.subscription?.plan || (user.role === 'VENDOR' ? '-' : 'FREE')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Coins className="h-3 w-3 text-yellow-500" />
+                          {user.subscription?.creditsBalance ?? 0}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
