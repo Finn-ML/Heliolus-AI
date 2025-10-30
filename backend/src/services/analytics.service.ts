@@ -49,6 +49,7 @@ interface VendorAnalytics {
   uniqueVisitors: number;
   totalContacts: number;
   conversionRate: number;
+  clickThroughRate: number;
   avgMatchScore: number;
   topVendors: Array<{
     vendorId: string;
@@ -57,6 +58,7 @@ interface VendorAnalytics {
     contacts: number;
     conversionRate: number;
     trend: 'up' | 'down' | 'stable';
+    trendDirection?: 'up' | 'down' | 'stable';
   }>;
   clicksByCategory: Array<{
     category: string;
@@ -329,13 +331,24 @@ export class AnalyticsService extends BaseService {
       });
       const activeVendors = activeVendorsResult.length;
 
-      // Total clicks (VendorMatch where viewed = true)
-      const totalClicks = await this.prisma.vendorMatch.count({
+      // Total clicks from VendorMatch (where viewed = true)
+      const vendorMatchClicks = await this.prisma.vendorMatch.count({
         where: {
           viewed: true,
           ...dateFilter
         }
       });
+
+      // Total direct clicks from Vendor.clickCount (aggregate all vendor click counts)
+      const vendorClicksAgg = await this.prisma.vendor.aggregate({
+        _sum: {
+          clickCount: true
+        }
+      });
+      const directVendorClicks = vendorClicksAgg._sum.clickCount || 0;
+
+      // Combined total clicks
+      const totalClicks = vendorMatchClicks + directVendorClicks;
 
       // Unique visitors (distinct userIds from VendorMatch through Gap and Assessment)
       const uniqueVisitorsRaw = await this.prisma.$queryRaw<Array<{ distinct_users: bigint }>>`
@@ -368,7 +381,10 @@ export class AnalyticsService extends BaseService {
 
       // Top vendors by engagement
       const vendorEngagement = await this.prisma.vendor.findMany({
-        include: {
+        select: {
+          id: true,
+          companyName: true,
+          clickCount: true,
           _count: {
             select: {
               matches: {
@@ -392,9 +408,11 @@ export class AnalyticsService extends BaseService {
 
       const topVendorsWithTrend = await Promise.all(
         vendorEngagement.map(async (vendor) => {
-          const clicks = vendor._count.matches;
+          const matchClicks = vendor._count.matches;
+          const directClicks = vendor.clickCount || 0;
+          const totalClicks = matchClicks + directClicks;
           const contacts = vendor._count.contacts;
-          const engagementScore = clicks * 1 + contacts * 5;
+          const engagementScore = totalClicks * 1 + contacts * 5;
 
           // Get clicks for last 7 days vs previous 7 days
           const [recentClicks, previousClicks] = await Promise.all([
@@ -427,10 +445,11 @@ export class AnalyticsService extends BaseService {
           return {
             vendorId: vendor.id,
             companyName: vendor.companyName,
-            clicks,
+            clicks: totalClicks,
             contacts,
-            conversionRate: clicks > 0 ? Math.round((contacts / clicks) * 100 * 100) / 100 : 0,
+            conversionRate: totalClicks > 0 ? Math.round((contacts / totalClicks) * 100 * 100) / 100 : 0,
             trend,
+            trendDirection: trend, // Add trendDirection for frontend compatibility
             engagementScore
           };
         })
@@ -552,6 +571,9 @@ export class AnalyticsService extends BaseService {
         .map(([date, data]) => ({ date, ...data }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
+      // Calculate click-through rate (from views to contacts)
+      const clickThroughRate = totalClicks > 0 ? (totalContacts / totalClicks) * 100 : 0;
+
       const analytics: VendorAnalytics = {
         totalVendors,
         activeVendors,
@@ -559,6 +581,7 @@ export class AnalyticsService extends BaseService {
         uniqueVisitors,
         totalContacts,
         conversionRate,
+        clickThroughRate,
         avgMatchScore,
         topVendors,
         clicksByCategory,

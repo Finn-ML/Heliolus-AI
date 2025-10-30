@@ -699,6 +699,7 @@ model Vendor {
   verified    Boolean @default(false)
   rating      Float? // 0-5
   reviewCount Int     @default(0)
+  clickCount  Int     @default(0) // Total clicks on vendor profile/listing
 
   // Metadata
   status     VendorStatus @default(PENDING)

@@ -1016,6 +1016,18 @@ export const vendorApi = {
     const response = await apiRequest<ApiResponse<any>>(`/vendors/${vendorId}`);
     return response.data;
   },
+
+  // Track vendor click (for analytics)
+  trackVendorClick: async (vendorId: string) => {
+    try {
+      await apiRequest<{ success: boolean; message?: string }>(`/vendors/${vendorId}/click`, {
+        method: 'POST',
+      });
+    } catch (error) {
+      // Silently fail - don't disrupt user experience if tracking fails
+      console.warn('Failed to track vendor click:', error);
+    }
+  },
 };
 
 // Admin Analytics API

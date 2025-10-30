@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Vendor" ADD COLUMN "clickCount" INTEGER NOT NULL DEFAULT 0;
