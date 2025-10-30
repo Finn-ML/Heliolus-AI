@@ -21,6 +21,7 @@ import {
   Eye,
   MessageCircle,
 } from 'lucide-react';
+import { vendorApi } from '@/lib/api';
 
 interface VendorProfileProps {
   vendor: any;
@@ -231,7 +232,12 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
             <CardContent className="p-6 text-center">
               <Button
                 className="w-full bg-cyan-500 hover:bg-cyan-600"
-                onClick={() => vendor.website && window.open(vendor.website, '_blank')}
+                onClick={() => {
+                  vendorApi.trackVendorClick(vendor.id);
+                  if (vendor.website) {
+                    window.open(vendor.website, '_blank');
+                  }
+                }}
                 data-testid="button-visit-website"
               >
                 <Globe className="mr-2 h-4 w-4" />
@@ -524,7 +530,12 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
                 <CardContent className="space-y-4">
                   <Button
                     className="w-full bg-cyan-500 hover:bg-cyan-600"
-                    onClick={() => vendor.website && window.open(vendor.website, '_blank')}
+                    onClick={() => {
+                      vendorApi.trackVendorClick(vendor.id);
+                      if (vendor.website) {
+                        window.open(vendor.website, '_blank');
+                      }
+                    }}
                     data-testid="button-visit-website-contact"
                   >
                     <Globe className="mr-2 h-4 w-4" />

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery } from '@tanstack/react-query';
-import { assessmentApi, queryKeys } from '@/lib/api';
+import { assessmentApi, queryKeys, vendorApi } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import type { TimelineBucket } from '@/types/vendor-matching.types';
 
@@ -183,7 +183,10 @@ const StrategyMatrix: React.FC<StrategyMatrixProps> = ({ assessmentId }) => {
                           size="sm"
                           variant="outline"
                           className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                          onClick={() => navigate(`/marketplace?vendor=${vendorRec.vendor.id}`)}
+                          onClick={() => {
+                            vendorApi.trackVendorClick(vendorRec.vendor.id);
+                            navigate(`/marketplace?vendor=${vendorRec.vendor.id}`);
+                          }}
                         >
                           View Vendor
                         </Button>

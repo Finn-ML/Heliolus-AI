@@ -34,7 +34,7 @@ import { useNavigate } from 'react-router-dom';
 import VendorProfile from './VendorProfile';
 import VendorComparison from './VendorComparison';
 import { ContactVendorModal } from '@/components/vendor/ContactVendorModal';
-import { assessmentApi, queryKeys, getCurrentUserId, subscriptionApi } from '@/lib/api';
+import { assessmentApi, queryKeys, getCurrentUserId, subscriptionApi, vendorApi } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { VendorMatchScore } from '@/types/vendor-matching.types';
 import { getMatchQuality, getMatchQualityColor } from '@/types/vendor-matching.types';
@@ -677,7 +677,10 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-cyan-300 hover:text-cyan-200 truncate"
-                          onClick={e => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            vendorApi.trackVendorClick(vendor.id);
+                          }}
                         >
                           Website
                         </a>
