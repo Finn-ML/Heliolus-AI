@@ -439,6 +439,25 @@ export default async function vendorRoutes(server: FastifyInstance) {
             timestamp: { type: 'string' },
           },
         },
+        429: {
+          type: 'object',
+          properties: {
+            code: { type: 'string' },
+            message: { type: 'string' },
+            statusCode: { type: 'number' },
+          },
+        },
+      },
+    },
+    config: {
+      rateLimit: {
+        max: 10, // 10 clicks per vendor
+        timeWindow: '1 minute',
+        keyGenerator: (request: FastifyRequest) => {
+          // Rate limit per IP + vendorId combination to prevent spam/fraud
+          const params = request.params as { id: string };
+          return `${request.ip}-${params.id}`;
+        },
       },
     },
     // No authentication required - public tracking endpoint
