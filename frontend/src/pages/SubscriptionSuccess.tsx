@@ -117,7 +117,7 @@ const SubscriptionSuccess = () => {
               Go to Dashboard
             </Button>
             <Button
-              onClick={() => navigate('/assessments/templates')}
+              onClick={() => navigate('/assessment-templates')}
               variant="outline"
               className="flex-1"
             >
