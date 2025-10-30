@@ -635,7 +635,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
       // Use subscription service to get billing info with user context
       const result = await subscriptionService.getSubscriptionByUserId(userId, {
         userId: user.id,
-        role: user.role,
+        userRole: user.role,
       });
 
       if (!result.success || !result.data) {
