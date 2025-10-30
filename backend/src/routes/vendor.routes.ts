@@ -196,7 +196,7 @@ export default async function vendorRoutes(server: FastifyInstance) {
       const validatedData = VendorRegistrationRequestSchema.parse(data);
 
       // Get admin email from environment
-      const adminEmail = env.POSTMARK_FROM_EMAIL;
+      const adminEmail = env.ADMIN_EMAIL;
 
       // Send email notification to admin
       await emailService.sendVendorRegistrationNotification(adminEmail, validatedData);
