@@ -566,8 +566,7 @@ async function createDynamicPrice(plan: SubscriptionPlan, amount: number): Promi
         interval: 'month'
       },
       product_data: {
-        name: `${plan} Plan`,
-        description: `Heliolus ${plan} subscription plan`
+        name: `${plan} Plan`
       },
       metadata: {
         plan
@@ -591,8 +590,7 @@ async function createDynamicCreditPrice(amount: number, creditAmount: number): P
       unit_amount: amount,
       currency: 'usd',
       product_data: {
-        name: `${creditAmount} Credits`,
-        description: `Purchase ${creditAmount} assessment credits`
+        name: `${creditAmount} Credits`
       },
       metadata: {
         creditAmount: creditAmount.toString()
