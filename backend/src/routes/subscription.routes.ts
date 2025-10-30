@@ -632,10 +632,13 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
     }
 
     try {
-      // Use subscription service to get billing info
-      const subscription = await subscriptionService.getSubscriptionByUserId(userId);
+      // Use subscription service to get billing info with user context
+      const result = await subscriptionService.getSubscriptionByUserId(userId, {
+        userId: user.id,
+        role: user.role,
+      });
 
-      if (!subscription) {
+      if (!result.success || !result.data) {
         reply.status(404).send({
           success: false,
           message: 'User subscription not found',
@@ -643,6 +646,8 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         });
         return;
       }
+
+      const subscription = result.data;
 
       // Return billing info
       reply.status(200).send({
