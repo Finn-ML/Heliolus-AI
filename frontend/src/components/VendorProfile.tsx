@@ -18,7 +18,6 @@ import {
   ExternalLink,
   Users,
   Building,
-  Eye,
   MessageCircle,
 } from 'lucide-react';
 import { vendorApi } from '@/lib/api';
@@ -227,7 +226,7 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
         </Card>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="bg-card/80 backdrop-blur border-border/50">
             <CardContent className="p-6 text-center">
               <Button
@@ -242,19 +241,6 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
               >
                 <Globe className="mr-2 h-4 w-4" />
                 Visit Website
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/80 backdrop-blur border-border/50">
-            <CardContent className="p-6 text-center">
-              <Button
-                variant="outline"
-                className="w-full hover:bg-cyan-500/10 hover:border-cyan-400"
-                data-testid="button-request-demo"
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Request Demo
               </Button>
             </CardContent>
           </Card>
@@ -540,15 +526,6 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
                   >
                     <Globe className="mr-2 h-4 w-4" />
                     Visit Website
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="w-full hover:bg-cyan-500/10 hover:border-cyan-400"
-                    data-testid="button-request-demo-contact"
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    Request Demo
                   </Button>
 
                   <Button
