@@ -1503,10 +1503,20 @@ export class SubscriptionService extends BaseService {
       return this.createResponse(true, {
         checkoutUrl: session.url!,
       });
-    } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to create checkout for additional assessment');
+    } catch (error: any) {
+      this.logger.error({
+        error: error.message || error,
+        errorType: error.type,
+        errorCode: error.code,
+        stack: error.stack,
+        userId
+      }, 'Failed to create checkout for additional assessment');
+
       if (error.statusCode) throw error;
-      throw this.createError('Failed to create checkout session', 500, 'CHECKOUT_FAILED');
+
+      // Provide more specific error message
+      const errorMessage = error.message || 'Failed to create checkout session';
+      throw this.createError(errorMessage, 500, 'CHECKOUT_FAILED');
     }
   }
 }
