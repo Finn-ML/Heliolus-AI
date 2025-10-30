@@ -131,15 +131,16 @@ const Reports: React.FC = () => {
         const gapCount = assessment.gaps?.length || 0;
         const riskCount = assessment.risks?.length || 0;
 
-        // Determine status based on completion
-        // Note: Priorities are a PREMIUM feature, not a completion requirement
+        // Determine status based on completion and priorities
         let status: 'completed' | 'generating' | 'complete-priorities' | 'failed';
         if (assessment.status === 'IN_PROGRESS') {
           status = 'generating';
-        } else if (isCompleted) {
-          // If assessment is COMPLETED, show as completed regardless of priorities
-          // Free users complete assessments without priority questionnaire
+        } else if (isCompleted && hasPriorities) {
+          // Assessment is completed AND priorities questionnaire is done
           status = 'completed';
+        } else if (isCompleted && !hasPriorities) {
+          // Assessment is completed but priorities questionnaire needs to be done
+          status = 'complete-priorities';
         } else {
           status = 'generating';
         }
