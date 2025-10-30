@@ -392,9 +392,19 @@ const Reports: React.FC = () => {
                         size="sm"
                         variant="outline"
                         onClick={() => handleViewReport(report)}
+                        disabled={report.status === 'generating'}
                       >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
+                        {report.status === 'generating' ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </>
+                        )}
                       </Button>
                       <Button
                         size="sm"
@@ -450,9 +460,19 @@ const Reports: React.FC = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => handleViewReport(report)}
+                          disabled={report.status === 'generating'}
                         >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
+                          {report.status === 'generating' ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </>
+                          )}
                         </Button>
                         <Button
                           size="sm"
