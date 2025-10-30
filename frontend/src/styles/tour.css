@@ -1,0 +1,180 @@
+/**
+ * Custom Driver.js Tour Styling
+ * Matches Heliolus dark theme with cyan accents
+ */
+
+/* Import Driver.js base styles */
+@import 'driver.js/dist/driver.css';
+
+/* Override popover styling */
+.driver-popover {
+  background: rgb(17, 24, 39) !important; /* gray-900 */
+  border: 1px solid rgb(31, 41, 55) !important; /* gray-800 */
+  border-radius: 12px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4) !important;
+  max-width: 480px !important;
+}
+
+/* Popover title */
+.driver-popover-title {
+  color: #fff !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+}
+
+/* Popover description */
+.driver-popover-description {
+  color: rgb(229, 231, 235) !important; /* gray-200 */
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 12px 0 !important;
+}
+
+/* Progress text */
+.driver-popover-progress-text {
+  color: rgb(156, 163, 175) !important; /* gray-400 */
+  font-size: 13px !important;
+}
+
+/* Buttons container */
+.driver-popover-footer {
+  margin-top: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+/* Primary button (Next/Finish) */
+.driver-popover-next-btn {
+  background: rgb(8, 145, 178) !important; /* cyan-600 */
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.driver-popover-next-btn:hover {
+  background: rgb(14, 165, 233) !important; /* cyan-500 */
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 6px -1px rgba(8, 145, 178, 0.3) !important;
+}
+
+.driver-popover-next-btn:active {
+  transform: translateY(0) !important;
+}
+
+/* Previous button */
+.driver-popover-prev-btn {
+  background: transparent !important;
+  color: rgb(156, 163, 175) !important; /* gray-400 */
+  border: 1px solid rgb(75, 85, 99) !important; /* gray-600 */
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.driver-popover-prev-btn:hover {
+  background: rgb(31, 41, 55) !important; /* gray-800 */
+  color: rgb(209, 213, 219) !important; /* gray-300 */
+  border-color: rgb(107, 114, 128) !important; /* gray-500 */
+}
+
+/* Close button */
+.driver-popover-close-btn {
+  color: rgb(156, 163, 175) !important; /* gray-400 */
+  background: transparent !important;
+  border: none !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  transition: all 0.2s ease !important;
+  position: absolute !important;
+  right: 12px !important;
+  top: 12px !important;
+}
+
+.driver-popover-close-btn:hover {
+  color: rgb(239, 68, 68) !important; /* red-500 */
+  transform: scale(1.1) !important;
+}
+
+/* Overlay */
+.driver-overlay {
+  background: rgba(0, 0, 0, 0.85) !important;
+  animation: fadeIn 0.3s ease !important;
+}
+
+/* Highlighted element */
+.driver-active-element {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+/* Arrow */
+.driver-popover-arrow {
+  border-color: rgb(17, 24, 39) !important; /* gray-900 */
+}
+
+.driver-popover-arrow-side-top {
+  border-top-color: rgb(17, 24, 39) !important;
+}
+
+.driver-popover-arrow-side-bottom {
+  border-bottom-color: rgb(17, 24, 39) !important;
+}
+
+.driver-popover-arrow-side-left {
+  border-left-color: rgb(17, 24, 39) !important;
+}
+
+.driver-popover-arrow-side-right {
+  border-right-color: rgb(17, 24, 39) !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(8, 145, 178, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(8, 145, 178, 0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .driver-popover {
+    max-width: calc(100vw - 32px) !important;
+  }
+
+  .driver-popover-title {
+    font-size: 16px !important;
+  }
+
+  .driver-popover-description {
+    font-size: 13px !important;
+  }
+}
+
+/* Accessibility */
+.driver-popover:focus-visible {
+  outline: 2px solid rgb(8, 145, 178) !important;
+  outline-offset: 2px !important;
+}
