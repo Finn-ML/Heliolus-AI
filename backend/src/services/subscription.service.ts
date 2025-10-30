@@ -1443,11 +1443,20 @@ export class SubscriptionService extends BaseService {
     userId: string,
     stripePriceId: string,
     context: ServiceContext
-  ): Promise<ApiResponse<{ success: boolean; creditsAdded: number }>> {
+  ): Promise<ApiResponse<{ checkoutUrl: string }>> {
     try {
-      // Get subscription
+      // Get subscription and user
       const subscription = await this.prisma.subscription.findUnique({
         where: { userId },
+        include: {
+          user: {
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
       });
 
       if (!subscription) {
@@ -1463,76 +1472,41 @@ export class SubscriptionService extends BaseService {
         );
       }
 
-      // TODO: Stripe payment processing
-      // In production:
-      // 1. Create Stripe payment intent
-      // 2. Confirm payment with stripePriceId
-      // 3. Wait for webhook confirmation
-      // For now, mock successful payment
-
-      // Credits per additional assessment purchase (€299 = 50 credits = 1 assessment)
-      const CREDITS_PER_PURCHASE = 50;
-
-      // Calculate new balance
-      const newBalance = subscription.creditsBalance + CREDITS_PER_PURCHASE;
-
-      // Atomic transaction: create transaction + update balance
-      await this.prisma.$transaction(async (tx) => {
-        // Create credit transaction
-        await tx.creditTransaction.create({
-          data: {
-            subscriptionId: subscription.id,
-            type: TransactionType.PURCHASE,
-            amount: CREDITS_PER_PURCHASE,
-            balance: newBalance,
-            description: `Additional assessment purchase (€299)`,
-            metadata: {
-              stripePriceId,
-              creditsAdded: CREDITS_PER_PURCHASE,
-              purchasedAt: new Date().toISOString(),
-              purchasedBy: context.userId,
-            },
+      // Create Stripe checkout session for one-time payment
+      const session = await stripe.checkout.sessions.create({
+        customer: subscription.stripeCustomerId || undefined,
+        customer_email: !subscription.stripeCustomerId ? subscription.user.email : undefined,
+        mode: 'payment', // One-time payment, not subscription
+        line_items: [
+          {
+            price: stripePriceId,
+            quantity: 1,
           },
-        });
-
-        // Update subscription balance
-        await tx.subscription.update({
-          where: { id: subscription.id },
-          data: {
-            creditsBalance: newBalance,
-            creditsPurchased: subscription.creditsPurchased + CREDITS_PER_PURCHASE,
-          },
-        });
+        ],
+        success_url: `${process.env.FRONTEND_URL}/credits/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL}/credits/cancel`,
+        metadata: {
+          userId,
+          subscriptionId: subscription.id,
+          type: 'additional_assessment',
+          creditAmount: '50', // Will be added by webhook
+        },
       });
 
-      // Log audit event
-      await this.logAudit(
-        {
-          action: 'ASSESSMENT_PURCHASED',
-          entity: 'Subscription',
-          entityId: subscription.id,
-          metadata: {
-            creditsAdded: CREDITS_PER_PURCHASE,
-            newBalance,
-            stripePriceId,
-          },
-        },
-        context
-      );
-
-      this.logger.info(
-        `User ${userId} purchased additional assessment. Credits added: ${CREDITS_PER_PURCHASE}. New balance: ${newBalance}`
-      );
+      // Log checkout session creation
+      this.logger.info('Created checkout session for additional assessment', {
+        userId,
+        sessionId: session.id,
+        stripePriceId,
+      });
 
       return this.createResponse(true, {
-        success: true,
-        creditsAdded: CREDITS_PER_PURCHASE,
-        newBalance,
+        checkoutUrl: session.url!,
       });
     } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to purchase additional assessment');
+      this.logger.error({ error, userId }, 'Failed to create checkout for additional assessment');
       if (error.statusCode) throw error;
-      throw this.createError('Failed to purchase additional assessment', 500, 'PURCHASE_FAILED');
+      throw this.createError('Failed to create checkout session', 500, 'CHECKOUT_FAILED');
     }
   }
 }
