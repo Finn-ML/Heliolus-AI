@@ -406,6 +406,83 @@ export default async function vendorRoutes(server: FastifyInstance) {
     }
   }));
 
+  // POST /vendors/:id/click - Track Vendor Click
+  server.post('/:id/click', {
+    schema: {
+      description: 'Track a click on a vendor profile or listing (analytics)',
+      tags: ['Vendors'],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+          required: ['success']
+        },
+        404: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            code: { type: 'string' },
+            statusCode: { type: 'number' },
+            timestamp: { type: 'string' },
+          },
+        },
+      },
+    },
+    // No authentication required - public tracking endpoint
+  }, asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id: string };
+
+    try {
+      // Increment vendor click count
+      const vendor = await server.prisma.vendor.update({
+        where: { id: params.id },
+        data: { clickCount: { increment: 1 } },
+        select: { id: true, companyName: true, clickCount: true }
+      });
+
+      request.log.info('Vendor click tracked', {
+        vendorId: vendor.id,
+        companyName: vendor.companyName,
+        newClickCount: vendor.clickCount,
+      });
+
+      reply.status(200).send({
+        success: true,
+        message: 'Click tracked successfully',
+      });
+
+    } catch (error: any) {
+      request.log.error({ error, vendorId: params.id }, 'Failed to track vendor click');
+
+      if (error.code === 'P2025') {
+        reply.status(404).send({
+          message: 'Vendor not found',
+          code: 'VENDOR_NOT_FOUND',
+          statusCode: 404,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      reply.status(500).send({
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }));
+
   // GET /vendors/:id - Get Vendor
   server.get('/:id', {
     schema: {
