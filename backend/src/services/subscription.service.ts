@@ -1451,12 +1451,12 @@ export class SubscriptionService extends BaseService {
       });
 
       if (!subscription) {
-        return this.error('Subscription not found', 404, 'SUBSCRIPTION_NOT_FOUND');
+        throw this.createError('Subscription not found', 404, 'SUBSCRIPTION_NOT_FOUND');
       }
 
       // Validate plan (PREMIUM or ENTERPRISE only)
       if (subscription.plan === SubscriptionPlan.FREE) {
-        return this.error(
+        throw this.createError(
           'Upgrade to PREMIUM or ENTERPRISE to purchase additional assessments',
           402,
           'UPGRADE_REQUIRED'
@@ -1524,13 +1524,15 @@ export class SubscriptionService extends BaseService {
         `User ${userId} purchased additional assessment. Credits added: ${CREDITS_PER_PURCHASE}. New balance: ${newBalance}`
       );
 
-      return this.success({
+      return this.createResponse(true, {
         success: true,
         creditsAdded: CREDITS_PER_PURCHASE,
+        newBalance,
       });
     } catch (error) {
       this.logger.error({ error, userId }, 'Failed to purchase additional assessment');
-      throw error;
+      if (error.statusCode) throw error;
+      throw this.createError('Failed to purchase additional assessment', 500, 'PURCHASE_FAILED');
     }
   }
 }
