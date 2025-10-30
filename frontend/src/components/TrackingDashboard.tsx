@@ -16,8 +16,13 @@ import {
   Shield,
   AlertCircle,
   Target,
+  Send,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { assessmentApi, rfpApi, queryKeys } from '@/lib/api';
+import { AssessmentStatus } from '@/types/assessment';
 
 interface Task {
   id: string;
@@ -53,6 +58,40 @@ interface Assessment {
 }
 
 const TrackingDashboard: React.FC = () => {
+  // Fetch assessments
+  const { data: assessments = [], isLoading: assessmentsLoading } = useQuery({
+    queryKey: queryKeys.assessments,
+    queryFn: assessmentApi.getAssessments,
+  });
+
+  // Fetch RFPs
+  const { data: rfps = [], isLoading: rfpsLoading } = useQuery({
+    queryKey: ['rfps'],
+    queryFn: () => rfpApi.getRFPs(),
+  });
+
+  // Get latest completed assessment
+  const completedAssessments = assessments.filter((a: any) => a.status === 'COMPLETED');
+  const latestAssessment = completedAssessments.length > 0
+    ? completedAssessments.sort((a: any, b: any) =>
+        new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime()
+      )[0]
+    : null;
+
+  // Fetch latest assessment results if available
+  const { data: latestResults, isLoading: resultsLoading } = useQuery({
+    queryKey: ['assessmentResults', latestAssessment?.id],
+    queryFn: () => assessmentApi.getAssessmentResults(latestAssessment!.id),
+    enabled: !!latestAssessment?.id,
+  });
+
+  // Calculate stats
+  const rfpsSentCount = rfps.filter((rfp: any) => rfp.status === 'SENT').length;
+  const openRisksCount = latestResults?.risks?.filter((r: any) =>
+    r.riskLevel === 'HIGH' || r.riskLevel === 'CRITICAL'
+  ).length || 0;
+  const latestScore = latestAssessment?.riskScore || latestResults?.overallRiskScore || 0;
+  const assessmentCount = completedAssessments.length;
 
   const [tasks] = useState<Task[]>([
     {
@@ -223,18 +262,22 @@ const TrackingDashboard: React.FC = () => {
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
-                    <Target className="h-5 w-5 text-blue-400" />
+                    <Send className="h-5 w-5 text-blue-400" />
                   </div>
-                  <CardTitle className="text-sm font-medium text-gray-300">Active Tasks</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-300">RFPs Sent</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white">
-                  {tasks.filter(t => t.status !== 'completed').length}
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {tasks.filter(t => t.status === 'completed').length} completed
-                </p>
+                {rfpsLoading ? (
+                  <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold text-white">{rfpsSentCount}</div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {rfps.length} total RFPs
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -244,17 +287,20 @@ const TrackingDashboard: React.FC = () => {
                   <div className="p-2 rounded-lg bg-red-500/20 group-hover:bg-red-500/30 transition-colors">
                     <AlertCircle className="h-5 w-5 text-red-400" />
                   </div>
-                  <CardTitle className="text-sm font-medium text-gray-300">Open Risks</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-300">High/Critical Risks</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white">
-                  {risks.filter(r => r.status !== 'resolved').length}
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {risks.filter(r => r.severity === 'high' || r.severity === 'critical').length}{' '}
-                  high priority
-                </p>
+                {resultsLoading ? (
+                  <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold text-white">{openRisksCount}</div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {latestResults?.risks?.length || 0} total risks identified
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -268,11 +314,23 @@ const TrackingDashboard: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white">82%</div>
-                <p className="text-sm text-green-400 flex items-center mt-1">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +7% from last assessment
-                </p>
+                {assessmentsLoading || resultsLoading ? (
+                  <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                ) : latestScore > 0 ? (
+                  <>
+                    <div className="text-3xl font-bold text-white">{Math.round(latestScore)}%</div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Risk compliance score
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-gray-500">No data</div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Complete an assessment
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -286,8 +344,16 @@ const TrackingDashboard: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white">{assessments.length}</div>
-                <p className="text-sm text-gray-500 mt-1">Last: {assessments[0]?.date}</p>
+                {assessmentsLoading ? (
+                  <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold text-white">{assessmentCount}</div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {latestAssessment ? `Last: ${new Date(latestAssessment.completedAt || latestAssessment.updatedAt).toLocaleDateString()}` : 'No assessments yet'}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
