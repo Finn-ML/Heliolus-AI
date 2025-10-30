@@ -19,16 +19,6 @@ import { useQuery } from '@tanstack/react-query';
 import { assessmentApi, rfpApi, queryKeys } from '@/lib/api';
 import { AssessmentStatus } from '@/types/assessment';
 
-interface Assessment {
-  id: string;
-  date: string;
-  overallScore: number;
-  previousScore?: number;
-  risks: { category: string; score: number; previousScore?: number }[];
-  status: 'completed' | 'in-progress';
-  businessProfile: any;
-}
-
 const TrackingDashboard: React.FC = () => {
   // Fetch assessments
   const { data: assessments = [], isLoading: assessmentsLoading } = useQuery({
@@ -64,37 +54,6 @@ const TrackingDashboard: React.FC = () => {
   ).length || 0;
   const latestScore = latestAssessment?.riskScore || latestResults?.overallRiskScore || 0;
   const assessmentCount = completedAssessments.length;
-
-  const [assessments] = useState<Assessment[]>([
-    {
-      id: '1',
-      date: '2024-01-15',
-      overallScore: 82,
-      previousScore: 75,
-      status: 'completed',
-      businessProfile: { name: 'Current Assessment' },
-      risks: [
-        { category: 'AML', score: 85, previousScore: 78 },
-        { category: 'KYC', score: 80, previousScore: 72 },
-        { category: 'Data Privacy', score: 79, previousScore: 75 },
-        { category: 'Sanctions', score: 88, previousScore: 85 },
-      ],
-    },
-    {
-      id: '2',
-      date: '2024-01-01',
-      overallScore: 75,
-      previousScore: 68,
-      status: 'completed',
-      businessProfile: { name: 'Previous Assessment' },
-      risks: [
-        { category: 'AML', score: 78, previousScore: 70 },
-        { category: 'KYC', score: 72, previousScore: 65 },
-        { category: 'Data Privacy', score: 75, previousScore: 68 },
-        { category: 'Sanctions', score: 85, previousScore: 82 },
-      ],
-    },
-  ]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -238,77 +197,143 @@ const TrackingDashboard: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="assessments" className="space-y-6">
-          <div className="space-y-4">
-            {assessments.map((assessment, index) => (
-              <Card
-                key={assessment.id}
-                className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300"
-              >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg text-white">
-                        Assessment - {assessment.date}
-                      </CardTitle>
-                      <CardDescription className="text-gray-400 flex items-center gap-2 mt-1">
-                        <span>Overall Score: {assessment.overallScore}%</span>
-                        {assessment.previousScore && (
-                          <span
-                            className={cn(
-                              'inline-flex items-center text-sm',
-                              assessment.overallScore > assessment.previousScore
-                                ? 'text-green-400'
-                                : 'text-red-400'
+          {assessmentsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-12 w-12 text-cyan-400 animate-spin" />
+            </div>
+          ) : completedAssessments.length === 0 ? (
+            <Card className="bg-gray-900/50 border-gray-800">
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-400 mb-2">
+                    No Assessment History
+                  </h3>
+                  <p className="text-gray-500 max-w-md mx-auto">
+                    Complete your first assessment to see your compliance history and track progress over time.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {completedAssessments.map((assessment: any, index: number) => {
+                const completionDate = new Date(assessment.completedAt || assessment.updatedAt);
+                const previousAssessment = index < completedAssessments.length - 1
+                  ? completedAssessments[index + 1]
+                  : null;
+                const previousScore = previousAssessment?.riskScore || 0;
+                const currentScore = assessment.riskScore || 0;
+
+                return (
+                  <Card
+                    key={assessment.id}
+                    className="bg-gray-900/50 border-gray-800 hover:border-cyan-600/50 transition-all duration-300"
+                  >
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg text-white">
+                            {assessment.template?.name || 'Assessment'}
+                          </CardTitle>
+                          <CardDescription className="text-gray-400 flex items-center gap-3 mt-1 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Shield className="h-3 w-3" />
+                              {completionDate.toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            {currentScore > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  Risk Score: {Math.round(currentScore)}%
+                                </span>
+                                {previousScore > 0 && (
+                                  <span
+                                    className={cn(
+                                      'inline-flex items-center text-sm',
+                                      currentScore > previousScore
+                                        ? 'text-green-400'
+                                        : currentScore < previousScore
+                                        ? 'text-red-400'
+                                        : 'text-gray-400'
+                                    )}
+                                  >
+                                    {currentScore > previousScore ? (
+                                      <TrendingUp className="h-3 w-3 mr-1" />
+                                    ) : currentScore < previousScore ? (
+                                      <TrendingDown className="h-3 w-3 mr-1" />
+                                    ) : null}
+                                    {currentScore > previousScore ? '+' : ''}
+                                    {Math.round(currentScore - previousScore)}%
+                                  </span>
+                                )}
+                              </>
                             )}
-                          >
-                            {assessment.overallScore > assessment.previousScore ? (
-                              <TrendingUp className="h-3 w-3 mr-1" />
-                            ) : (
-                              <TrendingDown className="h-3 w-3 mr-1" />
-                            )}
-                            {assessment.overallScore > assessment.previousScore ? '+' : ''}
-                            {assessment.overallScore - assessment.previousScore}%
-                          </span>
-                        )}
-                      </CardDescription>
-                    </div>
-                    <Badge className={cn('border', getStatusColor(assessment.status))}>
-                      {assessment.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {assessment.risks.map(risk => (
-                      <div
-                        key={risk.category}
-                        className="text-center p-3 rounded-lg bg-gray-800/50 border border-gray-700"
-                      >
-                        <div className="font-medium text-sm text-gray-400">{risk.category}</div>
-                        <div className="text-2xl font-bold text-white mt-1">{risk.score}%</div>
-                        {risk.previousScore && (
-                          <div
-                            className={cn(
-                              'text-xs flex items-center justify-center mt-1',
-                              risk.score > risk.previousScore ? 'text-green-400' : 'text-red-400'
-                            )}
-                          >
-                            {risk.score > risk.previousScore ? (
-                              <TrendingUp className="h-3 w-3 mr-1" />
-                            ) : (
-                              <TrendingDown className="h-3 w-3 mr-1" />
-                            )}
-                            {risk.score > risk.previousScore ? '+' : ''}
-                            {risk.score - risk.previousScore}%
-                          </div>
-                        )}
+                          </CardDescription>
+                        </div>
+                        <Badge
+                          className={cn(
+                            'border',
+                            assessment.status === 'COMPLETED'
+                              ? getStatusColor('completed')
+                              : assessment.status === 'IN_PROGRESS'
+                              ? getStatusColor('in-progress')
+                              : assessment.status === 'FAILED'
+                              ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                              : getStatusColor('pending')
+                          )}
+                        >
+                          {assessment.status === 'COMPLETED' ? 'Completed' :
+                           assessment.status === 'IN_PROGRESS' ? 'In Progress' :
+                           assessment.status === 'FAILED' ? 'Failed' :
+                           assessment.status}
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="text-center p-3 rounded-lg bg-gray-800/50 border border-gray-700">
+                          <div className="font-medium text-sm text-gray-400">Risk Score</div>
+                          <div className="text-2xl font-bold text-white mt-1">
+                            {currentScore > 0 ? `${Math.round(currentScore)}%` : 'N/A'}
+                          </div>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-gray-800/50 border border-gray-700">
+                          <div className="font-medium text-sm text-gray-400">Credits Used</div>
+                          <div className="text-2xl font-bold text-white mt-1">
+                            {assessment.creditsUsed || 0}
+                          </div>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-gray-800/50 border border-gray-700">
+                          <div className="font-medium text-sm text-gray-400">Template</div>
+                          <div className="text-sm font-medium text-white mt-1 truncate">
+                            {assessment.template?.category || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+                      {assessment.id && (
+                        <div className="mt-4 flex justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.location.href = `/assessment/results/${assessment.id}`}
+                            className="border-cyan-600/50 text-cyan-400 hover:bg-cyan-600/10"
+                          >
+                            View Details
+                            <Activity className="h-4 w-4 ml-2" />
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
