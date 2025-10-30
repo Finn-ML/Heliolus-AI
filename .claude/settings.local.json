@@ -54,7 +54,10 @@
       "Bash(node:*)",
       "Bash(pgrep:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": []
