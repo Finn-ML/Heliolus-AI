@@ -2115,15 +2115,40 @@ export class AssessmentService extends BaseService {
       timestamp: new Date().toISOString(),
     };
 
+    // CRITICAL FIX: Recalculate score using gaps and risks
+    // The question-based score doesn't reflect the severity of identified gaps
+    // Use ScoreCalculator to properly weight critical gaps into the final score
+    const { ScoreCalculator } = await import('../lib/assessment/scorer.js');
+    const scoreCalculator = new ScoreCalculator();
+
+    let finalRiskScore = riskScoreResult.overallScore;
+
+    // If we have gaps or risks, use the proper scorer that weights their severity
+    if (gapAnalysis.gaps.length > 0 || gapAnalysis.risks.length > 0) {
+      finalRiskScore = scoreCalculator.calculateOverallScore(
+        gapAnalysis.gaps,
+        gapAnalysis.risks
+      );
+
+      this.logger.info('Score recalculated with gap/risk weighting', {
+        assessmentId: assessment.id,
+        originalScore: riskScoreResult.overallScore,
+        adjustedScore: finalRiskScore,
+        gapsCount: gapAnalysis.gaps.length,
+        risksCount: gapAnalysis.risks.length,
+        criticalGaps: gapAnalysis.gaps.filter(g => g.severity === 'CRITICAL').length,
+      });
+    }
+
     this.logger.info('Assessment analysis completed successfully', {
       assessmentId: assessment.id,
-      riskScore: riskScoreResult.overallScore,
+      riskScore: finalRiskScore,
       gapsCount: gapAnalysis.gaps.length,
       risksCount: gapAnalysis.risks.length,
     });
 
     return {
-      riskScore: riskScoreResult.overallScore,
+      riskScore: finalRiskScore,
       analysis,
       recommendations: recommendationResult,
       strategyMatrix,
