@@ -1,0 +1,140 @@
+[0] [INFO] VendorContact records created { rfpId: 'cmhdsrdid00dbo2827bzx1qjf', vendorCount: 3 }
+[0] [ERROR] Email send attempt 1 failed {
+[0]   to: 'info@trmlabs.com',
+[0]   subject: 'RFP: RFP for Financial Crime Compliance Assessment Solutions - Test Organization Inc.',
+[0]   error: "The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+[0]   code: 400,
+[0]   errorCode: undefined
+[0] }
+[0] [ERROR] Failed to send RFP to vendor {
+[0]   vendorEmail: 'info@trmlabs.com',
+[0]   vendorName: 'TRM Labs',
+[0]   rfpTitle: 'RFP for Financial Crime Compliance Assessment Solutions',
+[0]   error: Error: Email sending failed: The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.
+[0]       at EmailServiceImpl.createError (/home/runner/workspace/backend/src/services/base.service.ts:120:19)
+[0]       at EmailServiceImpl.sendEmailWithRetry (/home/runner/workspace/backend/src/services/email.service.ts:213:22)
+[0]       at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[0]       at async EmailServiceImpl.sendRFPToVendor (/home/runner/workspace/backend/src/services/email.service.ts:525:7)
+[0]       at async RFPService.sendRFP (/home/runner/workspace/backend/src/services/rfp.service.ts:623:11)
+[0]       at async Object.<anonymous> (/home/runner/workspace/backend/src/routes/rfp.routes.ts:545:24) {
+[0]     statusCode: 400,
+[0]     code: 'EMAIL_SEND_ERROR',
+[0]     details: { originalError: [ApiInputError] }
+[0]   }
+[0] }
+[0] [ERROR] Failed to send RFP email {
+[0]   rfpId: 'cmhdsrdid00dbo2827bzx1qjf',
+[0]   vendorId: 'cmg55sptd000kp9b6urc5o17c',
+[0]   vendorEmail: 'info@trmlabs.com',
+[0]   error: "Email sending failed: The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages."
+[0] }
+[0] [ERROR] Email send attempt 1 failed {
+[0]   to: 'info@chainalysis.com',
+[0]   subject: 'RFP: RFP for Financial Crime Compliance Assessment Solutions - Test Organization Inc.',
+[0]   error: "The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+[0]   code: 400,
+[0]   errorCode: undefined
+[0] }
+[0] [ERROR] Failed to send RFP to vendor {
+[0]   vendorEmail: 'info@chainalysis.com',
+[0]   vendorName: 'Chainalysis',
+[0]   rfpTitle: 'RFP for Financial Crime Compliance Assessment Solutions',
+[0]   error: Error: Email sending failed: The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.
+[0]       at EmailServiceImpl.createError (/home/runner/workspace/backend/src/services/base.service.ts:120:19)
+[0]       at EmailServiceImpl.sendEmailWithRetry (/home/runner/workspace/backend/src/services/email.service.ts:213:22)
+[0]       at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[0]       at async EmailServiceImpl.sendRFPToVendor (/home/runner/workspace/backend/src/services/email.service.ts:525:7)
+[0]       at async RFPService.sendRFP (/home/runner/workspace/backend/src/services/rfp.service.ts:623:11)
+[0]       at async Object.<anonymous> (/home/runner/workspace/backend/src/routes/rfp.routes.ts:545:24) {
+[0]     statusCode: 400,
+[0]     code: 'EMAIL_SEND_ERROR',
+[0]     details: { originalError: [ApiInputError] }
+[0]   }
+[0] }
+[0] [ERROR] Failed to send RFP email {
+[0]   rfpId: 'cmhdsrdid00dbo2827bzx1qjf',
+[0]   vendorId: 'cmg55spsb000jp9b6ckp533ru',
+[0]   vendorEmail: 'info@chainalysis.com',
+[0]   error: "Email sending failed: The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages."
+[0] }
+[0] [ERROR] Email send attempt 1 failed {
+[0]   to: 'info@elliptic.co',
+[0]   subject: 'RFP: RFP for Financial Crime Compliance Assessment Solutions - Test Organization Inc.',
+[0]   error: "The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+[0]   code: 400,
+[0]   errorCode: undefined
+[0] }
+[0] [ERROR] Failed to send RFP to vendor {
+[0]   vendorEmail: 'info@elliptic.co',
+[0]   vendorName: 'Elliptic',
+[0]   rfpTitle: 'RFP for Financial Crime Compliance Assessment Solutions',
+[0]   error: Error: Email sending failed: The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.
+[0]       at EmailServiceImpl.createError (/home/runner/workspace/backend/src/services/base.service.ts:120:19)
+[0]       at EmailServiceImpl.sendEmailWithRetry (/home/runner/workspace/backend/src/services/email.service.ts:213:22)
+[0]       at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[0]       at async EmailServiceImpl.sendRFPToVendor (/home/runner/workspace/backend/src/services/email.service.ts:525:7)
+[0]       at async RFPService.sendRFP (/home/runner/workspace/backend/src/services/rfp.service.ts:623:11)
+[0]       at async Object.<anonymous> (/home/runner/workspace/backend/src/routes/rfp.routes.ts:545:24) {
+[0]     statusCode: 400,
+[0]     code: 'EMAIL_SEND_ERROR',
+[0]     details: { originalError: [ApiInputError] }
+[0]   }
+[0] }
+[0] [ERROR] Failed to send RFP email {
+[0]   rfpId: 'cmhdsrdid00dbo2827bzx1qjf',
+[0]   vendorId: 'cmg55spuf000lp9b66cfctw8m',
+[0]   vendorEmail: 'info@elliptic.co',
+[0]   error: "Email sending failed: The 'From' address you supplied (noreply@heliolus.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages."
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'UPDATE "public"."RFP" SET "status" = CAST($1::text AS "public"."RFPStatus"), "sentAt" = $2, "metadata" = $3, "updatedAt" = $4 WHERE ("public"."RFP"."id" = $5 AND 1=1) RETURNING "public"."RFP"."id", "public"."RFP"."userId", "public"."RFP"."organizationId", "public"."RFP"."title", "public"."RFP"."objectives", "public"."RFP"."requirements", "public"."RFP"."timeline", "public"."RFP"."budget", "public"."RFP"."documents", "public"."RFP"."vendorIds", "public"."RFP"."status"::text, "public"."RFP"."leadStatus"::text, "public"."RFP"."sentAt", "public"."RFP"."metadata", "public"."RFP"."createdAt", "public"."RFP"."updatedAt"',
+[0]   params: '["FAILED","2025-10-31 14:22:56.673 UTC",{"sentCount":0,"failedCount":3,"failures":[{"vendorId":"cmg55sptd000kp9b6urc5o17c","vendorName":"TRM Labs"},{"vendorId":"cmg55spsb000jp9b6ckp533ru","vendorName":"Chainalysis"},{"vendorId":"cmg55spuf000lp9b66cfctw8m","vendorName":"Elliptic"}]},"2025-10-31 14:22:56.674 UTC","cmhdsrdid00dbo2827bzx1qjf"]',
+[0]   duration: 72,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [INFO] RFP send operation completed {
+[0]   rfpId: 'cmhdsrdid00dbo2827bzx1qjf',
+[0]   status: 'FAILED',
+[0]   sentCount: 0,
+[0]   failedCount: 3
+[0] }
+[0] {"level":30,"time":1761920576832,"pid":41513,"hostname":"8d47114848d2","reqId":"req-16","res":{"statusCode":200},"responseTime":1134.7557059973478,"msg":"request completed"}
+[0] [DEBUG] Database Query {
+[0]   query: 'INSERT INTO "public"."AuditLog" ("id","userId","action","entity","entityId","oldValues","newValues","ipAddress","userAgent","metadata","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING "public"."AuditLog"."id", "public"."AuditLog"."userId", "public"."AuditLog"."action", "public"."AuditLog"."entity", "public"."AuditLog"."entityId", "public"."AuditLog"."oldValues", "public"."AuditLog"."newValues", "public"."AuditLog"."ipAddress", "public"."AuditLog"."userAgent", "public"."AuditLog"."metadata", "public"."AuditLog"."createdAt"',
+[0]   params: '["cmhey0pv10007lj157l62zw3v","cmh0oe6890000o03xb8rza882","RFP_SENT","RFP","cmhdsrdid00dbo2827bzx1qjf",null,{"status":"FAILED","sentCount":0,"failedCount":3,"vendorCount":3},"127.0.0.1","Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Replit/1.0.14 Chrome/124.0.6367.119 Electron/30.0.3 Safari/537.36",null,"2025-10-31 14:22:56.750 UTC"]',
+[0]   duration: 77,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] {"level":30,"time":1761920576983,"pid":41513,"hostname":"8d47114848d2","reqId":"req-17","req":{"method":"GET","url":"/v1/rfps","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":39030},"msg":"incoming request"}
+[0] {"level":30,"time":1761920576984,"pid":41513,"hostname":"8d47114848d2","reqId":"req-17","method":"GET","url":"/v1/rfps","ip":"127.0.0.1","msg":"Request received"}
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."RFP"."id", "public"."RFP"."userId", "public"."RFP"."organizationId", "public"."RFP"."title", "public"."RFP"."objectives", "public"."RFP"."requirements", "public"."RFP"."timeline", "public"."RFP"."budget", "public"."RFP"."documents", "public"."RFP"."vendorIds", "public"."RFP"."status"::text, "public"."RFP"."leadStatus"::text, "public"."RFP"."sentAt", "public"."RFP"."metadata", "public"."RFP"."createdAt", "public"."RFP"."updatedAt" FROM "public"."RFP" WHERE "public"."RFP"."userId" = $1 ORDER BY "public"."RFP"."createdAt" DESC OFFSET $2',
+[0]   params: '["cmh0oe6890000o03xb8rza882",0]',
+[0]   duration: 69,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Organization"."id", "public"."Organization"."name" FROM "public"."Organization" WHERE "public"."Organization"."id" IN ($1) OFFSET $2',
+[0]   params: '["cmh0oe6ai0002o03xy1inmstg",0]',
+[0]   duration: 68,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."VendorContact"."id", "public"."VendorContact"."status"::text, "public"."VendorContact"."createdAt", "public"."VendorContact"."rfpId" FROM "public"."VendorContact" WHERE "public"."VendorContact"."rfpId" IN ($1,$2) OFFSET $3',
+[0]   params: '["cmhdsrdid00dbo2827bzx1qjf","cmhb3v6y00001k7heph2xi9jv",0]',
+[0]   duration: 67,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Vendor"."id", "public"."Vendor"."companyName", "public"."Vendor"."logo", "public"."Vendor"."primaryProduct" FROM "public"."Vendor" WHERE "public"."Vendor"."id" IN ($1,$2,$3) OFFSET $4',
+[0]   params: '["cmg55sptd000kp9b6urc5o17c","cmg55spsb000jp9b6ckp533ru","cmg55spuf000lp9b66cfctw8m",0]',
+[0]   duration: 34,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Vendor"."id", "public"."Vendor"."companyName", "public"."Vendor"."logo", "public"."Vendor"."primaryProduct" FROM "public"."Vendor" WHERE "public"."Vendor"."id" IN ($1,$2,$3) OFFSET $4',
+[0]   params: '["cmg55spcv0005p9b61kc5pwfr","cmg55sptd000kp9b6urc5o17c","cmg55spsb000jp9b6ckp533ru",0]',
+[0]   duration: 68,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] {"level":30,"time":1761920577262,"pid":41513,"hostname":"8d47114848d2","reqId":"req-17","res":{"statusCode":200},"responseTime":278.3957210034132,"msg":"request completed"}
