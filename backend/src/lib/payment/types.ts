@@ -27,9 +27,9 @@ export interface SubscriptionManager {
 
 export interface CreditManager {
   purchaseCredits(userId: string, packageType: string): Promise<CreditTransaction>;
-  addCredits(userId: string, amount: number, reason: string): Promise<CreditTransaction>;
-  deductCredits(userId: string, amount: number, reason: string): Promise<CreditTransaction>;
-  getBalance(userId: string): Promise<number>;
+  addCredits(data: AddCreditsData): Promise<CreditResult>;
+  deductCredits(data: DeductCreditsData): Promise<CreditResult>;
+  getBalance(subscriptionId: string): Promise<CreditBalance | null>;
   getTransactionHistory(userId: string, limit?: number): Promise<CreditTransaction[]>;
 }
 
@@ -37,9 +37,9 @@ export interface InvoiceManager {
   createInvoice(data: CreateInvoiceData): Promise<Invoice>;
   updateInvoice(invoiceId: string, data: UpdateInvoiceData): Promise<Invoice>;
   finalizeInvoice(invoiceId: string): Promise<Invoice>;
-  payInvoice(invoiceId: string): Promise<Invoice>;
-  voidInvoice(invoiceId: string): Promise<Invoice>;
-  sendInvoice(invoiceId: string): Promise<boolean>;
+  payInvoice(invoiceId: string, paymentMethodId?: string): Promise<InvoiceResult>;
+  voidInvoice(invoiceId: string): Promise<InvoiceResult>;
+  sendInvoice(invoiceId: string): Promise<InvoiceResult>;
   downloadInvoice(invoiceId: string): Promise<Buffer>;
 }
 
@@ -127,16 +127,24 @@ export interface CreditBalance {
 export interface AddCreditsData {
   userId: string;
   amount: number;
-  reason: string;
+  reason?: string;
+  description?: string;
   subscriptionId?: string;
   assessmentId?: string;
+  reference?: string;
+  metadata?: Record<string, any>;
+  type?: TransactionType;
 }
 
 export interface DeductCreditsData {
   userId: string;
   amount: number;
-  reason: string;
+  reason?: string;
+  description?: string;
+  subscriptionId?: string;
   assessmentId?: string;
+  type?: TransactionType;
+  metadata?: Record<string, any>;
 }
 
 export type CreditTransactionData = CreditTransaction;
@@ -252,6 +260,11 @@ export interface CreateInvoiceData {
   lineItems: Omit<InvoiceLineItem, 'id' | 'amount'>[];
   dueDate?: Date;
   metadata?: Record<string, string>;
+  currency?: string;
+  autoFinalize?: boolean;
+  collectionMethod?: string;
+  items?: Omit<InvoiceLineItem, 'id' | 'amount'>[];
+  amount?: number;
 }
 
 export interface UpdateInvoiceData {
