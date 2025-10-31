@@ -103,11 +103,11 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
 
         {/* Hero Section */}
         <Card className="border-cyan-500/20 bg-gradient-to-br from-card/90 to-card/60 backdrop-blur overflow-hidden">
-          <CardContent className="p-8">
-            <div className="flex items-start space-x-6">
+          <CardContent className="p-4 sm:p-6 md:p-8">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
               {/* Company Logo */}
               <div className="flex-shrink-0">
-                <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-cyan-500/20 to-pink-500/20 flex items-center justify-center text-3xl font-bold text-white border border-cyan-500/30">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-gradient-to-br from-cyan-500/20 to-pink-500/20 flex items-center justify-center text-2xl sm:text-3xl font-bold text-white border border-cyan-500/30">
                   {vendor.logoUrl ? (
                     <img
                       src={vendor.logoUrl}
@@ -121,26 +121,26 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
               </div>
 
               {/* Company Info */}
-              <div className="flex-1">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-pink-400 bg-clip-text text-transparent mb-2">
+              <div className="flex-1 w-full">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4">
+                  <div className="text-center sm:text-left">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-pink-400 bg-clip-text text-transparent mb-2">
                       {vendor.name}
                     </h1>
 
                     {/* Categories */}
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    <div className="flex flex-wrap justify-center sm:justify-start gap-1 sm:gap-2 mb-3 sm:mb-4">
                       {displayCategories.slice(0, 4).map((category, idx) => (
                         <Badge
                           key={idx}
                           variant="outline"
-                          className={`border ${getCategoryColor(idx)}`}
+                          className={`border text-xs sm:text-sm ${getCategoryColor(idx)}`}
                         >
                           {category}
                         </Badge>
                       ))}
                       {displayCategories.length > 4 && (
-                        <Badge variant="outline" className="border-gray-500/30 text-gray-400">
+                        <Badge variant="outline" className="border-gray-500/30 text-gray-400 text-xs sm:text-sm">
                           +{displayCategories.length - 4} more
                         </Badge>
                       )}
@@ -148,24 +148,24 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
                   </div>
 
                   {/* Status Badges */}
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-row sm:flex-col justify-center sm:justify-start gap-2">
                     {vendor.featured && (
-                      <Badge className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-200 border-yellow-500/30">
+                      <Badge className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-200 border-yellow-500/30 text-xs sm:text-sm">
                         ⭐ Featured
                       </Badge>
                     )}
                     {vendor.verified && (
-                      <Badge className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-200 border-green-500/30">
+                      <Badge className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-200 border-green-500/30 text-xs sm:text-sm">
                         ✓ Verified
                       </Badge>
                     )}
                     <Badge
                       variant="outline"
-                      className={
+                      className={`text-xs sm:text-sm ${
                         vendor.status === 'APPROVED'
                           ? 'border-green-500/30 text-green-300'
                           : 'border-yellow-500/30 text-yellow-300'
-                      }
+                      }`}
                     >
                       {vendor.status}
                     </Badge>
@@ -173,13 +173,13 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
                 </div>
 
                 {/* Key Metrics Row */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                   {/* Rating */}
                   {vendor.rating > 0 && (
-                    <div className="flex items-center space-x-2 p-3 rounded-lg bg-white/5 border border-white/10">
-                      <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+                    <div className="flex items-center space-x-2 p-2 sm:p-3 rounded-lg bg-white/5 border border-white/10">
+                      <Star className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 fill-yellow-400 flex-shrink-0" />
                       <div>
-                        <div className="text-lg font-semibold text-white">
+                        <div className="text-base sm:text-lg font-semibold text-white">
                           {vendor.rating.toFixed(1)}
                         </div>
                         <div className="text-xs text-gray-400">
@@ -193,28 +193,29 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
 
                   {/* Company Info */}
                   {vendor.headquarters && (
-                    <div className="flex items-center space-x-2 p-3 rounded-lg bg-white/5 border border-white/10">
-                      <MapPin className="h-5 w-5 text-cyan-400" />
-                      <div>
-                        <div className="text-sm font-medium text-white">Headquarters</div>
-                        <div className="text-xs text-gray-300">{vendor.headquarters}</div>
+                    <div className="flex items-center space-x-2 p-2 sm:p-3 rounded-lg bg-white/5 border border-white/10">
+                      <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs sm:text-sm font-medium text-white">Headquarters</div>
+                        <div className="text-xs text-gray-300 truncate">{vendor.headquarters}</div>
                       </div>
                     </div>
                   )}
 
                   {/* Website */}
                   {vendor.website && (
-                    <div className="flex items-center space-x-2 p-3 rounded-lg bg-white/5 border border-white/10">
-                      <Globe className="h-5 w-5 text-pink-400" />
-                      <div>
-                        <div className="text-sm font-medium text-white">Website</div>
+                    <div className="flex items-center space-x-2 p-2 sm:p-3 rounded-lg bg-white/5 border border-white/10 sm:col-span-2 md:col-span-1">
+                      <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-pink-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs sm:text-sm font-medium text-white">Website</div>
                         <a
                           href={vendor.website}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-cyan-300 hover:text-cyan-200 flex items-center"
                         >
-                          Visit site <ExternalLink className="ml-1 h-3 w-3" />
+                          <span className="truncate">Visit site</span>
+                          <ExternalLink className="ml-1 h-3 w-3 flex-shrink-0" />
                         </a>
                       </div>
                     </div>
