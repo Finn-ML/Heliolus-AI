@@ -905,6 +905,8 @@ export class UserService extends BaseService {
         data: userIds.map(userId => ({
           userId,
           action: 'USER_SUSPENDED',
+          entity: 'User',
+          entityId: userId,
           performedBy: context?.userId || 'system',
           metadata: { bulkOperation: true }
         }))
@@ -960,6 +962,8 @@ export class UserService extends BaseService {
         data: userIds.map(userId => ({
           userId,
           action: 'USER_ACTIVATED',
+          entity: 'User',
+          entityId: userId,
           performedBy: context?.userId || 'system',
           metadata: { bulkOperation: true }
         }))
@@ -1020,6 +1024,8 @@ export class UserService extends BaseService {
         data: userIds.map(userId => ({
           userId,
           action: 'USER_DELETED',
+          entity: 'User',
+          entityId: userId,
           performedBy: context?.userId || 'system',
           metadata: { bulkOperation: true, softDelete: true }
         }))
