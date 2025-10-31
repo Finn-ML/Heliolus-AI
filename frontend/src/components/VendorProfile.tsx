@@ -72,9 +72,9 @@ const VendorProfile: React.FC<VendorProfileProps> = ({
             onClick={onBack}
             className="text-gray-300 hover:text-white hover:bg-white/5"
             data-testid="button-back-marketplace"
+            aria-label="Back to Marketplace"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Marketplace
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex space-x-3">
             {onSelect && (
