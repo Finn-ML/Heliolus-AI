@@ -1,0 +1,145 @@
+[0] {"level":30,"time":1761920102274,"pid":40078,"hostname":"8d47114848d2","reqId":"req-1w","res":{"statusCode":200},"responseTime":150.91352899372578,"msg":"request completed"}
+[0] {"level":30,"time":1761920109560,"pid":40078,"hostname":"8d47114848d2","reqId":"req-1x","req":{"method":"POST","url":"/v1/rfps/cmhdsrdid00dbo2827bzx1qjf/send","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":44392},"msg":"incoming request"}
+[0] {"level":30,"time":1761920109561,"pid":40078,"hostname":"8d47114848d2","reqId":"req-1x","method":"POST","url":"/v1/rfps/cmhdsrdid00dbo2827bzx1qjf/send","ip":"127.0.0.1","msg":"Request received"}
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."RFP"."id", "public"."RFP"."userId", "public"."RFP"."organizationId", "public"."RFP"."title", "public"."RFP"."objectives", "public"."RFP"."requirements", "public"."RFP"."timeline", "public"."RFP"."budget", "public"."RFP"."documents", "public"."RFP"."vendorIds", "public"."RFP"."status"::text, "public"."RFP"."leadStatus"::text, "public"."RFP"."sentAt", "public"."RFP"."metadata", "public"."RFP"."createdAt", "public"."RFP"."updatedAt" FROM "public"."RFP" WHERE ("public"."RFP"."id" = $1 AND 1=1) LIMIT $2 OFFSET $3',
+[0]   params: '["cmhdsrdid00dbo2827bzx1qjf",1,0]',
+[0]   duration: 74,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Organization"."id", "public"."Organization"."userId", "public"."Organization"."name", "public"."Organization"."website", "public"."Organization"."industry", "public"."Organization"."size"::text, "public"."Organization"."country", "public"."Organization"."region", "public"."Organization"."description", "public"."Organization"."annualRevenue"::text, "public"."Organization"."complianceTeamSize"::text, "public"."Organization"."geography"::text, "public"."Organization"."complianceGaps", "public"."Organization"."onboardingCompleted", "public"."Organization"."riskProfile"::text, "public"."Organization"."createdAt", "public"."Organization"."updatedAt" FROM "public"."Organization" WHERE "public"."Organization"."id" IN ($1) OFFSET $2',
+[0]   params: '["cmh0oe6ai0002o03xy1inmstg",0]',
+[0]   duration: 74,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."User"."id", "public"."User"."email", "public"."User"."firstName", "public"."User"."lastName" FROM "public"."User" WHERE "public"."User"."id" IN ($1) OFFSET $2',
+[0]   params: '["cmh0oe6890000o03xb8rza882",0]',
+[0]   duration: 74,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Vendor"."id", "public"."Vendor"."companyName", "public"."Vendor"."contactEmail" FROM "public"."Vendor" WHERE "public"."Vendor"."id" IN ($1,$2,$3) OFFSET $4',
+[0]   params: '["cmg55sptd000kp9b6urc5o17c","cmg55spsb000jp9b6ckp533ru","cmg55spuf000lp9b66cfctw8m",0]',
+[0]   duration: 73,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [ERROR] Database Error {
+[0]   target: 'vendorContact.create',
+[0]   message: '\n' +
+[0]     'Invalid `this.prisma.vendorContact.create()` invocation in\n' +
+[0]     '/home/runner/workspace/backend/src/services/rfp.service.ts:575:35\n' +
+[0]     '\n' +
+[0]     '  572 \n' +
+[0]     '  573 // ===== PHASE 1: Create VendorContact records =====\n' +
+[0]     '  574 const contactPromises = vendors.map((vendor) =>\n' +
+[0]     '→ 575   this.prisma.vendorContact.create({\n' +
+[0]     '          data: {\n' +
+[0]     '            vendorId: "cmg55sptd000kp9b6urc5o17c",\n' +
+[0]     '            userId: "cmh0oe6890000o03xb8rza882",\n' +
+[0]     '            organizationId: "cmh0oe6ai0002o03xy1inmstg",\n' +
+[0]     '            rfpId: "cmhdsrdid00dbo2827bzx1qjf",\n' +
+[0]     '            status: "PENDING",\n' +
+[0]     '            metadata: {\n' +
+[0]     '              rfpTitle: "RFP for Financial Crime Compliance Assessment Solutions",\n' +
+[0]     '              sentAt: "2025-10-31T14:15:09.870Z"\n' +
+[0]     '            },\n' +
+[0]     '        +   type: ContactType\n' +
+[0]     '          }\n' +
+[0]     '        })\n' +
+[0]     '\n' +
+[0]     'Argument `type` is missing.'
+[0] }
+[0] [ERROR] Database error in sendRFP PrismaClientValidationError: 
+[0] Invalid `this.prisma.vendorContact.create()` invocation in
+[0] /home/runner/workspace/backend/src/services/rfp.service.ts:575:35
+[0] 
+[0]   572 
+[0]   573 // ===== PHASE 1: Create VendorContact records =====
+[0]   574 const contactPromises = vendors.map((vendor) =>
+[0] → 575   this.prisma.vendorContact.create({
+[0]           data: {
+[0]             vendorId: "cmg55sptd000kp9b6urc5o17c",
+[0]             userId: "cmh0oe6890000o03xb8rza882",
+[0]             organizationId: "cmh0oe6ai0002o03xy1inmstg",
+[0]             rfpId: "cmhdsrdid00dbo2827bzx1qjf",
+[0]             status: "PENDING",
+[0]             metadata: {
+[0]               rfpTitle: "RFP for Financial Crime Compliance Assessment Solutions",
+[0]               sentAt: "2025-10-31T14:15:09.870Z"
+[0]             },
+[0]         +   type: ContactType
+[0]           }
+[0]         })
+[0] 
+[0] Argument `type` is missing.
+[0]     at Nn (/home/runner/workspace/backend/src/generated/prisma/runtime/library.js:32:1363)
+[0]     at ei.handleRequestError (/home/runner/workspace/backend/src/generated/prisma/runtime/library.js:124:6911)
+[0]     at ei.handleAndLogRequestError (/home/runner/workspace/backend/src/generated/prisma/runtime/library.js:124:6593)
+[0]     at ei.request (/home/runner/workspace/backend/src/generated/prisma/runtime/library.js:124:6300)
+[0]     at async a (/home/runner/workspace/backend/src/generated/prisma/runtime/library.js:133:9551)
+[0]     at async Promise.all (index 0)
+[0]     at async RFPService.sendRFP (/home/runner/workspace/backend/src/services/rfp.service.ts:590:7)
+[0]     at async Object.<anonymous> (/home/runner/workspace/backend/src/routes/rfp.routes.ts:545:24) {
+[0]   clientVersion: '6.16.0'
+[0] }
+[0] {"level":30,"time":1761920109893,"pid":40078,"hostname":"8d47114848d2","reqId":"req-1x","res":{"statusCode":500},"responseTime":332.34500700235367,"msg":"request completed"}
+[0] [ERROR] Database Error {
+[0]   target: 'vendorContact.create',
+[0]   message: '\n' +
+[0]     'Invalid `this.prisma.vendorContact.create()` invocation in\n' +
+[0]     '/home/runner/workspace/backend/src/services/rfp.service.ts:575:35\n' +
+[0]     '\n' +
+[0]     '  572 \n' +
+[0]     '  573 // ===== PHASE 1: Create VendorContact records =====\n' +
+[0]     '  574 const contactPromises = vendors.map((vendor) =>\n' +
+[0]     '→ 575   this.prisma.vendorContact.create({\n' +
+[0]     '          data: {\n' +
+[0]     '            vendorId: "cmg55spsb000jp9b6ckp533ru",\n' +
+[0]     '            userId: "cmh0oe6890000o03xb8rza882",\n' +
+[0]     '            organizationId: "cmh0oe6ai0002o03xy1inmstg",\n' +
+[0]     '            rfpId: "cmhdsrdid00dbo2827bzx1qjf",\n' +
+[0]     '            status: "PENDING",\n' +
+[0]     '            metadata: {\n' +
+[0]     '              rfpTitle: "RFP for Financial Crime Compliance Assessment Solutions",\n' +
+[0]     '              sentAt: "2025-10-31T14:15:09.870Z"\n' +
+[0]     '            },\n' +
+[0]     '        +   type: ContactType\n' +
+[0]     '          }\n' +
+[0]     '        })\n' +
+[0]     '\n' +
+[0]     'Argument `type` is missing.'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT 1',
+[0]   params: '[]',
+[0]   duration: 34,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [ERROR] Database Error {
+[0]   target: 'vendorContact.create',
+[0]   message: '\n' +
+[0]     'Invalid `this.prisma.vendorContact.create()` invocation in\n' +
+[0]     '/home/runner/workspace/backend/src/services/rfp.service.ts:575:35\n' +
+[0]     '\n' +
+[0]     '  572 \n' +
+[0]     '  573 // ===== PHASE 1: Create VendorContact records =====\n' +
+[0]     '  574 const contactPromises = vendors.map((vendor) =>\n' +
+[0]     '→ 575   this.prisma.vendorContact.create({\n' +
+[0]     '          data: {\n' +
+[0]     '            vendorId: "cmg55spuf000lp9b66cfctw8m",\n' +
+[0]     '            userId: "cmh0oe6890000o03xb8rza882",\n' +
+[0]     '            organizationId: "cmh0oe6ai0002o03xy1inmstg",\n' +
+[0]     '            rfpId: "cmhdsrdid00dbo2827bzx1qjf",\n' +
+[0]     '            status: "PENDING",\n' +
+[0]     '            metadata: {\n' +
+[0]     '              rfpTitle: "RFP for Financial Crime Compliance Assessment Solutions",\n' +
+[0]     '              sentAt: "2025-10-31T14:15:09.870Z"\n' +
+[0]     '            },\n' +
+[0]     '        +   type: ContactType\n' +
+[0]     '          }\n' +
+[0]     '        })\n' +
+[0]     '\n' +
+[0]     'Argument `type` is missing.'
+[0] }

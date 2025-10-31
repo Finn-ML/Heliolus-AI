@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { BaseService, ServiceContext } from './base.service.js';
 import { RFP, RFPStatus, LeadStatus, Prisma } from '../generated/prisma/index.js';
+import { ContactType } from '../types/database';
 import { emailService, RFPEmailData } from './email.service.js';
 
 // ==================== VALIDATION SCHEMAS ====================
@@ -578,11 +579,15 @@ export class RFPService extends BaseService {
             userId,
             organizationId: rfp.organizationId,
             rfpId: rfp.id,
+            type: ContactType.RFP,
             status: 'PENDING',
-            metadata: {
-              rfpTitle: rfp.title,
-              sentAt: new Date().toISOString(),
+            message: `RFP: ${rfp.title}`,
+            requirements: {
+              objectives: rfp.objectives,
+              requirements: rfp.requirements,
             },
+            budget: rfp.budget,
+            timeline: rfp.timeline,
           },
         })
       );
