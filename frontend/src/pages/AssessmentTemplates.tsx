@@ -263,10 +263,12 @@ const AssessmentTemplates = () => {
                     <span>{filteredTemplates[0].estimatedMinutes} minutes</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-gray-400">
-                  <FileText className="h-4 w-4" />
-                  <span>{filteredTemplates[0].totalQuestions} {filteredTemplates[0].totalQuestions === 1 ? 'question' : 'questions'}</span>
-                </div>
+                {filteredTemplates[0].totalQuestions > 0 && (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <FileText className="h-4 w-4" />
+                    <span>{filteredTemplates[0].totalQuestions} {filteredTemplates[0].totalQuestions === 1 ? 'question' : 'questions'}</span>
+                  </div>
+                )}
               </div>
               <Button
                 size="lg"
@@ -352,10 +354,12 @@ const AssessmentTemplates = () => {
                             <span>{template.estimatedMinutes} minutes</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 text-gray-400">
-                          <FileText className="h-4 w-4" />
-                          <span>{template.totalQuestions} {template.totalQuestions === 1 ? 'question' : 'questions'}</span>
-                        </div>
+                        {template.totalQuestions > 0 && (
+                          <div className="flex items-center gap-2 text-gray-400">
+                            <FileText className="h-4 w-4" />
+                            <span>{template.totalQuestions} {template.totalQuestions === 1 ? 'question' : 'questions'}</span>
+                          </div>
+                        )}
                       </div>
 
                       <Button
