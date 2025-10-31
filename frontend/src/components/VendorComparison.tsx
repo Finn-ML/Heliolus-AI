@@ -410,21 +410,23 @@ const PremiumComparisonView: React.FC<PremiumComparisonViewProps> = ({ vendors, 
             Back to Marketplace
           </Button>
 
-          {/* Premium Badge */}
-          <Badge className="bg-gradient-to-r from-cyan-400 to-purple-400 text-white px-4 py-2 text-sm font-semibold">
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Premium Intelligence
-          </Badge>
+          {/* Premium Badge - Only show for matching matrix (with assessment) */}
+          {hasMatchData && (
+            <Badge className="bg-gradient-to-r from-cyan-400 to-purple-400 text-white px-4 py-2 text-sm font-semibold">
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Premium Intelligence
+            </Badge>
+          )}
         </div>
 
         <div className="text-center">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 via-blue-400 to-pink-400 bg-clip-text text-transparent">
-            {hasMatchData ? 'AI-Powered Vendor Comparison' : 'Premium Vendor Intelligence'}
+            {hasMatchData ? 'AI-Powered Vendor Comparison' : 'Vendor Comparison'}
           </h1>
           <p className="text-gray-400">
             {hasMatchData
               ? 'Personalized match scores based on your assessment'
-              : 'Comprehensive feature-by-feature analysis'}
+              : 'Feature-by-feature analysis of selected vendors'}
           </p>
         </div>
       </motion.div>
