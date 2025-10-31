@@ -467,50 +467,50 @@ Our objective is to implement solutions that address these compliance gaps and i
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-4 sm:p-6">
+      <DialogContent className="sm:max-w-4xl h-screen sm:h-auto sm:max-h-[90vh] overflow-y-auto w-full p-3 sm:p-6">
         <DialogHeader className="space-y-1 sm:space-y-2">
-          <DialogTitle className="flex items-center space-x-2 text-lg sm:text-xl">
+          <DialogTitle className="flex items-center space-x-1 sm:space-x-2 text-base sm:text-xl">
             <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-            <span>Create Request for Proposal</span>
+            <span className="sm:hidden">Create RFP</span>
+            <span className="hidden sm:inline">Create Request for Proposal</span>
           </DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Create a detailed RFP to send to vendors. Use auto-fill to populate with your strategic context.
+            <span className="sm:hidden">Fill details to send to vendors</span>
+            <span className="hidden sm:inline">Create a detailed RFP to send to vendors. Use auto-fill to populate with your strategic context.</span>
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-2 sm:space-y-6">
           {/* Assessment Selection and Auto-fill */}
           <div className="space-y-1 sm:space-y-2">
             {selectedAssessment ? (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 p-2 sm:p-3 bg-cyan-900/20 border border-cyan-600/30 rounded-md">
-                <div className="flex items-center space-x-2 flex-wrap">
-                  <CheckCircle2 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-300">
-                    Using: <span className="font-medium text-white">{selectedAssessment.template?.name}</span>
+              <div className="flex items-center justify-between gap-2 p-2 bg-cyan-900/20 border border-cyan-600/30 rounded-md">
+                <div className="flex items-center gap-1 min-w-0">
+                  <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-gray-300 truncate">
+                    <span className="sm:hidden">{selectedAssessment.template?.name?.substring(0, 20)}</span>
+                    <span className="hidden sm:inline">Using: {selectedAssessment.template?.name}</span>
                   </span>
-                  <Badge variant="outline" className="text-xs">
-                    {selectedAssessment.gaps?.length || 0} gaps
+                  <Badge variant="outline" className="text-xs ml-1 px-1">
+                    {selectedAssessment.gaps?.length}
                   </Badge>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-1">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={handleAutoFillClick}
                     disabled={autoFilling}
-                    className="text-cyan-400 hover:text-cyan-300"
+                    className="text-cyan-400 hover:text-cyan-300 h-7 px-2 text-xs sm:text-sm"
                     data-testid="button-autofill"
                   >
                     {autoFilling ? (
-                      <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                        Updating...
-                      </>
+                      <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <>
-                        <Sparkles className="mr-2 h-3 w-3" />
-                        Fill
+                        <Sparkles className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline ml-1">Fill</span>
                       </>
                     )}
                   </Button>
@@ -519,10 +519,10 @@ Our objective is to implement solutions that address these compliance gaps and i
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedAssessment(null)}
-                    className="text-gray-400 hover:text-gray-300"
+                    className="text-gray-400 hover:text-gray-300 h-7 w-7 p-0"
                     data-testid="button-clear-assessment"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
@@ -534,17 +534,15 @@ Our objective is to implement solutions that address these compliance gaps and i
                   size="sm"
                   onClick={handleAutoFillClick}
                   disabled={assessmentsLoading || autoFilling}
-                  className="text-primary"
+                  className="text-primary h-7 px-2 text-xs sm:text-sm"
                 >
                   {assessmentsLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
+                    <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Auto-Fill from Assessment
+                      <Sparkles className="h-3 w-3 sm:mr-1" />
+                      <span className="sm:hidden ml-1">Auto-Fill</span>
+                      <span className="hidden sm:inline ml-1">Auto-Fill from Assessment</span>
                     </>
                   )}
                 </Button>
@@ -649,15 +647,16 @@ Our objective is to implement solutions that address these compliance gaps and i
 
           {/* Vendor Selection */}
           <div className="space-y-1 sm:space-y-2">
-            <Label className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-sm">
-              <span className="flex items-center space-x-2">
+            <Label className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="flex items-center gap-1">
                 <Users className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>Select Vendors * ({selectedVendorIds.length} selected)</span>
+                <span className="sm:hidden">Vendors ({selectedVendorIds.length})</span>
+                <span className="hidden sm:inline">Select Vendors * ({selectedVendorIds.length} selected)</span>
               </span>
               {selectedAssessment && vendors.some(v => v.matchScore) && (
                 <span className="text-xs text-cyan-400 flex items-center">
-                  <Star className="h-3 w-3 mr-1" />
-                  Sorted by match score
+                  <Star className="h-3 w-3 sm:mr-1" />
+                  <span className="hidden sm:inline">Sorted by match</span>
                 </span>
               )}
             </Label>
@@ -667,44 +666,28 @@ Our objective is to implement solutions that address these compliance gaps and i
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : (
-              <div className="border rounded-md p-2 sm:p-4 max-h-48 sm:max-h-64 overflow-y-auto space-y-1 sm:space-y-2">
+              <div className="border rounded-md p-2 max-h-32 sm:max-h-64 overflow-y-auto space-y-0.5 sm:space-y-2">
                 {vendors.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">
+                  <p className="text-xs sm:text-sm text-gray-500 text-center py-4">
                     No vendors available
                   </p>
                 ) : (
                   vendors.map((vendor) => (
                     <div
                       key={vendor.id}
-                      className="flex items-start sm:items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+                      className="flex items-center gap-2 p-1.5 sm:p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
                     >
                       <Checkbox
                         checked={selectedVendorIds.includes(vendor.id)}
                         onCheckedChange={() => toggleVendor(vendor.id)}
-                        className="mt-0.5 sm:mt-0 flex-shrink-0"
+                        className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0"
                       />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                          <p className="font-medium text-sm truncate">{vendor.companyName}</p>
-                          {vendor.matchScore !== undefined && (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs w-fit",
-                                vendor.matchScore >= 80 ? "bg-green-900/30 text-green-400 border-green-600" :
-                                vendor.matchScore >= 60 ? "bg-cyan-900/30 text-cyan-400 border-cyan-600" :
-                                vendor.matchScore >= 40 ? "bg-yellow-900/30 text-yellow-400 border-yellow-600" :
-                                "bg-gray-700/30 text-gray-400 border-gray-600"
-                              )}
-                            >
-                              {vendor.matchScore.toFixed(0)}% match
-                            </Badge>
-                          )}
-                        </div>
-                        {vendor.categories && vendor.categories.length > 0 && (
-                          <p className="text-xs text-gray-500 truncate">
-                            {vendor.categories.slice(0, 3).join(', ')}
-                          </p>
+                      <div className="flex-1 min-w-0 flex items-center justify-between gap-1">
+                        <p className="text-xs sm:text-sm font-medium truncate">{vendor.companyName}</p>
+                        {vendor.matchScore !== undefined && (
+                          <span className="text-xs text-cyan-400 flex-shrink-0">
+                            {vendor.matchScore.toFixed(0)}%
+                          </span>
                         )}
                       </div>
                     </div>

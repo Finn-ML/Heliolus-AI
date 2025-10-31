@@ -511,41 +511,44 @@ const DocumentStorage: React.FC<DocumentStorageProps> = ({
         className
       )}
     >
-      <CardHeader>
-        <CardTitle className="flex items-center gap-3 text-white">
-          <div className="p-2 rounded-lg bg-blue-500/20">
-            <Upload className="h-5 w-5 text-blue-400" />
-          </div>
-          Document Storage
-        </CardTitle>
-        <CardDescription className="text-gray-400">
-          Upload and manage your organization documents
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Upload Area */}
-        <div
-          className={cn(
-            'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
-            dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-200',
-            isUploading ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:border-blue-300'
-          )}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          onClick={() => {
-            if (!isUploading) {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png';
-              input.multiple = true; // Enable multiple file selection
-              input.onchange = e => handleFileUpload((e.target as HTMLInputElement).files);
-              input.click();
-            }
-          }}
-          data-testid="document-upload-area"
-        >
+      {!selectionMode && (
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3 text-white">
+            <div className="p-2 rounded-lg bg-blue-500/20">
+              <Upload className="h-5 w-5 text-blue-400" />
+            </div>
+            Document Storage
+          </CardTitle>
+          <CardDescription className="text-gray-400">
+            Upload and manage your organization documents
+          </CardDescription>
+        </CardHeader>
+      )}
+      <CardContent className={cn(selectionMode ? 'p-2 sm:p-6' : 'space-y-6')}>
+        {/* Upload Area - Hide on mobile when in selection mode */}
+        {!selectionMode && (
+          <div
+            className={cn(
+              'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
+              dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-200',
+              isUploading ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:border-blue-300'
+            )}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => {
+              if (!isUploading) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png';
+                input.multiple = true; // Enable multiple file selection
+                input.onchange = e => handleFileUpload((e.target as HTMLInputElement).files);
+                input.click();
+              }
+            }}
+            data-testid="document-upload-area"
+          >
           {isUploading ? (
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -564,18 +567,21 @@ const DocumentStorage: React.FC<DocumentStorageProps> = ({
               </div>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Documents List */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-900">Uploaded Documents</h3>
-            {documents.length > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {documents.length} document{documents.length !== 1 ? 's' : ''}
-              </Badge>
-            )}
-          </div>
+        <div className={cn(selectionMode ? 'space-y-2' : 'space-y-4')}>
+          {!selectionMode && (
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-900">Uploaded Documents</h3>
+              {documents.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {documents.length} document{documents.length !== 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
+          )}
 
           {/* Loading State */}
           {isLoading && (
@@ -633,45 +639,67 @@ const DocumentStorage: React.FC<DocumentStorageProps> = ({
                   <div
                     key={document.id}
                     className={cn(
-                      "flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-800/50 hover:border-cyan-600/50 transition-all duration-200",
+                      selectionMode 
+                        ? "flex items-center gap-2 p-2 border border-gray-700 rounded hover:bg-gray-800/50 transition-all" 
+                        : "flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-800/50 hover:border-cyan-600/50 transition-all duration-200",
                       selectionMode && selectedDocuments.includes(document.id) && "bg-cyan-900/20 border-cyan-600"
                     )}
                     data-testid={`document-${document.id}`}
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={cn(
+                      "flex items-center flex-1 min-w-0",
+                      selectionMode ? "gap-2" : "gap-3"
+                    )}>
                       {selectionMode && (
                         <Checkbox
                           checked={selectedDocuments.includes(document.id)}
                           onCheckedChange={() => toggleDocumentSelection(document.id)}
-                          className="flex-shrink-0"
+                          className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0"
                         />
                       )}
-                      <div className="flex-shrink-0 p-1.5 bg-gray-800 rounded-md">
-                        {getFileIcon(document.filename, document.mimeType)}
-                      </div>
+                      {!selectionMode && (
+                        <div className="flex-shrink-0 p-1.5 bg-gray-800 rounded-md">
+                          {getFileIcon(document.filename, document.mimeType)}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-100 truncate">
-                            {document.filename}
-                          </p>
-                          {getStatusIcon(document.analysisStatus)}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <span>{formatFileSize(document.size)}</span>
-                          <span>•</span>
-                          <span>{formatDate(document.createdAt)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge
-                            className={`text-xs px-2 py-0.5 ${getClassificationColor(classification)}`}
-                          >
-                            {classification}
-                          </Badge>
-                          <Badge className={`text-xs px-2 py-0.5 ${tierBadge.color}`}>
-                            <span className="mr-1">{tierBadge.icon}</span>
-                            {tierBadge.label}
-                          </Badge>
-                        </div>
+                        <p className={cn(
+                          "font-medium text-gray-100 truncate",
+                          selectionMode ? "text-xs sm:text-sm" : "text-sm"
+                        )}>
+                          {document.filename}
+                        </p>
+                        {!selectionMode && (
+                          <>
+                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                              <span>{formatFileSize(document.size)}</span>
+                              <span>•</span>
+                              <span>{formatDate(document.createdAt)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge
+                                className={`text-xs px-2 py-0.5 ${getClassificationColor(classification)}`}
+                              >
+                                {classification}
+                              </Badge>
+                              <Badge className={`text-xs px-2 py-0.5 ${tierBadge.color}`}>
+                                <span className="mr-1">{tierBadge.icon}</span>
+                                {tierBadge.label}
+                              </Badge>
+                            </div>
+                          </>
+                        )}
+                        {selectionMode && (
+                          <div className="hidden sm:flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                            <span>{formatFileSize(document.size)}</span>
+                            {tier && tier !== 'TIER_0' && (
+                              <>
+                                <span>•</span>
+                                <span className="text-cyan-400">{tierBadge.icon}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {!selectionMode && (
