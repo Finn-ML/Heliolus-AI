@@ -51,7 +51,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Search,
   Plus,
@@ -167,89 +166,6 @@ const mockVendors: any[] = [
   },
 ];
 
-// Vendor Application data type
-interface VendorApplication {
-  id: string;
-  companyName: string;
-  description: string;
-  status: 'pending' | 'under-review' | 'approved' | 'rejected';
-  submittedDate: string;
-  reviewDate?: string;
-  riskTags: string[];
-  deployment: 'cloud' | 'on-premise' | 'hybrid';
-  contact: {
-    email: string;
-    phone: string;
-    website: string;
-    representative: string;
-  };
-  businessDetails: {
-    yearsFounded: number;
-    employeeCount: string;
-    annualRevenue: string;
-  };
-  documents: {
-    businessLicense: boolean;
-    complianceCertificates: boolean;
-    securityAudit: boolean;
-  };
-  notes?: string;
-}
-
-// Mock vendor applications data
-const mockApplications: VendorApplication[] = [
-  {
-    id: '1',
-    companyName: 'RiskGuard Analytics',
-    description: 'AI-powered risk assessment platform for financial institutions',
-    status: 'under-review',
-    submittedDate: '2024-09-15',
-    riskTags: ['SOC 2', 'ISO 27001', 'PCI DSS'],
-    deployment: 'cloud',
-    contact: {
-      email: 'partnerships@riskguard.ai',
-      phone: '+1-555-0789',
-      website: 'https://riskguard.ai',
-      representative: 'Michael Chen',
-    },
-    businessDetails: {
-      yearsFounded: 3,
-      employeeCount: '50-100',
-      annualRevenue: '$5M-$10M',
-    },
-    documents: {
-      businessLicense: true,
-      complianceCertificates: true,
-      securityAudit: false,
-    },
-    notes: 'Strong technical team, needs security audit completion',
-  },
-  {
-    id: '2',
-    companyName: 'DataShield Pro',
-    description: 'Comprehensive data protection and privacy management solution',
-    status: 'pending',
-    submittedDate: '2024-09-12',
-    riskTags: ['GDPR', 'CCPA', 'HIPAA'],
-    deployment: 'hybrid',
-    contact: {
-      email: 'business@datashield.com',
-      phone: '+1-555-0456',
-      website: 'https://datashield.com',
-      representative: 'Emma Rodriguez',
-    },
-    businessDetails: {
-      yearsFounded: 5,
-      employeeCount: '100-250',
-      annualRevenue: '$10M-$25M',
-    },
-    documents: {
-      businessLicense: true,
-      complianceCertificates: false,
-      securityAudit: true,
-    },
-  },
-];
 
 // Map UI categories to backend enum values
 const mapUICategoriesToBackendEnum = (uiCategories: string[]): string[] => {
@@ -701,7 +617,6 @@ const VendorManagement = () => {
 
   const displayVendors = vendors.length > 0 ? vendors : fallbackVendors;
 
-  const [applications, setApplications] = useState<VendorApplication[]>(mockApplications);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTag, setFilterTag] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -715,7 +630,6 @@ const VendorManagement = () => {
     vendorId: '',
     vendorName: '',
   });
-  const [activeTab, setActiveTab] = useState('vendors');
 
   // Bulk upload state
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
@@ -1049,25 +963,6 @@ const VendorManagement = () => {
     setFormData(newFormData);
   }, []);
 
-  const handleApproveApplication = (applicationId: string) => {
-    setApplications(prev =>
-      prev.map(app =>
-        app.id === applicationId
-          ? { ...app, status: 'approved', reviewDate: new Date().toISOString().split('T')[0] }
-          : app
-      )
-    );
-  };
-
-  const handleRejectApplication = (applicationId: string) => {
-    setApplications(prev =>
-      prev.map(app =>
-        app.id === applicationId
-          ? { ...app, status: 'rejected', reviewDate: new Date().toISOString().split('T')[0] }
-          : app
-      )
-    );
-  };
 
   // Bulk upload handlers
   const handleBulkUpload = async (file: File) => {
@@ -1196,7 +1091,7 @@ const VendorManagement = () => {
           <div>
             <h1 className="text-3xl font-bold gradient-text">Vendor Management</h1>
             <p className="text-muted-foreground mt-2">
-              Manage vendor profiles, pricing, integrations, and applications
+              Manage vendor profiles, pricing, and integrations
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1387,27 +1282,8 @@ const VendorManagement = () => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="vendors" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Vendors ({vendors.length})
-            </TabsTrigger>
-            <TabsTrigger value="applications" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Applications (
-              {
-                applications.filter(
-                  app => app.status === 'pending' || app.status === 'under-review'
-                ).length
-              }
-              )
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Vendors Tab */}
-          <TabsContent value="vendors" className="space-y-6">
+        {/* Vendors Section */}
+        <div className="space-y-6">
             <div className="flex items-center justify-end">
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
@@ -1941,178 +1817,7 @@ const VendorManagement = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </TabsContent>
-
-          {/* Vendor Applications Tab */}
-          <TabsContent value="applications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Vendor Applications
-                </CardTitle>
-                <CardDescription>Review and manage vendor application submissions</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Submitted</TableHead>
-                      <TableHead>Risk Tags</TableHead>
-                      <TableHead>Documents</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {applications.map(application => (
-                      <TableRow key={application.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{application.companyName}</p>
-                            <p className="text-sm text-muted-foreground line-clamp-1">
-                              {application.description}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              application.status === 'approved'
-                                ? 'default'
-                                : application.status === 'rejected'
-                                  ? 'destructive'
-                                  : application.status === 'under-review'
-                                    ? 'secondary'
-                                    : 'outline'
-                            }
-                            className={
-                              application.status === 'approved'
-                                ? 'bg-green-500/20 text-green-500'
-                                : application.status === 'under-review'
-                                  ? 'bg-yellow-500/20 text-yellow-500'
-                                  : ''
-                            }
-                          >
-                            {application.status === 'approved' && (
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                            )}
-                            {application.status === 'rejected' && (
-                              <XCircle className="h-3 w-3 mr-1" />
-                            )}
-                            {application.status === 'under-review' && (
-                              <Clock className="h-3 w-3 mr-1" />
-                            )}
-                            {application.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <p>{new Date(application.submittedDate).toLocaleDateString()}</p>
-                            {application.reviewDate && (
-                              <p className="text-muted-foreground">
-                                Reviewed: {new Date(application.reviewDate).toLocaleDateString()}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {application.riskTags.map(tag => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-xs">
-                              {application.documents.businessLicense ? (
-                                <CheckCircle className="h-3 w-3 text-green-500" />
-                              ) : (
-                                <XCircle className="h-3 w-3 text-red-500" />
-                              )}
-                              <span>License</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-xs">
-                              {application.documents.complianceCertificates ? (
-                                <CheckCircle className="h-3 w-3 text-green-500" />
-                              ) : (
-                                <XCircle className="h-3 w-3 text-red-500" />
-                              )}
-                              <span>Certificates</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-xs">
-                              {application.documents.securityAudit ? (
-                                <CheckCircle className="h-3 w-3 text-green-500" />
-                              ) : (
-                                <XCircle className="h-3 w-3 text-red-500" />
-                              )}
-                              <span>Security Audit</span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center gap-2 justify-end">
-                            {(application.status === 'pending' ||
-                              application.status === 'under-review') && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-green-600 hover:text-green-700"
-                                  onClick={() => handleApproveApplication(application.id)}
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-red-600 hover:text-red-700"
-                                  onClick={() => handleRejectApplication(application.id)}
-                                >
-                                  <XCircle className="h-4 w-4 mr-1" />
-                                  Reject
-                                </Button>
-                              </>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                  <span className="sr-only">Open menu</span>
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Review Documents
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>
-                                  <Mail className="h-4 w-4 mr-2" />
-                                  Contact Applicant
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
