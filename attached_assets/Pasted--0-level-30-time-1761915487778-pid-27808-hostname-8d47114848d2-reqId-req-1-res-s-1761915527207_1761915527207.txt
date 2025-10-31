@@ -1,0 +1,165 @@
+[0] {"level":30,"time":1761915487778,"pid":27808,"hostname":"8d47114848d2","reqId":"req-1","res":{"statusCode":200},"responseTime":393.2859510034323,"msg":"request completed"}
+[0] {"level":30,"time":1761915490715,"pid":27808,"hostname":"8d47114848d2","reqId":"req-2","req":{"method":"GET","url":"/v1/auth/me","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":52052},"msg":"incoming request"}
+[0] {"level":30,"time":1761915490715,"pid":27808,"hostname":"8d47114848d2","reqId":"req-2","method":"GET","url":"/v1/auth/me","ip":"127.0.0.1","msg":"Request received"}
+[0] {"level":30,"time":1761915490756,"pid":27808,"hostname":"8d47114848d2","reqId":"req-2","res":{"statusCode":200},"responseTime":40.660887993872166,"msg":"request completed"}
+[0] {"level":30,"time":1761915491001,"pid":27808,"hostname":"8d47114848d2","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/analytics/revenue?view=overview","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":52068},"msg":"incoming request"}
+[0] {"level":30,"time":1761915491002,"pid":27808,"hostname":"8d47114848d2","reqId":"req-3","method":"GET","url":"/v1/admin/analytics/revenue?view=overview","ip":"127.0.0.1","msg":"Request received"}
+[0] [INFO] Getting revenue analytics {
+[0]   view: 'overview',
+[0]   startDate: 2024-10-31T00:00:00.000Z,
+[0]   endDate: 2025-10-31T12:58:11.008Z,
+[0]   userId: 'test-admin-id'
+[0] }
+[0] {"level":30,"time":1761915491048,"pid":27808,"hostname":"8d47114848d2","reqId":"req-4","req":{"method":"GET","url":"/v1/admin/analytics/revenue?view=breakdown","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":52072},"msg":"incoming request"}
+[0] {"level":30,"time":1761915491048,"pid":27808,"hostname":"8d47114848d2","reqId":"req-4","method":"GET","url":"/v1/admin/analytics/revenue?view=breakdown","ip":"127.0.0.1","msg":"Request received"}
+[0] {"level":30,"time":1761915491052,"pid":27808,"hostname":"8d47114848d2","reqId":"req-5","req":{"method":"GET","url":"/v1/admin/analytics/revenue/transactions?limit=100","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":52076},"msg":"incoming request"}
+[0] {"level":30,"time":1761915491053,"pid":27808,"hostname":"8d47114848d2","reqId":"req-5","method":"GET","url":"/v1/admin/analytics/revenue/transactions?limit=100","ip":"127.0.0.1","msg":"Request received"}
+[0] [INFO] Getting revenue analytics {
+[0]   view: 'breakdown',
+[0]   startDate: 2024-10-31T00:00:00.000Z,
+[0]   endDate: 2025-10-31T12:58:11.058Z,
+[0]   userId: 'test-admin-id'
+[0] }
+[0] {"level":30,"time":1761915491068,"pid":27808,"hostname":"8d47114848d2","reqId":"req-6","req":{"method":"GET","url":"/v1/admin/analytics/revenue?view=customers","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":52090},"msg":"incoming request"}
+[0] {"level":30,"time":1761915491068,"pid":27808,"hostname":"8d47114848d2","reqId":"req-6","method":"GET","url":"/v1/admin/analytics/revenue?view=customers","ip":"127.0.0.1","msg":"Request received"}
+[0] [INFO] Getting revenue transactions {
+[0]   startDate: 2025-10-01T00:00:00.000Z,
+[0]   endDate: 2025-10-31T12:58:11.076Z,
+[0]   limit: 100,
+[0]   userId: 'test-admin-id'
+[0] }
+[0] {"level":30,"time":1761915491084,"pid":27808,"hostname":"8d47114848d2","reqId":"req-7","req":{"method":"GET","url":"/v1/admin/analytics/revenue?view=trends","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":52094},"msg":"incoming request"}
+[0] {"level":30,"time":1761915491085,"pid":27808,"hostname":"8d47114848d2","reqId":"req-7","method":"GET","url":"/v1/admin/analytics/revenue?view=trends","ip":"127.0.0.1","msg":"Request received"}
+[0] [INFO] Getting revenue analytics {
+[0]   view: 'customers',
+[0]   startDate: 2024-10-31T00:00:00.000Z,
+[0]   endDate: 2025-10-31T12:58:11.094Z,
+[0]   userId: 'test-admin-id'
+[0] }
+[0] [INFO] Getting revenue analytics {
+[0]   view: 'trends',
+[0]   startDate: 2024-10-31T00:00:00.000Z,
+[0]   endDate: 2025-10-31T12:58:11.128Z,
+[0]   userId: 'test-admin-id'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Invoice"."id", "public"."Invoice"."subscriptionId", "public"."Invoice"."stripeInvoiceId", "public"."Invoice"."stripeChargeId", "public"."Invoice"."number", "public"."Invoice"."amount", "public"."Invoice"."currency", "public"."Invoice"."status"::text, "public"."Invoice"."periodStart", "public"."Invoice"."periodEnd", "public"."Invoice"."dueDate", "public"."Invoice"."paidAt", "public"."Invoice"."pdfUrl", "public"."Invoice"."createdAt" FROM "public"."Invoice" WHERE ("public"."Invoice"."status" = CAST($1::text AS "public"."InvoiceStatus") AND "public"."Invoice"."paidAt" >= $2 AND "public"."Invoice"."paidAt" <= $3) ORDER BY "public"."Invoice"."paidAt" DESC LIMIT $4 OFFSET $5',
+[0]   params: '["PAID","2025-10-01 00:00:00 UTC","2025-10-31 12:58:11.076 UTC",100,0]',
+[0]   duration: 73,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Invoice"."id", "public"."Invoice"."subscriptionId", "public"."Invoice"."stripeInvoiceId", "public"."Invoice"."stripeChargeId", "public"."Invoice"."number", "public"."Invoice"."amount", "public"."Invoice"."currency", "public"."Invoice"."status"::text, "public"."Invoice"."periodStart", "public"."Invoice"."periodEnd", "public"."Invoice"."dueDate", "public"."Invoice"."paidAt", "public"."Invoice"."pdfUrl", "public"."Invoice"."createdAt" FROM "public"."Invoice" WHERE ("public"."Invoice"."status" = CAST($1::text AS "public"."InvoiceStatus") AND "public"."Invoice"."paidAt" >= $2 AND "public"."Invoice"."paidAt" <= $3) OFFSET $4',
+[0]   params: '["PAID","2024-10-31 00:00:00 UTC","2025-10-31 12:58:11.058 UTC",0]',
+[0]   duration: 71,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] {"level":30,"time":1761915491526,"pid":27808,"hostname":"8d47114848d2","reqId":"req-4","res":{"statusCode":200},"responseTime":477.8349170014262,"msg":"request completed"}
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Invoice"."id", "public"."Invoice"."subscriptionId", "public"."Invoice"."stripeInvoiceId", "public"."Invoice"."stripeChargeId", "public"."Invoice"."number", "public"."Invoice"."amount", "public"."Invoice"."currency", "public"."Invoice"."status"::text, "public"."Invoice"."periodStart", "public"."Invoice"."periodEnd", "public"."Invoice"."dueDate", "public"."Invoice"."paidAt", "public"."Invoice"."pdfUrl", "public"."Invoice"."createdAt" FROM "public"."Invoice" WHERE ("public"."Invoice"."status" = CAST($1::text AS "public"."InvoiceStatus") AND "public"."Invoice"."paidAt" >= $2 AND "public"."Invoice"."paidAt" <= $3) OFFSET $4',
+[0]   params: '["PAID","2024-10-31 00:00:00 UTC","2025-10-31 12:58:11.008 UTC",0]',
+[0]   duration: 70,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Invoice"."id", "public"."Invoice"."subscriptionId", "public"."Invoice"."stripeInvoiceId", "public"."Invoice"."stripeChargeId", "public"."Invoice"."number", "public"."Invoice"."amount", "public"."Invoice"."currency", "public"."Invoice"."status"::text, "public"."Invoice"."periodStart", "public"."Invoice"."periodEnd", "public"."Invoice"."dueDate", "public"."Invoice"."paidAt", "public"."Invoice"."pdfUrl", "public"."Invoice"."createdAt" FROM "public"."Invoice" WHERE ("public"."Invoice"."status" = CAST($1::text AS "public"."InvoiceStatus") AND "public"."Invoice"."paidAt" >= $2 AND "public"."Invoice"."paidAt" <= $3) ORDER BY "public"."Invoice"."paidAt" ASC OFFSET $4',
+[0]   params: '["PAID","2024-10-31 00:00:00 UTC","2025-10-31 12:58:11.128 UTC",0]',
+[0]   duration: 70,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] {"level":30,"time":1761915491550,"pid":27808,"hostname":"8d47114848d2","reqId":"req-7","res":{"statusCode":200},"responseTime":466.091247998178,"msg":"request completed"}
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Invoice"."id", "public"."Invoice"."subscriptionId", "public"."Invoice"."stripeInvoiceId", "public"."Invoice"."stripeChargeId", "public"."Invoice"."number", "public"."Invoice"."amount", "public"."Invoice"."currency", "public"."Invoice"."status"::text, "public"."Invoice"."periodStart", "public"."Invoice"."periodEnd", "public"."Invoice"."dueDate", "public"."Invoice"."paidAt", "public"."Invoice"."pdfUrl", "public"."Invoice"."createdAt" FROM "public"."Invoice" WHERE ("public"."Invoice"."status" = CAST($1::text AS "public"."InvoiceStatus") AND "public"."Invoice"."paidAt" >= $2 AND "public"."Invoice"."paidAt" <= $3) OFFSET $4',
+[0]   params: '["PAID","2024-10-31 00:00:00 UTC","2025-10-31 12:58:11.094 UTC",0]',
+[0]   duration: 70,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] {"level":30,"time":1761915491556,"pid":27808,"hostname":"8d47114848d2","reqId":"req-6","res":{"statusCode":200},"responseTime":487.764817006886,"msg":"request completed"}
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."CreditTransaction"."id", "public"."CreditTransaction"."subscriptionId", "public"."CreditTransaction"."type"::text, "public"."CreditTransaction"."amount", "public"."CreditTransaction"."balance", "public"."CreditTransaction"."description", "public"."CreditTransaction"."metadata", "public"."CreditTransaction"."assessmentId", "public"."CreditTransaction"."createdAt" FROM "public"."CreditTransaction" WHERE ("public"."CreditTransaction"."createdAt" >= $1 AND "public"."CreditTransaction"."createdAt" <= $2 AND "public"."CreditTransaction"."type" = CAST($3::text AS "public"."TransactionType")) ORDER BY "public"."CreditTransaction"."createdAt" DESC LIMIT $4 OFFSET $5',
+[0]   params: '["2025-10-01 00:00:00 UTC","2025-10-31 12:58:11.076 UTC","PURCHASE",100,0]',
+[0]   duration: 77,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."Subscription"."id" FROM "public"."Subscription" WHERE ("public"."Subscription"."status" = CAST($1::text AS "public"."SubscriptionStatus") AND "public"."Subscription"."billingCycle" IS NOT NULL) OFFSET $2) AS "sub"',
+[0]   params: '["ACTIVE",0]',
+[0]   duration: 69,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Subscription"."id", "public"."Subscription"."userId", "public"."Subscription"."plan"::text, "public"."Subscription"."status"::text, "public"."Subscription"."stripeCustomerId", "public"."Subscription"."stripeSubscriptionId", "public"."Subscription"."stripePaymentMethodId", "public"."Subscription"."creditsBalance", "public"."Subscription"."creditsUsed", "public"."Subscription"."creditsPurchased", "public"."Subscription"."currentPeriodStart", "public"."Subscription"."currentPeriodEnd", "public"."Subscription"."cancelAt", "public"."Subscription"."canceledAt", "public"."Subscription"."billingCycle"::text, "public"."Subscription"."billingEmail", "public"."Subscription"."renewalDate", "public"."Subscription"."stripePriceId", "public"."Subscription"."trialEnd", "public"."Subscription"."createdAt", "public"."Subscription"."updatedAt" FROM "public"."Subscription" WHERE "public"."Subscription"."id" IN ($1) OFFSET $2',
+[0]   params: '["cmh4qfzlr0003ms9e551wgrs5",0]',
+[0]   duration: 73,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Invoice"."id", "public"."Invoice"."subscriptionId", "public"."Invoice"."stripeInvoiceId", "public"."Invoice"."stripeChargeId", "public"."Invoice"."number", "public"."Invoice"."amount", "public"."Invoice"."currency", "public"."Invoice"."status"::text, "public"."Invoice"."periodStart", "public"."Invoice"."periodEnd", "public"."Invoice"."dueDate", "public"."Invoice"."paidAt", "public"."Invoice"."pdfUrl", "public"."Invoice"."createdAt" FROM "public"."Invoice" WHERE ("public"."Invoice"."status" = CAST($1::text AS "public"."InvoiceStatus") AND "public"."Invoice"."paidAt" >= $2 AND "public"."Invoice"."paidAt" < $3) OFFSET $4',
+[0]   params: '["PAID","2023-10-31 11:01:48.992 UTC","2024-10-31 00:00:00 UTC",0]',
+[0]   duration: 70,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] {"level":30,"time":1761915491683,"pid":27808,"hostname":"8d47114848d2","reqId":"req-3","res":{"statusCode":200},"responseTime":679.7363680005074,"msg":"request completed"}
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."User"."id", "public"."User"."email", "public"."User"."firstName", "public"."User"."lastName", "public"."User"."password", "public"."User"."emailVerified", "public"."User"."emailVerificationToken", "public"."User"."emailVerificationExpires", "public"."User"."passwordResetToken", "public"."User"."passwordResetExpires", "public"."User"."role"::text, "public"."User"."status"::text, "public"."User"."lastLogin", "public"."User"."company", "public"."User"."jobTitle", "public"."User"."phone", "public"."User"."bio", "public"."User"."timezone", "public"."User"."emailNotifications", "public"."User"."pushNotifications", "public"."User"."marketingEmails", "public"."User"."twoFactorAuth", "public"."User"."hasSeenOnboarding", "public"."User"."createdAt", "public"."User"."updatedAt" FROM "public"."User" WHERE "public"."User"."id" IN ($1) OFFSET $2',
+[0]   params: '["cmh0oe6890000o03xb8rza882",0]',
+[0]   duration: 72,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [DEBUG] Database Query {
+[0]   query: 'SELECT "public"."Organization"."id", "public"."Organization"."userId", "public"."Organization"."name", "public"."Organization"."website", "public"."Organization"."industry", "public"."Organization"."size"::text, "public"."Organization"."country", "public"."Organization"."region", "public"."Organization"."description", "public"."Organization"."annualRevenue"::text, "public"."Organization"."complianceTeamSize"::text, "public"."Organization"."geography"::text, "public"."Organization"."complianceGaps", "public"."Organization"."onboardingCompleted", "public"."Organization"."riskProfile"::text, "public"."Organization"."createdAt", "public"."Organization"."updatedAt" FROM "public"."Organization" WHERE "public"."Organization"."userId" IN ($1) OFFSET $2',
+[0]   params: '["cmh0oe6890000o03xb8rza882",0]',
+[0]   duration: 79,
+[0]   target: 'quaint::connector::metrics'
+[0] }
+[0] [INFO] Found 2 credit transactions undefined
+[0] [INFO] Processing credit transaction 0: {
+[0]   id: 'cmhdttzxh0001o2ankudm0kwq',
+[0]   amount: 50,
+[0]   description: 'Additional assessment purchase (€299)',
+[0]   createdAt: 2025-10-30T19:37:58.566Z,
+[0]   hasSubscription: true,
+[0]   hasOrg: true,
+[0]   orgName: 'Test Organization Inc.'
+[0] }
+[0] [INFO] Created transaction object: {
+[0]   id: 'cmhdttzxh0001o2ankudm0kwq',
+[0]   date: 2025-10-30T19:37:58.566Z,
+[0]   organization: 'Test Organization Inc.',
+[0]   type: 'credits',
+[0]   description: 'Additional assessment purchase (€299)',
+[0]   amount: 299,
+[0]   status: 'paid',
+[0]   metadata: {
+[0]     creditAmount: 50,
+[0]     balance: 160,
+[0]     transactionType: 'PURCHASE',
+[0]     hasSubscription: true
+[0]   }
+[0] }
+[0] [INFO] Processing credit transaction 1: {
+[0]   id: 'cmhdtod0u000ho2vvjcig9lno',
+[0]   amount: 50,
+[0]   description: 'Additional assessment purchase (€299)',
+[0]   createdAt: 2025-10-30T19:33:35.599Z,
+[0]   hasSubscription: true,
+[0]   hasOrg: true,
+[0]   orgName: 'Test Organization Inc.'
+[0] }
+[0] [INFO] Created transaction object: {
+[0]   id: 'cmhdtod0u000ho2vvjcig9lno',
+[0]   date: 2025-10-30T19:33:35.599Z,
+[0]   organization: 'Test Organization Inc.',
+[0]   type: 'credits',
+[0]   description: 'Additional assessment purchase (€299)',
+[0]   amount: 299,
+[0]   status: 'paid',
+[0]   metadata: {
+[0]     creditAmount: 50,
+[0]     balance: 110,
+[0]     transactionType: 'PURCHASE',
+[0]     hasSubscription: true
+[0]   }
+[0] }
+[0] [INFO] Returning 2 transactions undefined
+[0] {"level":30,"time":1761915491831,"pid":27808,"hostname":"8d47114848d2","reqId":"req-5","res":{"statusCode":200},"responseTime":778.6031140014529,"msg":"request completed"}
