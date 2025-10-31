@@ -2486,8 +2486,8 @@ export default async function adminRoutes(server: FastifyInstance) {
   function getSubscriptionAmount(plan: string, billingCycle?: string | null): number {
     const amounts: Record<string, { monthly: number; annual: number }> = {
       FREE: { monthly: 0, annual: 0 },
-      PREMIUM: { monthly: 99, annual: 990 },
-      ENTERPRISE: { monthly: 499, annual: 4990 },
+      PREMIUM: { monthly: 599, annual: 6490 },
+      ENTERPRISE: { monthly: 0, annual: 0 }, // Custom pricing
     };
 
     const planAmounts = amounts[plan] || amounts.FREE;
@@ -2496,12 +2496,12 @@ export default async function adminRoutes(server: FastifyInstance) {
 
   function getIncludedCredits(plan: string): number {
     const credits: Record<string, number> = {
-      FREE: 10,
-      PREMIUM: 500,
-      ENTERPRISE: 2000,
+      FREE: 0, // Free users don't have credits, they have quota
+      PREMIUM: 100, // Premium users get 100 credits per month (2 assessments)
+      ENTERPRISE: 0, // Enterprise has custom limits
     };
 
-    return credits[plan] || credits.FREE;
+    return credits[plan] || 0;
   }
 
   function extractLast4(paymentMethodId: string): string {

@@ -374,27 +374,33 @@ const Subscriptions = () => {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="text-sm">
-                          {subscription.credits.remaining} / {subscription.credits.included}
+                        <div className="text-sm font-medium">
+                          {subscription.credits.used} credits used
                         </div>
-                        <Progress
-                          value={(subscription.credits.used / subscription.credits.included) * 100}
-                          className="h-1.5"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {subscription.credits.used} used
-                        </p>
+                        {subscription.credits.remaining >= 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {subscription.credits.remaining} remaining
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium">
-                          ${subscription.amount}/
-                          {subscription.interval === 'annual' ? 'year' : 'mo'}
+                          {subscription.amount > 0 ? (
+                            <>
+                              €{subscription.amount}/
+                              {subscription.interval === 'annual' ? 'year' : 'mo'}
+                            </>
+                          ) : (
+                            subscription.plan === 'enterprise' ? 'Custom' : 'Free'
+                          )}
                         </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {subscription.interval}
-                        </p>
+                        {subscription.amount > 0 && (
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {subscription.interval}
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
