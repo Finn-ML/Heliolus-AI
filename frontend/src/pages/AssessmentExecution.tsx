@@ -1126,11 +1126,11 @@ const AssessmentExecution = () => {
                               {isProcessing && (
                                 <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50 flex-shrink-0">
                                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  <span className="hidden md:inline">Processing</span>
+                                  Processing
                                 </Badge>
                               )}
                               {doc.extractedData && (
-                                <span className="text-green-400 text-xs flex-shrink-0 hidden md:inline">✓ Analyzed</span>
+                                <span className="text-green-400 text-xs flex-shrink-0">✓ Analyzed</span>
                               )}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -1239,8 +1239,8 @@ const AssessmentExecution = () => {
               className="border-gray-700 text-gray-300 hover:bg-gray-800"
               data-testid="button-choose-template"
             >
-              <FileText className="h-4 w-4 md:mr-2" />
-              <span className="hidden md:inline">Choose Different Template</span>
+              <FileText className="h-4 w-4 mr-1 md:mr-2" />
+              <span className="text-xs md:text-sm">Change Template</span>
             </Button>
 
             <Button
@@ -1254,8 +1254,8 @@ const AssessmentExecution = () => {
               }
               data-testid="button-start-analysis"
             >
-              <Play className="h-4 w-4 md:mr-2" />
-              <span className="hidden md:inline">Start Assessment Analysis</span>
+              <Play className="h-4 w-4 mr-1 md:mr-2" />
+              <span className="text-xs md:text-sm">Start Analysis</span>
             </Button>
           </div>
         </div>

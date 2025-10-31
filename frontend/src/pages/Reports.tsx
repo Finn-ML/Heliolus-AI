@@ -358,16 +358,17 @@ const Reports: React.FC = () => {
                         onClick={() => handleViewReport(report)}
                         disabled={report.status === 'generating'}
                         data-testid={`button-view-${report.id}`}
+                        title={report.status === 'generating' ? 'Report is generating' : 'View report'}
                       >
                         {report.status === 'generating' ? (
                           <>
-                            <Loader2 className="h-4 w-4 md:mr-2 animate-spin" />
-                            <span className="hidden md:inline">Generating...</span>
+                            <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin" />
+                            <span>Generating</span>
                           </>
                         ) : (
                           <>
-                            <Eye className="h-4 w-4 md:mr-2" />
-                            <span className="hidden md:inline">View</span>
+                            <Eye className="h-4 w-4 mr-1 md:mr-2" />
+                            <span>View</span>
                           </>
                         )}
                       </Button>
@@ -376,9 +377,10 @@ const Reports: React.FC = () => {
                         onClick={() => handleDownloadReport(report)}
                         disabled={report.status !== 'completed'}
                         data-testid={`button-download-${report.id}`}
+                        title="Download report"
                       >
-                        <Download className="h-4 w-4 md:mr-2" />
-                        <span className="hidden md:inline">Download</span>
+                        <Download className="h-4 w-4 mr-1 md:mr-2" />
+                        <span>Download</span>
                       </Button>
                       <Button
                         size="sm"
@@ -386,9 +388,10 @@ const Reports: React.FC = () => {
                         onClick={() => handleDeleteReport(report)}
                         disabled={deleteMutation.isPending}
                         data-testid={`button-delete-${report.id}`}
+                        title="Delete report"
                       >
-                        <Trash2 className="h-4 w-4 md:mr-2" />
-                        <span className="hidden md:inline">Delete</span>
+                        <Trash2 className="h-4 w-4 mr-1 md:mr-2" />
+                        <span>Delete</span>
                       </Button>
                     </div>
                   </CardContent>
@@ -428,16 +431,17 @@ const Reports: React.FC = () => {
                           onClick={() => handleViewReport(report)}
                           disabled={report.status === 'generating'}
                           data-testid={`button-view-list-${report.id}`}
+                          title={report.status === 'generating' ? 'Report is generating' : 'View report'}
                         >
                           {report.status === 'generating' ? (
                             <>
-                              <Loader2 className="h-4 w-4 md:mr-2 animate-spin" />
-                              <span className="hidden md:inline">Generating...</span>
+                              <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin" />
+                              <span>Generating</span>
                             </>
                           ) : (
                             <>
-                              <Eye className="h-4 w-4 md:mr-2" />
-                              <span className="hidden md:inline">View</span>
+                              <Eye className="h-4 w-4 mr-1 md:mr-2" />
+                              <span>View</span>
                             </>
                           )}
                         </Button>
@@ -446,9 +450,10 @@ const Reports: React.FC = () => {
                           onClick={() => handleDownloadReport(report)}
                           disabled={report.status !== 'completed'}
                           data-testid={`button-download-list-${report.id}`}
+                          title="Download report"
                         >
-                          <Download className="h-4 w-4 md:mr-2" />
-                          <span className="hidden md:inline">Download</span>
+                          <Download className="h-4 w-4 mr-1 md:mr-2" />
+                          <span>Download</span>
                         </Button>
                         <Button
                           size="sm"
@@ -456,9 +461,10 @@ const Reports: React.FC = () => {
                           onClick={() => handleDeleteReport(report)}
                           disabled={deleteMutation.isPending}
                           data-testid={`button-delete-list-${report.id}`}
+                          title="Delete report"
                         >
-                          <Trash2 className="h-4 w-4 md:mr-2" />
-                          <span className="hidden md:inline">Delete</span>
+                          <Trash2 className="h-4 w-4 mr-1 md:mr-2" />
+                          <span>Delete</span>
                         </Button>
                       </div>
                     </div>
