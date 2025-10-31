@@ -48,8 +48,8 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => (
 
     <CardHeader className="text-center pb-8 pt-8">
       <CardTitle className="text-2xl mb-2">{tier.name}</CardTitle>
-      <div className="mt-4">
-        <span className="text-4xl font-bold">{tier.price}</span>
+      <div className="mt-4 text-center">
+        <span className="text-4xl font-bold block">{tier.price}</span>
         {tier.priceSubtext && (
           <p className="text-sm text-muted-foreground mt-2">
             {tier.priceSubtext}
