@@ -128,6 +128,7 @@ const UserSettings = () => {
   const [showChangeEmail, setShowChangeEmail] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false);
 
   // Load user data from auth when component mounts or user changes
   useEffect(() => {
@@ -293,6 +294,64 @@ const UserSettings = () => {
       });
     } finally {
       setIsChangingEmail(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setIsLoadingPortal(true);
+
+    try {
+      const response = await fetch('/v1/subscriptions/customer-portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          returnUrl: window.location.href,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.url) {
+          // Redirect to Stripe Customer Portal
+          window.location.href = data.url;
+        } else {
+          toast({
+            title: 'Error',
+            description: 'Failed to load subscription management portal.',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        const error = await response.json();
+
+        // Handle specific error cases
+        if (error.code === 'NO_STRIPE_CUSTOMER') {
+          toast({
+            title: 'No Subscription',
+            description: 'You need to set up a paid subscription first. Redirecting to pricing...',
+          });
+          setTimeout(() => navigate('/pricing'), 2000);
+        } else {
+          toast({
+            title: 'Error',
+            description: error.message || 'Failed to open subscription management portal.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error opening Customer Portal:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to open subscription management portal. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingPortal(false);
     }
   };
 
@@ -551,15 +610,16 @@ const UserSettings = () => {
               </div>
               <Button
                 variant="default"
-                onClick={() => navigate('/pricing')}
-                data-testid="button-manage-plan"
+                onClick={handleManageSubscription}
+                disabled={isLoadingPortal}
+                data-testid="button-manage-subscription"
               >
-                Manage Plan
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {isLoadingPortal ? 'Loading...' : 'Manage Subscription'}
+                {!isLoadingPortal && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              View available plans, upgrade your subscription, or manage your billing settings.
+              Manage your subscription, payment methods, and billing history through Stripe's secure portal.
             </p>
           </div>
         </CardContent>
