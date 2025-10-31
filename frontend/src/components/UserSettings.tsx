@@ -432,14 +432,6 @@ const UserSettings = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           <PasswordResetSection />
-
-          <Separator />
-
-          <div className="space-y-4">
-            <Button variant="outline" className="w-full">
-              Download Account Data
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
