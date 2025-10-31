@@ -509,7 +509,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                     ) : (
                       <>
                         <Sparkles className="mr-2 h-3 w-3" />
-                        Re-fill
+                        Fill
                       </>
                     )}
                   </Button>
