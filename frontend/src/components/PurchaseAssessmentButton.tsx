@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -9,13 +9,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, Sparkles, Check } from 'lucide-react';
+import { ShoppingCart, Sparkles, Check, CreditCard } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getCurrentUserId } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
-export function PurchaseAssessmentButton() {
+interface PurchaseAssessmentButtonProps {
+  shouldHighlight?: boolean;
+}
+
+export function PurchaseAssessmentButton({ shouldHighlight = false }: PurchaseAssessmentButtonProps) {
   const queryClient = useQueryClient();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isHighlighting, setIsHighlighting] = useState(shouldHighlight);
 
   // Fetch user's billing info
   const { data: billingInfo } = useQuery({
@@ -99,16 +105,57 @@ export function PurchaseAssessmentButton() {
 
   const newBalance = currentCredits + 50; // 50 credits per purchase
 
+  // Auto-show modal if highlighted and user has low credits
+  useEffect(() => {
+    if (shouldHighlight && currentCredits < 50) {
+      setIsHighlighting(true);
+      // Auto-open modal after a short delay
+      const timer = setTimeout(() => {
+        setShowConfirmModal(true);
+        setIsHighlighting(false);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldHighlight, currentCredits]);
+
   return (
     <>
-      <Button
-        onClick={() => setShowConfirmModal(true)}
-        className="bg-gradient-to-r from-cyan-600 to-pink-600 hover:from-cyan-700 hover:to-pink-700"
-        size="lg"
-      >
-        <ShoppingCart className="mr-2 h-5 w-5" />
-        Purchase Additional Assessment - €299
-      </Button>
+      <div className={cn(
+        "relative",
+        isHighlighting && "animate-pulse"
+      )}>
+        {/* Attention-grabbing glow effect */}
+        {isHighlighting && (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 to-orange-500 blur-xl opacity-50 animate-pulse" />
+            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-lg blur opacity-30" />
+          </>
+        )}
+        
+        <Button
+          onClick={() => setShowConfirmModal(true)}
+          className={cn(
+            "relative",
+            isHighlighting 
+              ? "bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 shadow-lg shadow-orange-500/50 animate-bounce"
+              : "bg-gradient-to-r from-cyan-600 to-pink-600 hover:from-cyan-700 hover:to-pink-700"
+          )}
+          size="lg"
+        >
+          {isHighlighting ? (
+            <>
+              <CreditCard className="mr-2 h-5 w-5 animate-pulse" />
+              Purchase More Credits Now - €299
+              <Sparkles className="ml-2 h-5 w-5 animate-spin" />
+            </>
+          ) : (
+            <>
+              <ShoppingCart className="mr-2 h-5 w-5" />
+              Purchase Additional Assessment - €299
+            </>
+          )}
+        </Button>
+      </div>
 
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
         <DialogContent className="sm:max-w-[500px]">

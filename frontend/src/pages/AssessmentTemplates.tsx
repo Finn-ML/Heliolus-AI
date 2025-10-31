@@ -15,6 +15,7 @@ import {
   TrendingUp,
   ArrowRight,
   Sparkles,
+  CreditCard,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -132,8 +133,18 @@ const AssessmentTemplates = () => {
   const handleStartAssessment = (templateId: string) => {
     // Check if quota is exceeded for FREE users
     if (quotaExceeded) {
-      // Show upgrade modal instead of toast
-      setShowUpgradeModal(true);
+      // For PREMIUM users with insufficient credits, navigate to dashboard
+      if (subscription?.plan === 'PREMIUM') {
+        toast({
+          title: 'Purchase More Credits',
+          description: 'Redirecting to dashboard to purchase additional assessment credits...',
+          duration: 3000,
+        });
+        navigate('/?purchase=true');
+      } else {
+        // Show upgrade modal for FREE users
+        setShowUpgradeModal(true);
+      }
       return;
     }
 
@@ -289,16 +300,29 @@ const AssessmentTemplates = () => {
               <Button
                 size="lg"
                 onClick={() => handleStartAssessment(filteredTemplates[0].id)}
-                className="bg-cyan-600 hover:bg-cyan-700 text-white"
-                disabled={quotaExceeded}
+                className={quotaExceeded && subscription?.plan === 'PREMIUM'
+                  ? "bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white animate-pulse"
+                  : quotaExceeded 
+                    ? "bg-gray-600 hover:bg-gray-700 text-white"
+                    : "bg-cyan-600 hover:bg-cyan-700 text-white"
+                }
                 data-testid={`button-start-featured-${filteredTemplates[0].id}`}
               >
                 {quotaExceeded 
                   ? (subscription?.plan === 'PREMIUM' 
-                    ? `Insufficient Credits (${subscription?.creditsBalance || 0}/50 required)` 
+                    ? (
+                      <span className="flex items-center">
+                        <CreditCard className="mr-2 h-5 w-5" />
+                        Purchase More Credits
+                      </span>
+                    )
                     : 'Upgrade Required')
                   : 'Start Featured Assessment'}
-                <ArrowRight className="ml-2 h-5 w-5" />
+                {quotaExceeded && subscription?.plan === 'PREMIUM' ? (
+                  <CreditCard className="ml-2 h-5 w-5 animate-bounce" />
+                ) : (
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -375,17 +399,30 @@ const AssessmentTemplates = () => {
                       </div>
 
                       <Button
-                        className="w-full bg-gray-800 hover:bg-cyan-700 text-white group-hover:bg-cyan-600 transition-colors"
+                        className={quotaExceeded && subscription?.plan === 'PREMIUM'
+                          ? "w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white animate-pulse"
+                          : quotaExceeded 
+                            ? "w-full bg-gray-600 hover:bg-gray-700 text-white"
+                            : "w-full bg-gray-800 hover:bg-cyan-700 text-white group-hover:bg-cyan-600 transition-colors"
+                        }
                         onClick={() => handleStartAssessment(template.id)}
-                        disabled={quotaExceeded}
                         data-testid={`button-start-${template.id}`}
                       >
                         {quotaExceeded 
                           ? (subscription?.plan === 'PREMIUM' 
-                            ? `Need ${50 - (subscription?.creditsBalance || 0)} Credits` 
+                            ? (
+                              <span className="flex items-center justify-center">
+                                <CreditCard className="mr-2 h-4 w-4" />
+                                Purchase More Credits
+                              </span>
+                            )
                             : 'Upgrade Required')
                           : 'Start Assessment'}
-                        <ChevronRight className="ml-2 h-4 w-4" />
+                        {quotaExceeded && subscription?.plan === 'PREMIUM' ? (
+                          <CreditCard className="ml-2 h-4 w-4 animate-bounce" />
+                        ) : (
+                          <ChevronRight className="ml-2 h-4 w-4" />
+                        )}
                       </Button>
                     </CardContent>
                   </Card>

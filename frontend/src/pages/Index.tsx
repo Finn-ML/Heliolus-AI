@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, BarChart3, FileText, Shield, Sparkles } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import BusinessProfile from '@/components/BusinessProfile';
 import DocumentStorage from '@/components/DocumentStorage';
 import TrackingDashboard from '@/components/TrackingDashboard';
@@ -17,6 +18,8 @@ const Index = () => {
   const [animateTab, setAnimateTab] = useState(false);
   const { user } = useAuth();
   const { startTour, hasCompleted } = useOnboarding();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shouldHighlightPurchase = searchParams.get('purchase') === 'true';
 
   // Auto-start tour for first-time users
   useEffect(() => {
@@ -29,6 +32,19 @@ const Index = () => {
       return () => clearTimeout(timer);
     }
   }, [user, hasCompleted, startTour]);
+
+  // Clear purchase param after component mounts
+  useEffect(() => {
+    if (shouldHighlightPurchase) {
+      // Remove the purchase param after a delay
+      const timer = setTimeout(() => {
+        searchParams.delete('purchase');
+        setSearchParams(searchParams);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [shouldHighlightPurchase, searchParams, setSearchParams]);
 
   // Fetch organization data to get organizationId for DocumentStorage
   const { data: organization } = useQuery({
@@ -220,7 +236,7 @@ const Index = () => {
 
               {/* Purchase Additional Assessment Button (Premium users only) */}
               <div className="flex justify-center mb-6">
-                <PurchaseAssessmentButton />
+                <PurchaseAssessmentButton shouldHighlight={shouldHighlightPurchase} />
               </div>
 
               <TrackingDashboard />
