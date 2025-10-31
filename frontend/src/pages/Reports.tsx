@@ -357,16 +357,17 @@ const Reports: React.FC = () => {
                         variant="outline"
                         onClick={() => handleViewReport(report)}
                         disabled={report.status === 'generating'}
+                        data-testid={`button-view-${report.id}`}
                       >
                         {report.status === 'generating' ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Generating...
+                            <Loader2 className="h-4 w-4 md:mr-2 animate-spin" />
+                            <span className="hidden md:inline">Generating...</span>
                           </>
                         ) : (
                           <>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
+                            <Eye className="h-4 w-4 md:mr-2" />
+                            <span className="hidden md:inline">View</span>
                           </>
                         )}
                       </Button>
@@ -374,18 +375,20 @@ const Reports: React.FC = () => {
                         size="sm"
                         onClick={() => handleDownloadReport(report)}
                         disabled={report.status !== 'completed'}
+                        data-testid={`button-download-${report.id}`}
                       >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
+                        <Download className="h-4 w-4 md:mr-2" />
+                        <span className="hidden md:inline">Download</span>
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => handleDeleteReport(report)}
                         disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-${report.id}`}
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
+                        <Trash2 className="h-4 w-4 md:mr-2" />
+                        <span className="hidden md:inline">Delete</span>
                       </Button>
                     </div>
                   </CardContent>
@@ -424,16 +427,17 @@ const Reports: React.FC = () => {
                           variant="outline"
                           onClick={() => handleViewReport(report)}
                           disabled={report.status === 'generating'}
+                          data-testid={`button-view-list-${report.id}`}
                         >
                           {report.status === 'generating' ? (
                             <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Generating...
+                              <Loader2 className="h-4 w-4 md:mr-2 animate-spin" />
+                              <span className="hidden md:inline">Generating...</span>
                             </>
                           ) : (
                             <>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
+                              <Eye className="h-4 w-4 md:mr-2" />
+                              <span className="hidden md:inline">View</span>
                             </>
                           )}
                         </Button>
@@ -441,18 +445,20 @@ const Reports: React.FC = () => {
                           size="sm"
                           onClick={() => handleDownloadReport(report)}
                           disabled={report.status !== 'completed'}
+                          data-testid={`button-download-list-${report.id}`}
                         >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
+                          <Download className="h-4 w-4 md:mr-2" />
+                          <span className="hidden md:inline">Download</span>
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
                           onClick={() => handleDeleteReport(report)}
                           disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-list-${report.id}`}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                          <Trash2 className="h-4 w-4 md:mr-2" />
+                          <span className="hidden md:inline">Delete</span>
                         </Button>
                       </div>
                     </div>
