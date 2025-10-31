@@ -44,6 +44,7 @@ export class PrioritiesService extends BaseService {
           id: true,
           userId: true,
           organizationId: true,
+          responses: true,
           organization: {
             select: {
               size: true,
@@ -108,6 +109,40 @@ export class PrioritiesService extends BaseService {
           ...finalData,
         },
       });
+
+      // 5. After priorities are submitted, mark the assessment as COMPLETED
+      // and trigger AI analysis generation
+      const assessmentService = new (await import('./assessment.service.js')).AssessmentService();
+      
+      try {
+        // Complete the assessment with autoGenerate=true to trigger AI analysis
+        const completionResult = await assessmentService.completeAssessment(
+          assessmentId,
+          {
+            responses: assessment.responses || {},
+            autoGenerate: true
+          },
+          { userId, userRole: 'USER' as any }
+        );
+
+        if (!completionResult.success) {
+          this.logger.warn('Failed to auto-complete assessment after priorities', {
+            assessmentId,
+            error: completionResult.error
+          });
+        } else {
+          this.logger.info('Assessment auto-completed after priorities submission', {
+            assessmentId,
+            userId,
+          });
+        }
+      } catch (error) {
+        // Log but don't fail the priorities submission if auto-completion fails
+        this.logger.error('Error auto-completing assessment', {
+          assessmentId,
+          error: error.message
+        });
+      }
 
       this.logger.info('Priorities submitted successfully', {
         assessmentId,
