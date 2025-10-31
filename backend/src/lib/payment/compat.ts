@@ -11,7 +11,7 @@ import Stripe from 'stripe';
 const STRIPE_CONFIG = {
   secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || 'whsec_',
-  apiVersion: '2025-08-27.basil' as const
+  apiVersion: '2024-11-20.acacia' as const
 };
 
 const stripe = new Stripe(STRIPE_CONFIG.secretKey, {

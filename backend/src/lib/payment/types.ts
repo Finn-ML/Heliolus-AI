@@ -290,6 +290,13 @@ export interface InvoiceResult {
   error?: string;
 }
 
+export interface WebhookResult {
+  success: boolean;
+  processed: boolean;
+  data?: any;
+  error?: string;
+}
+
 // Webhook types
 export interface WebhookEvent {
   id: string;

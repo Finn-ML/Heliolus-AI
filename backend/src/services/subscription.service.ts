@@ -32,7 +32,7 @@ import {
 
 // Initialize Stripe client for checkout sessions
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_', {
-  apiVersion: '2025-08-27.basil' as const,
+  apiVersion: '2024-11-20.acacia' as const,
   timeout: 30000,
 });
 

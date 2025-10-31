@@ -19,7 +19,7 @@ import { SubscriptionPlan, SubscriptionStatus, TransactionType } from '../../typ
 // Read config directly to avoid circular dependency
 const STRIPE_CONFIG = {
   secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
-  apiVersion: '2025-08-27.basil' as const
+  apiVersion: '2024-11-20.acacia' as const
 };
 
 const PAYMENT_CONFIG = {
