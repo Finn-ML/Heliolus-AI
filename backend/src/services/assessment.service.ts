@@ -199,7 +199,7 @@ export class AssessmentService extends BaseService {
         }
       }
 
-      // Check credit balance for PREMIUM users
+      // Check credit balance for PREMIUM users (no monthly limit, only credit-based)
       if (plan === SubscriptionPlan.PREMIUM) {
         const creditsRequired = 50; // Each assessment costs 50 credits
         
@@ -211,8 +211,10 @@ export class AssessmentService extends BaseService {
             'INSUFFICIENT_CREDITS'
           );
         }
+      }
 
-        // Check monthly assessment limit for PREMIUM users (2 per month)
+      // Check monthly assessment limit for ENTERPRISE users (50 per month)
+      if (plan === SubscriptionPlan.ENTERPRISE) {
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
@@ -226,9 +228,9 @@ export class AssessmentService extends BaseService {
           },
         });
 
-        if (assessmentsThisMonth >= 2) {
+        if (assessmentsThisMonth >= 50) {
           throw this.createError(
-            'Monthly assessment limit reached. Premium users can create up to 2 assessments per month. Please purchase additional credits for more assessments.',
+            'Monthly assessment limit reached. Enterprise users can create up to 50 assessments per month.',
             402,
             'MONTHLY_LIMIT_EXCEEDED'
           );
