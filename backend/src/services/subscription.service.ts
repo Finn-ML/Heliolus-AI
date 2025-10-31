@@ -4,6 +4,7 @@
  * Uses payment-lib for Stripe integration and billing operations
  */
 
+import Stripe from 'stripe';
 import { z } from 'zod';
 import { BaseService, ServiceContext } from './base.service';
 import {
@@ -28,6 +29,12 @@ import {
   createStripePaymentMethod,
   getStripeInvoice,
 } from '../lib/payment';
+
+// Initialize Stripe client for checkout sessions
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_', {
+  apiVersion: '2025-08-27.basil' as const,
+  timeout: 30000,
+});
 
 // Validation schemas
 const CreateSubscriptionSchema = z.object({
