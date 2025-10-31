@@ -1506,9 +1506,21 @@ export class AnalyticsService extends BaseService {
       });
 
       // Add credit transactions (PURCHASE only)
-      creditTransactions.forEach(transaction => {
+      this.logger.info(`Found ${creditTransactions.length} credit transactions`);
+      
+      creditTransactions.forEach((transaction, index) => {
         // Handle cases where subscription might be null
         const org = transaction.subscription?.user?.organization;
+        
+        this.logger.info(`Processing credit transaction ${index}:`, {
+          id: transaction.id,
+          amount: transaction.amount,
+          description: transaction.description,
+          createdAt: transaction.createdAt,
+          hasSubscription: !!transaction.subscription,
+          hasOrg: !!org,
+          orgName: org?.name
+        });
         
         // Calculate revenue from credit purchases
         // Based on Heliolus pricing: 50 credits = €299
@@ -1525,7 +1537,7 @@ export class AnalyticsService extends BaseService {
           }
         }
 
-        transactions.push({
+        const txObject = {
           id: transaction.id,
           date: transaction.createdAt,
           organization: org?.name || 'Unknown Organization',
@@ -1539,7 +1551,10 @@ export class AnalyticsService extends BaseService {
             transactionType: transaction.type,
             hasSubscription: !!transaction.subscription
           }
-        });
+        };
+        
+        this.logger.info(`Created transaction object:`, txObject);
+        transactions.push(txObject);
       });
 
       // Sort all transactions by date (descending)
