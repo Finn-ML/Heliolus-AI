@@ -469,7 +469,7 @@ const RevenueReports = () => {
                       </TableCell>
                       <TableCell>{transaction.description}</TableCell>
                       <TableCell className="text-right font-medium">
-                        €{transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        €{(transaction.amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -479,7 +479,7 @@ const RevenueReports = () => {
                               : 'bg-yellow-500/20 text-yellow-500'
                           }
                         >
-                          {transaction.status}
+                          {transaction.status ?? 'pending'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
