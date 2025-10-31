@@ -2473,7 +2473,8 @@ export default async function adminRoutes(server: FastifyInstance) {
       reply.code(500).send({
         success: false,
         message: 'Failed to fetch subscriptions',
-        error: error.message,
+        // Only include error details in development
+        ...(process.env.NODE_ENV === 'development' && { error: error.message }),
       });
     }
   }));

@@ -62,13 +62,13 @@ import { adminSubscriptionsApi } from '@/lib/api';
 interface Subscription {
   id: string;
   organizationName: string;
-  organizationId: string;
-  plan: 'free' | 'starter' | 'professional' | 'enterprise';
-  status: 'active' | 'cancelled' | 'past_due' | 'paused';
+  organizationId: string | null;
+  plan: 'free' | 'premium' | 'enterprise';
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid';
   startDate: string;
   nextBillingDate: string;
   amount: number;
-  interval: 'monthly' | 'yearly';
+  interval: 'monthly' | 'annual';
   credits: {
     included: number;
     used: number;
@@ -91,6 +91,13 @@ const Subscriptions = () => {
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [actionType, setActionType] = useState<'pause' | 'cancel' | 'resume'>('pause');
 
+  // Helper function to safely format dates
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? '-' : date.toISOString().split('T')[0];
+  };
+
   // Fetch subscriptions from API
   useEffect(() => {
     const fetchSubscriptions = async () => {
@@ -103,10 +110,8 @@ const Subscriptions = () => {
           // Format the dates for display
           const formattedSubscriptions = response.data.map((sub: any) => ({
             ...sub,
-            startDate: new Date(sub.startDate).toISOString().split('T')[0],
-            nextBillingDate: sub.nextBillingDate
-              ? new Date(sub.nextBillingDate).toISOString().split('T')[0]
-              : '-',
+            startDate: formatDate(sub.startDate),
+            nextBillingDate: formatDate(sub.nextBillingDate),
           }));
           setSubscriptions(formattedSubscriptions);
         }
@@ -135,8 +140,8 @@ const Subscriptions = () => {
   const activeSubscriptions = subscriptions.filter(s => s.status.toLowerCase() === 'active').length;
   const monthlyRecurringRevenue = subscriptions
     .filter(s => s.status.toLowerCase() === 'active')
-    .reduce((sum, s) => sum + (s.interval.toLowerCase() === 'annual' || s.interval.toLowerCase() === 'yearly' ? s.amount / 12 : s.amount), 0);
-  const churnedThisMonth = subscriptions.filter(s => s.status.toLowerCase() === 'canceled' || s.status.toLowerCase() === 'cancelled').length;
+    .reduce((sum, s) => sum + (s.interval.toLowerCase() === 'annual' ? s.amount / 12 : s.amount), 0);
+  const churnedThisMonth = subscriptions.filter(s => s.status.toLowerCase() === 'canceled').length;
   const averageRevenue = activeSubscriptions > 0 ? monthlyRecurringRevenue / activeSubscriptions : 0;
 
   const handleSubscriptionAction = (
@@ -173,14 +178,12 @@ const Subscriptions = () => {
     switch (plan) {
       case 'enterprise':
         return 'bg-purple-500/20 text-purple-500';
-      case 'professional':
+      case 'premium':
         return 'bg-blue-500/20 text-blue-500';
-      case 'starter':
-        return 'bg-cyan-500/20 text-cyan-500';
       case 'free':
         return 'bg-gray-500/20 text-gray-500';
       default:
-        return '';
+        return 'bg-gray-500/20 text-gray-500';
     }
   };
 
@@ -188,12 +191,14 @@ const Subscriptions = () => {
     switch (status) {
       case 'active':
         return <CheckCircle className="h-3 w-3 text-green-500" />;
-      case 'cancelled':
+      case 'trialing':
+        return <CheckCircle className="h-3 w-3 text-blue-500" />;
+      case 'canceled':
         return <XCircle className="h-3 w-3 text-red-500" />;
       case 'past_due':
         return <AlertCircle className="h-3 w-3 text-yellow-500" />;
-      case 'paused':
-        return <Pause className="h-3 w-3 text-gray-500" />;
+      case 'unpaid':
+        return <AlertCircle className="h-3 w-3 text-orange-500" />;
       default:
         return null;
     }
@@ -302,9 +307,10 @@ const Subscriptions = () => {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="trialing">Trialing</SelectItem>
                   <SelectItem value="past_due">Past Due</SelectItem>
-                  <SelectItem value="paused">Paused</SelectItem>
+                  <SelectItem value="canceled">Canceled</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPlan} onValueChange={setFilterPlan}>
@@ -314,8 +320,7 @@ const Subscriptions = () => {
                 <SelectContent>
                   <SelectItem value="all">All Plans</SelectItem>
                   <SelectItem value="enterprise">Enterprise</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="starter">Starter</SelectItem>
+                  <SelectItem value="premium">Premium</SelectItem>
                   <SelectItem value="free">Free</SelectItem>
                 </SelectContent>
               </Select>
@@ -385,7 +390,7 @@ const Subscriptions = () => {
                       <div>
                         <p className="font-medium">
                           ${subscription.amount}/
-                          {subscription.interval === 'yearly' ? 'year' : 'mo'}
+                          {subscription.interval === 'annual' ? 'year' : 'mo'}
                         </p>
                         <p className="text-xs text-muted-foreground capitalize">
                           {subscription.interval}
@@ -448,15 +453,7 @@ const Subscriptions = () => {
                               </DropdownMenuItem>
                             </>
                           )}
-                          {subscription.status === 'paused' && (
-                            <DropdownMenuItem
-                              onClick={() => handleSubscriptionAction(subscription, 'resume')}
-                            >
-                              <Play className="h-4 w-4 mr-2" />
-                              Resume Subscription
-                            </DropdownMenuItem>
-                          )}
-                          {subscription.status === 'cancelled' && (
+                          {subscription.status === 'canceled' && (
                             <DropdownMenuItem>
                               <RefreshCcw className="h-4 w-4 mr-2" />
                               Reactivate
