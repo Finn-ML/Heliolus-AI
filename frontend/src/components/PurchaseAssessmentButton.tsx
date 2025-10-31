@@ -65,15 +65,20 @@ export function PurchaseAssessmentButton() {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log('Purchase response:', data);
+      console.log('Checkout URL:', data.data?.checkoutUrl);
+      
       // Redirect to Stripe checkout
       if (data.data?.checkoutUrl) {
+        console.log('Redirecting to Stripe:', data.data.checkoutUrl);
         window.location.href = data.data.checkoutUrl;
       } else {
+        console.error('No checkoutUrl in response:', data);
         // Fallback for old response format (if credits were added directly)
         queryClient.invalidateQueries({ queryKey: ['subscription', 'billing-info'] });
         toast({
           title: 'Purchase Successful!',
-          description: `${data.data.creditsAdded || 50} credits added to your account.`,
+          description: `${data.data?.creditsAdded || 50} credits added to your account.`,
         });
         setShowConfirmModal(false);
       }
