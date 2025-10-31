@@ -18,7 +18,6 @@ import {
   FileBarChart,
   Crown,
   Layers,
-  Tag,
   Scale,
 } from 'lucide-react';
 
@@ -40,7 +39,6 @@ const navigation: NavItem[] = [
   { title: 'Leads', href: '/admin/leads', icon: TrendingUp },
   { title: 'Templates', href: '/admin/templates', icon: FileText },
   { title: 'Plans', href: '/admin/plans', icon: Layers },
-  { title: 'Coupons', href: '/admin/coupons', icon: Tag },
   { title: 'Revenue Reports', href: '/admin/reports', icon: FileBarChart },
   { title: 'Subscriptions', href: '/admin/subscriptions', icon: Crown },
   { title: 'Legal Documents', href: '/admin/legal-documents', icon: Scale },
