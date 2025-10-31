@@ -265,24 +265,6 @@ const Landing = () => {
               );
             })}
           </div>
-
-          {/* Quick Stats */}
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            {[
-              { label: 'Active Vendors', value: '500+', color: 'text-cyan-400' },
-              { label: 'Risk Assessments', value: '10K+', color: 'text-pink-400' },
-              { label: 'Consultants', value: '200+', color: 'text-cyan-400' },
-              { label: 'Success Rate', value: '98%', color: 'text-pink-400' },
-            ].map((stat, index) => (
-              <div
-                key={index}
-                className="text-center p-4 rounded-lg bg-gray-900/30 backdrop-blur-sm border border-gray-800/50"
-              >
-                <div className={`text-3xl font-bold mb-1 ${stat.color}`}>{stat.value}</div>
-                <div className="text-sm text-gray-500">{stat.label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
