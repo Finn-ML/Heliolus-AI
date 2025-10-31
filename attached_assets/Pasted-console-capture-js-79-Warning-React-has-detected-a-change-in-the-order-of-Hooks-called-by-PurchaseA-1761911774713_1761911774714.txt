@@ -1,0 +1,78 @@
+console-capture.js:79 Warning: React has detected a change in the order of Hooks called by PurchaseAssessmentButton. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://reactjs.org/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+1. useContext                 useContext
+2. useState                   useState
+3. useState                   useState
+4. useContext                 useContext
+5. useContext                 useContext
+6. useContext                 useContext
+7. useEffect                  useEffect
+8. useState                   useState
+9. useCallback                useCallback
+10. useSyncExternalStore      useSyncExternalStore
+11. useEffect                 useEffect
+12. useContext                useContext
+13. useState                  useState
+14. useEffect                 useEffect
+15. useCallback               useCallback
+16. useSyncExternalStore      useSyncExternalStore
+17. useCallback               useCallback
+18. undefined                 useEffect
+   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    at PurchaseAssessmentButton (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/PurchaseAssessmentButton.tsx:18:44)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at Index (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/pages/Index.tsx:18:39)
+    at ProtectedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/ProtectedRoute.tsx:7:3)
+    at RenderedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:4088:5)
+    at Routes (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:4558:5)
+    at div
+    at Router (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:4501:15)
+    at BrowserRouter (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:5247:5)
+    at Provider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/chunk-5WETD4PZ.js?v=716e45bb:38:15)
+    at TooltipProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=ac71680c:65:5)
+    at O (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=7e9eea46:23:25)
+    at z (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=7e9eea46:21:18)
+    at OnboardingProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/OnboardingContext.tsx:8:38)
+    at AuthProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/AuthContext.tsx:5:32)
+    at QueryClientProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=abeae9b7:3022:3)
+    at App
+
+chunk-GNC7SI6A.js?v=716e45bb:11678 Uncaught Error: Rendered more hooks than during the previous render.
+    at PurchaseAssessmentButton (PurchaseAssessmentButton.tsx:109:3)
+chunk-GNC7SI6A.js?v=716e45bb:11678 Uncaught Error: Rendered more hooks than during the previous render.
+    at PurchaseAssessmentButton (PurchaseAssessmentButton.tsx:109:3)
+console-capture.js:79 The above error occurred in the <PurchaseAssessmentButton> component:
+
+    at PurchaseAssessmentButton (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/PurchaseAssessmentButton.tsx:18:44)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at Index (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/pages/Index.tsx:18:39)
+    at ProtectedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/ProtectedRoute.tsx:7:3)
+    at RenderedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:4088:5)
+    at Routes (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:4558:5)
+    at div
+    at Router (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:4501:15)
+    at BrowserRouter (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=19fbd9e1:5247:5)
+    at Provider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/chunk-5WETD4PZ.js?v=716e45bb:38:15)
+    at TooltipProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=ac71680c:65:5)
+    at O (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=7e9eea46:23:25)
+    at z (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=7e9eea46:21:18)
+    at OnboardingProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/OnboardingContext.tsx:8:38)
+    at AuthProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/AuthContext.tsx:5:32)
+    at QueryClientProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=abeae9b7:3022:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+chunk-GNC7SI6A.js?v=716e45bb:9129 Uncaught Error: Rendered more hooks than during the previous render.
+    at PurchaseAssessmentButton (PurchaseAssessmentButton.tsx:109:3)

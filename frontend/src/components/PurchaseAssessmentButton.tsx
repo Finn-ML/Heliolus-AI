@@ -98,16 +98,9 @@ export function PurchaseAssessmentButton({ shouldHighlight = false }: PurchaseAs
     },
   });
 
-  // Don't show button for FREE or ENTERPRISE users
-  if (!currentPlan || currentPlan === 'FREE' || currentPlan === 'ENTERPRISE') {
-    return null;
-  }
-
-  const newBalance = currentCredits + 50; // 50 credits per purchase
-
   // Auto-show modal if highlighted and user has low credits
   useEffect(() => {
-    if (shouldHighlight && currentCredits < 50) {
+    if (shouldHighlight && currentCredits < 50 && currentPlan === 'PREMIUM') {
       setIsHighlighting(true);
       // Auto-open modal after a short delay
       const timer = setTimeout(() => {
@@ -116,7 +109,14 @@ export function PurchaseAssessmentButton({ shouldHighlight = false }: PurchaseAs
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [shouldHighlight, currentCredits]);
+  }, [shouldHighlight, currentCredits, currentPlan]);
+
+  // Don't show button for FREE or ENTERPRISE users
+  if (!currentPlan || currentPlan === 'FREE' || currentPlan === 'ENTERPRISE') {
+    return null;
+  }
+
+  const newBalance = currentCredits + 50; // 50 credits per purchase
 
   return (
     <>
