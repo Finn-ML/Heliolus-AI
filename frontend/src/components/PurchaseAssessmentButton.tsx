@@ -53,7 +53,7 @@ export function PurchaseAssessmentButton() {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
-          stripePriceId: import.meta.env.VITE_STRIPE_ADDITIONAL_ASSESSMENT_PRICE_ID || 'price_1SO0CzPmfCF9xav3sEbxBFLc',
+          stripePriceId: import.meta.env.VITE_STRIPE_ADDITIONAL_ASSESSMENT_PRICE_ID,
         }),
       });
 
