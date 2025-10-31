@@ -1536,6 +1536,83 @@ export class SubscriptionService extends BaseService {
       throw this.createError(errorMessage, 500, 'CHECKOUT_FAILED');
     }
   }
+
+  /**
+   * Create Stripe Customer Portal Session
+   * Allows customers to manage their subscription, payment methods, and invoices
+   */
+  async createCustomerPortalSession(
+    userId: string,
+    returnUrl: string,
+    context: ServiceContext
+  ): Promise<ApiResponse<{ url: string }>> {
+    try {
+      // Validate and authorize
+      this.validateContext(context, [UserRole.USER, UserRole.ADMIN]);
+
+      // Authorization check: users can only create portal for themselves
+      if (context.userId !== userId && context.userRole !== UserRole.ADMIN) {
+        throw this.createError('Cannot create portal for another user', 403, 'FORBIDDEN');
+      }
+
+      // Get user's subscription with Stripe customer ID
+      const subscription = await this.db.subscription.findUnique({
+        where: { userId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+
+      if (!subscription) {
+        throw this.createError('Subscription not found', 404, 'SUBSCRIPTION_NOT_FOUND');
+      }
+
+      // User must have a Stripe customer ID to access the portal
+      if (!subscription.stripeCustomerId) {
+        throw this.createError(
+          'No payment method on file. Please set up a subscription first.',
+          400,
+          'NO_STRIPE_CUSTOMER'
+        );
+      }
+
+      // Create Stripe Customer Portal session
+      const session = await stripe.billingPortal.sessions.create({
+        customer: subscription.stripeCustomerId,
+        return_url: returnUrl || `${process.env.FRONTEND_URL}/settings`,
+      });
+
+      this.logger.info('Created Stripe Customer Portal session', {
+        userId,
+        sessionId: session.id,
+        customerId: subscription.stripeCustomerId,
+      });
+
+      return this.createResponse(true, {
+        url: session.url,
+      });
+    } catch (error: any) {
+      this.logger.error({
+        error: error.message || error,
+        errorType: error.type,
+        errorCode: error.code,
+        stack: error.stack,
+        userId,
+      }, 'Failed to create Customer Portal session');
+
+      if (error.statusCode) throw error;
+
+      const errorMessage = error.message || 'Failed to create Customer Portal session';
+      throw this.createError(errorMessage, 500, 'PORTAL_SESSION_FAILED');
+    }
+  }
 }
 
 export const subscriptionService = new SubscriptionService();

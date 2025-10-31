@@ -855,6 +855,110 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
     }
   }));
 
+  // POST /subscriptions/customer-portal - Create Customer Portal Session
+  server.post('/customer-portal', {
+    schema: {
+      description: 'Create Stripe Customer Portal session for subscription management',
+      tags: ['Subscriptions'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        properties: {
+          returnUrl: { type: 'string', format: 'uri' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            url: { type: 'string' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            code: { type: 'string' },
+            statusCode: { type: 'number' },
+            timestamp: { type: 'string' },
+          },
+        },
+        401: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            code: { type: 'string' },
+            statusCode: { type: 'number' },
+            timestamp: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            code: { type: 'string' },
+            statusCode: { type: 'number' },
+            timestamp: { type: 'string' },
+          },
+        },
+      },
+    },
+    preHandler: authenticationMiddleware
+  }, asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.currentUser!;
+    const body = request.body as { returnUrl?: string };
+
+    try {
+      const result = await subscriptionService.createCustomerPortalSession(
+        user.id,
+        body.returnUrl || `${process.env.FRONTEND_URL}/settings`,
+        { userId: user.id, userRole: user.role }
+      );
+
+      if (!result.success || !result.data) {
+        reply.status(400).send({
+          message: result.message || 'Failed to create Customer Portal session',
+          code: 'PORTAL_FAILED',
+          statusCode: 400,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      reply.status(200).send(result.data);
+
+    } catch (error: any) {
+      request.log.error({ error, userId: user.id }, 'Failed to create Customer Portal session');
+
+      if (error.statusCode === 404) {
+        reply.status(404).send({
+          message: error.message || 'Subscription not found',
+          code: error.code || 'SUBSCRIPTION_NOT_FOUND',
+          statusCode: 404,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (error.statusCode === 400) {
+        reply.status(400).send({
+          message: error.message || 'Bad request',
+          code: error.code || 'BAD_REQUEST',
+          statusCode: 400,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      reply.status(500).send({
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }));
+
   // POST /subscriptions/cancel - Cancel Subscription
   server.post('/cancel', {
     schema: {
