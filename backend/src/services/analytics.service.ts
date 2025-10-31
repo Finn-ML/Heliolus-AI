@@ -1510,16 +1510,32 @@ export class AnalyticsService extends BaseService {
         // Handle cases where subscription might be null
         const org = transaction.subscription?.user?.organization;
         // Calculate revenue from credit transactions
-        // Assuming credits cost a certain amount (this should match your pricing)
-        const creditValue = transaction.amount > 0 ? transaction.amount : 0;
+        // For PURCHASE transactions, calculate the actual monetary value
+        // Based on Heliolus pricing: 50 credits = €299
+        const CREDIT_PRICE = 299 / 50; // €5.98 per credit
+        let monetaryAmount = 0;
+        
+        if (transaction.type === TransactionType.PURCHASE && transaction.amount > 0) {
+          // For purchases, calculate the monetary value
+          // Standard pricing: 50 credits for €299
+          if (transaction.amount === 50) {
+            monetaryAmount = 299;
+          } else {
+            // For other amounts, use per-credit pricing
+            monetaryAmount = transaction.amount * CREDIT_PRICE;
+          }
+        } else if (transaction.type === TransactionType.BONUS || transaction.type === TransactionType.ADMIN_GRANT) {
+          // Bonus and admin grants don't generate revenue
+          monetaryAmount = 0;
+        }
 
         transactions.push({
           id: transaction.id,
           date: transaction.createdAt,
           organization: org?.name || 'Unknown Organization',
-          type: transaction.type === TransactionType.PURCHASE ? 'credits' : transaction.type === TransactionType.BONUS ? 'bonus' : 'credits',
+          type: transaction.type === TransactionType.PURCHASE ? 'credits' : transaction.type === TransactionType.BONUS ? 'bonus' : 'admin_grant',
           description: transaction.description,
-          amount: creditValue, // You may need to calculate actual revenue based on credit pricing
+          amount: monetaryAmount,
           status: 'paid',
           metadata: {
             creditAmount: transaction.amount,
