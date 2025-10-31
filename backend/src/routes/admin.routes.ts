@@ -1442,7 +1442,67 @@ export default async function adminRoutes(server: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'object' }
+            data: {
+              type: 'object',
+              additionalProperties: true,
+              properties: {
+                // Overview properties
+                totalRevenue: { type: 'number' },
+                revenueGrowth: { type: 'number' },
+                currentMRR: { type: 'number' },
+                currentARR: { type: 'number' },
+                activeSubscriptions: { type: 'number' },
+                payingCustomers: { type: 'number' },
+                invoiceCount: { type: 'number' },
+                creditPurchaseCount: { type: 'number' },
+                averageInvoiceValue: { type: 'number' },
+                averageCreditPurchase: { type: 'number' },
+                // Trends properties
+                trends: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      month: { type: 'string' },
+                      revenue: { type: 'number' },
+                      invoiceCount: { type: 'number' },
+                      creditPurchases: { type: 'number' },
+                      mrr: { type: 'number' },
+                      arr: { type: 'number' }
+                    }
+                  }
+                },
+                // Customers properties
+                customers: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      organizationId: { type: 'string' },
+                      organizationName: { type: 'string' },
+                      revenue: { type: 'number' },
+                      invoiceCount: { type: 'number' },
+                      creditPurchaseCount: { type: 'number' }
+                    }
+                  }
+                },
+                // Breakdown properties
+                breakdown: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      plan: { type: 'string' },
+                      billingCycle: { type: 'string' },
+                      revenue: { type: 'number' },
+                      invoiceCount: { type: 'number' },
+                      subscriptionCount: { type: 'number' },
+                      averageRevenue: { type: 'number' }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
