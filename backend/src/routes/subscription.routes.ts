@@ -572,6 +572,12 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         return;
       }
 
+      request.log.info('Sending purchase response to frontend', {
+        purchaseResultData: purchaseResult.data,
+        hasCheckoutUrl: !!purchaseResult.data.checkoutUrl,
+        checkoutUrl: purchaseResult.data.checkoutUrl,
+      });
+
       reply.status(200).send({
         success: true,
         data: purchaseResult.data,
