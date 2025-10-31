@@ -1126,7 +1126,7 @@ const AssessmentResults = () => {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">
                 Compliance Assessment Results
@@ -1140,12 +1140,14 @@ const AssessmentResults = () => {
                 variant="outline"
                 onClick={() => navigate('/reports')}
                 className="border-gray-700"
+                data-testid="button-view-all-reports"
               >
                 View All Reports
               </Button>
               <Button
                 onClick={handleDownloadReport}
                 className="bg-cyan-600 hover:bg-cyan-700"
+                data-testid="button-download-pdf"
               >
                 <Download className="h-4 w-4 mr-2" />
                 Download PDF
@@ -1157,11 +1159,11 @@ const AssessmentResults = () => {
         {/* Compliance Score Card - Updated with correct interpretation */}
         <Card className="mb-8 bg-gray-900/50 backdrop-blur-sm border-gray-800">
           <CardContent className="p-8">
-            <div className="flex items-center gap-8">
-              <div className="flex-shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center gap-8">
+              <div className="flex-shrink-0 mx-auto md:mx-0">
                 <RiskScoreGauge score={results.overallRiskScore} size="large" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 text-center md:text-left">
                 <div className="mb-4">
                   <Badge className={`text-lg px-4 py-2 ${compliance.color}`}>
                     {compliance.level}
@@ -1173,7 +1175,7 @@ const AssessmentResults = () => {
                 <p className="text-gray-300 text-lg">
                   {compliance.description}
                 </p>
-                <div className="mt-6 flex items-center gap-4">
+                <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-center md:justify-start">
                   <div className="text-sm">
                     <span className="text-gray-400">Gaps Identified:</span>
                     <span className="text-white font-semibold ml-2">{results.gaps.length}</span>
