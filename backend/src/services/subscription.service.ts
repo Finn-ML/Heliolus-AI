@@ -1446,7 +1446,7 @@ export class SubscriptionService extends BaseService {
    * @param context - Service context
    * @returns Credits added
    */
-  async purchaseAdditionalAssessment(
+  async createAdditionalAssessmentCheckout(
     userId: string,
     stripePriceId: string,
     context: ServiceContext

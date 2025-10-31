@@ -551,8 +551,8 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         return;
       }
 
-      // Purchase additional assessment credits
-      const purchaseResult = await subscriptionService.purchaseAdditionalAssessment(
+      // Create checkout session for additional assessment credits
+      const purchaseResult = await subscriptionService.createAdditionalAssessmentCheckout(
         userId,
         stripePriceId,
         {
