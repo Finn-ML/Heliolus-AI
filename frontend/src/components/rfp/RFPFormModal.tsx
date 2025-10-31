@@ -467,7 +467,7 @@ Our objective is to implement solutions that address these compliance gaps and i
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -482,9 +482,9 @@ Our objective is to implement solutions that address these compliance gaps and i
           {/* Assessment Selection and Auto-fill */}
           <div className="space-y-2">
             {selectedAssessment ? (
-              <div className="flex items-center justify-between p-3 bg-cyan-900/20 border border-cyan-600/30 rounded-md">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-cyan-400" />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-cyan-900/20 border border-cyan-600/30 rounded-md">
+                <div className="flex items-center space-x-2 flex-wrap">
+                  <CheckCircle2 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
                   <span className="text-sm text-gray-300">
                     Using: <span className="font-medium text-white">{selectedAssessment.template?.name}</span>
                   </span>
@@ -500,6 +500,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                     onClick={handleAutoFillClick}
                     disabled={autoFilling}
                     className="text-cyan-400 hover:text-cyan-300"
+                    data-testid="button-autofill"
                   >
                     {autoFilling ? (
                       <>
@@ -519,6 +520,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                     size="sm"
                     onClick={() => setSelectedAssessment(null)}
                     className="text-gray-400 hover:text-gray-300"
+                    data-testid="button-clear-assessment"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -647,7 +649,7 @@ Our objective is to implement solutions that address these compliance gaps and i
 
           {/* Vendor Selection */}
           <div className="space-y-2">
-            <Label className="flex items-center justify-between">
+            <Label className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <span className="flex items-center space-x-2">
                 <Users className="h-4 w-4" />
                 <span>Select Vendors * ({selectedVendorIds.length} selected)</span>
@@ -674,20 +676,21 @@ Our objective is to implement solutions that address these compliance gaps and i
                   vendors.map((vendor) => (
                     <div
                       key={vendor.id}
-                      className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+                      className="flex items-start sm:items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
                     >
                       <Checkbox
                         checked={selectedVendorIds.includes(vendor.id)}
                         onCheckedChange={() => toggleVendor(vendor.id)}
+                        className="mt-0.5 sm:mt-0 flex-shrink-0"
                       />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm">{vendor.companyName}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <p className="font-medium text-sm truncate">{vendor.companyName}</p>
                           {vendor.matchScore !== undefined && (
                             <Badge
                               variant="outline"
                               className={cn(
-                                "text-xs",
+                                "text-xs w-fit",
                                 vendor.matchScore >= 80 ? "bg-green-900/30 text-green-400 border-green-600" :
                                 vendor.matchScore >= 60 ? "bg-cyan-900/30 text-cyan-400 border-cyan-600" :
                                 vendor.matchScore >= 40 ? "bg-yellow-900/30 text-yellow-400 border-yellow-600" :
@@ -699,7 +702,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                           )}
                         </div>
                         {vendor.categories && vendor.categories.length > 0 && (
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-gray-500 truncate">
                             {vendor.categories.slice(0, 3).join(', ')}
                           </p>
                         )}
@@ -742,11 +745,23 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Footer */}
-          <DialogFooter className="flex space-x-2">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleClose} 
+              disabled={isSubmitting}
+              className="w-full sm:w-auto"
+              data-testid="button-cancel-rfp"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || createRfpMutation.isPending}>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || createRfpMutation.isPending}
+              className="w-full sm:w-auto"
+              data-testid="button-submit-rfp"
+            >
               {isSubmitting || createRfpMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -762,7 +777,7 @@ Our objective is to implement solutions that address these compliance gaps and i
 
       {/* Assessment Selector Dialog */}
       <Dialog open={showAssessmentSelector} onOpenChange={setShowAssessmentSelector}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Select Assessment</DialogTitle>
             <DialogDescription>
