@@ -69,8 +69,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
         {/* Header */}
         <Card className="border-cyan-500/20 bg-gradient-to-r from-card/50 to-card/80 backdrop-blur-sm">
           <CardContent className="p-8">
-            <div className="flex justify-between items-start">
-              <div>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+              <div className="flex-1">
                 <h1 className="text-3xl font-bold text-white mb-2">
                   Compliance Technology Marketplace
                 </h1>
@@ -98,14 +98,15 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                   </div>
                 )}
               </div>
-              <div className="flex space-x-3">
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                 <InlinePremiumGate
                   featureName="RFP Creation"
                   onUpgradeClick={() => navigate('/settings/subscription')}
                 >
                   <Button
                     onClick={() => setShowRFPModal(true)}
-                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 w-full sm:w-auto"
+                    data-testid="button-create-rfp"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     <span>Create RFP</span>
@@ -114,7 +115,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 <Button
                   variant="outline"
                   onClick={() => setShowVendorOnboarding(true)}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 w-full sm:w-auto"
+                  data-testid="button-join-vendor"
                 >
                   <Store className="h-4 w-4" />
                   <span>Join as Vendor</span>
