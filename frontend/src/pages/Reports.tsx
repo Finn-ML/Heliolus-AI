@@ -37,7 +37,6 @@ interface Report {
   generatedDate: string;
   status: 'completed' | 'generating' | 'failed' | 'complete-priorities';
   description: string;
-  fileSize: string;
   tags: string[];
   riskScore?: number;
   gapCount?: number;
@@ -163,7 +162,6 @@ const Reports: React.FC = () => {
           generatedDate: assessment.completedAt || assessment.updatedAt,
           status,
           description: `Risk Score: ${assessment.riskScore || 'Pending'} | ${gapCount} gaps identified | ${riskCount} risks analyzed`,
-          fileSize: isCompleted ? '~1.5 MB' : 'Pending',
           tags: [
             assessment.template?.category || 'Compliance',
             assessment.riskScore > 70
@@ -372,7 +370,6 @@ const Reports: React.FC = () => {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                       <Calendar className="h-4 w-4" />
                       {new Date(report.generatedDate).toLocaleDateString()}
-                      <span className="ml-auto">{report.fileSize}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-1 mb-4">
@@ -450,7 +447,6 @@ const Reports: React.FC = () => {
                               <Calendar className="h-4 w-4" />
                               {new Date(report.generatedDate).toLocaleDateString()}
                             </div>
-                            <span className="text-sm text-muted-foreground">{report.fileSize}</span>
                           </div>
                         </div>
                       </div>

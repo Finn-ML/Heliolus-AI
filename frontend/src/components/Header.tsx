@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { User, Settings, LogOut, FileText, BarChart3, Shield } from 'lucide-react';
+import { User, Settings, LogOut, BarChart3, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const Header = () => {
@@ -66,14 +66,6 @@ const Header = () => {
                   className={location.pathname === '/marketplace' ? 'bg-accent' : ''}
                 >
                   Marketplace
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate('/reports')}
-                  className={location.pathname === '/reports' ? 'bg-accent' : ''}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Reports
                 </Button>
 
                 {isAdmin() && (

@@ -304,26 +304,6 @@ const VendorMarketplace: React.FC<VendorMarketplaceProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Assessment Match Banner (Story 1.27) - Hidden for FREE users */}
-      {assessmentId && !isFreePlan && vendorMatchScores.size > 0 && (
-        <Card className="bg-gradient-to-r from-cyan-900/30 to-purple-900/30 border-cyan-800/50">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <Target className="h-6 w-6 text-cyan-400 flex-shrink-0" />
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-1">
-                  Viewing AI-Matched Vendors for Your Assessment
-                </h3>
-                <p className="text-gray-300 text-sm">
-                  Found {vendorMatchScores.size} vendors matched to your compliance gaps. Vendors
-                  are sorted by match score (base compatibility + priority boost).
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Upgrade Message for FREE users */}
       {assessmentId && isFreePlan && (
         <Alert className="border-cyan-800/50 bg-gradient-to-r from-cyan-900/20 to-purple-900/20">
