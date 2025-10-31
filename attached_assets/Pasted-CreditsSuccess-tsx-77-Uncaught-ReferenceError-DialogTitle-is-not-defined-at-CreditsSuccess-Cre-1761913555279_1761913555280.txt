@@ -1,0 +1,27 @@
+CreditsSuccess.tsx:77 Uncaught ReferenceError: DialogTitle is not defined
+    at CreditsSuccess (CreditsSuccess.tsx:77:12)
+
+CreditsSuccess.tsx:77 Uncaught ReferenceError: DialogTitle is not defined
+    at CreditsSuccess (CreditsSuccess.tsx:77:12)
+console-capture.js:79 The above error occurred in the <CreditsSuccess> component:
+
+    at CreditsSuccess (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/pages/CreditsSuccess.tsx:10:26)
+    at ProtectedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/ProtectedRoute.tsx:7:3)
+    at RenderedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=7b3d17f8:4088:5)
+    at Routes (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=7b3d17f8:4558:5)
+    at div
+    at Router (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=7b3d17f8:4501:15)
+    at BrowserRouter (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=7b3d17f8:5247:5)
+    at Provider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/chunk-5WETD4PZ.js?v=718c993e:38:15)
+    at TooltipProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=622cadcb:65:5)
+    at O (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=2e1cc61e:23:25)
+    at z (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=2e1cc61e:21:18)
+    at OnboardingProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/OnboardingContext.tsx:8:38)
+    at AuthProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/AuthContext.tsx:5:32)
+    at QueryClientProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=1b71eb68:3022:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+chunk-GNC7SI6A.js?v=718c993e:19413 Uncaught ReferenceError: DialogTitle is not defined
+    at CreditsSuccess (CreditsSuccess.tsx:77:12)

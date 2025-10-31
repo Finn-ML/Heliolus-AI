@@ -74,10 +74,10 @@ const CreditsSuccess = () => {
               </div>
             </div>
           </div>
-          <DialogTitle className="text-3xl flex items-center justify-center gap-2">
+          <CardTitle className="text-3xl flex items-center justify-center gap-2">
             <Sparkles className="h-6 w-6 text-yellow-400" />
             Purchase Complete!
-          </DialogTitle>
+          </CardTitle>
           <CardDescription className="text-lg pt-2">
             50 assessment credits have been added to your account
           </CardDescription>
