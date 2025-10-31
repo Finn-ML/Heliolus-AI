@@ -221,24 +221,27 @@ export default function Pricing() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      {/* Page Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Select the perfect plan for your compliance needs. Upgrade or downgrade anytime.
-        </p>
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-7xl mx-auto">
+        {/* Page Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Select the perfect plan for your compliance needs. Upgrade or downgrade anytime.
+          </p>
+        </div>
 
-      {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-        {pricingTiers.map((tier) => (
-          <PricingCard key={tier.name} tier={tier} />
-        ))}
-      </div>
+        {/* Pricing Cards Grid */}
+        <div className="flex justify-center px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
+            {pricingTiers.map((tier) => (
+              <PricingCard key={tier.name} tier={tier} />
+            ))}
+          </div>
+        </div>
 
-      {/* FAQ Section */}
-      <div className="mt-20 max-w-3xl mx-auto">
+        {/* FAQ Section */}
+        <div className="mt-20 max-w-3xl mx-auto">
         <h2 className="text-3xl font-bold text-center mb-8">Frequently Asked Questions</h2>
         <div className="space-y-6">
           <div>
@@ -277,6 +280,7 @@ export default function Pricing() {
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
