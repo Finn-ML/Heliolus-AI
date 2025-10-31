@@ -402,10 +402,10 @@ const Reports: React.FC = () => {
               {filteredReports.map(report => (
                 <Card key={report.id}>
                   <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4">
                       <div className="flex items-center gap-4">
                         {getReportIcon(report.type)}
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-semibold">{report.title}</h3>
                           <p className="text-sm text-muted-foreground">{report.description}</p>
                           <div className="flex items-center gap-4 mt-2">
