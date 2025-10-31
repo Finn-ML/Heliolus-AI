@@ -1229,11 +1229,11 @@ export class AnalyticsService extends BaseService {
     // Calculate ARR (MRR × 12)
     const currentARR = currentMRR * 12;
 
-    // Get active subscriptions count
+    // Get active subscriptions count (PREMIUM and ENTERPRISE only)
     const activeSubscriptions = await this.prisma.subscription.count({
       where: {
         status: SubscriptionStatus.ACTIVE,
-        billingCycle: { not: null }
+        plan: { in: ['PREMIUM', 'ENTERPRISE'] }
       }
     });
 
