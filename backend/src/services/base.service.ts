@@ -43,10 +43,34 @@ export abstract class BaseService {
 
     // Simple logger for now - should be replaced with proper logging service
     this.logger = {
-      info: (message: string, meta?: any) => console.log(`[INFO] ${message}`, meta),
-      warn: (message: string, meta?: any) => console.warn(`[WARN] ${message}`, meta),
-      error: (message: string, meta?: any) => console.error(`[ERROR] ${message}`, meta),
-      debug: (message: string, meta?: any) => console.debug(`[DEBUG] ${message}`, meta),
+      info: (messageOrMeta: string | any, meta?: any) => {
+        if (typeof messageOrMeta === 'string') {
+          console.log(`[INFO] ${messageOrMeta}`, meta || '');
+        } else {
+          console.log(`[INFO] ${meta || 'Info'}`, JSON.stringify(messageOrMeta, null, 2));
+        }
+      },
+      warn: (messageOrMeta: string | any, meta?: any) => {
+        if (typeof messageOrMeta === 'string') {
+          console.warn(`[WARN] ${messageOrMeta}`, meta || '');
+        } else {
+          console.warn(`[WARN] ${meta || 'Warning'}`, JSON.stringify(messageOrMeta, null, 2));
+        }
+      },
+      error: (messageOrMeta: string | any, meta?: any) => {
+        if (typeof messageOrMeta === 'string') {
+          console.error(`[ERROR] ${messageOrMeta}`, meta || '');
+        } else {
+          console.error(`[ERROR] ${meta || 'Error'}`, JSON.stringify(messageOrMeta, null, 2));
+        }
+      },
+      debug: (messageOrMeta: string | any, meta?: any) => {
+        if (typeof messageOrMeta === 'string') {
+          console.debug(`[DEBUG] ${messageOrMeta}`, meta || '');
+        } else {
+          console.debug(`[DEBUG] ${meta || 'Debug'}`, JSON.stringify(messageOrMeta, null, 2));
+        }
+      },
     };
 
     this.setupPrismaLogging();
