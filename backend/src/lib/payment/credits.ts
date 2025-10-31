@@ -22,6 +22,54 @@ const prisma = new PrismaClient();
  */
 export class HeliolusCreditManager implements CreditManager {
   /**
+   * Purchase credits package
+   */
+  async purchaseCredits(userId: string, packageType: string): Promise<CreditTransaction> {
+    try {
+      // Find user's subscription
+      const subscription = await prisma.subscription.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' }
+      });
+      
+      if (!subscription) {
+        throw new CreditError('No subscription found for user');
+      }
+      
+      // Define credit packages
+      const packages: Record<string, { credits: number; price: number }> = {
+        small: { credits: 50, price: 299 },
+        medium: { credits: 100, price: 499 },
+        large: { credits: 200, price: 899 }
+      };
+      
+      const creditPackage = packages[packageType.toLowerCase()];
+      if (!creditPackage) {
+        throw new CreditError('Invalid package type');
+      }
+      
+      // Add credits and create transaction
+      const result = await this.addCredits({
+        userId,
+        subscriptionId: subscription.id,
+        amount: creditPackage.credits,
+        description: `Purchased ${packageType} credit package`,
+        type: TransactionType.PURCHASE,
+        metadata: { packageType, price: creditPackage.price }
+      });
+      
+      if (!result.success || !result.data) {
+        throw new CreditError('Failed to purchase credits');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error('Purchase credits error:', error);
+      throw error instanceof CreditError ? error : new CreditError('Failed to purchase credits');
+    }
+  }
+
+  /**
    * Get credit balance for subscription
    */
   async getBalance(subscriptionId: string): Promise<CreditBalance | null> {
@@ -88,8 +136,8 @@ export class HeliolusCreditManager implements CreditManager {
             amount: data.amount,
             balance: updatedSubscription.creditsBalance,
             description: data.description || `Added ${data.amount} credits`,
-            reference: data.reference,
-            metadata: data.metadata ? JSON.stringify(data.metadata) : null
+            metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+            assessmentId: data.assessmentId
           }
         });
 
@@ -107,7 +155,11 @@ export class HeliolusCreditManager implements CreditManager {
       });
 
       console.log(`Added ${data.amount} credits to subscription ${data.subscriptionId}`);
-      return { success: true, data: result };
+      return { 
+        success: true, 
+        data: result.transaction,
+        balance: result.balance.balance
+      };
     } catch (error) {
       console.error('Add credits error:', error);
       return {
@@ -150,12 +202,12 @@ export class HeliolusCreditManager implements CreditManager {
         const transaction = await tx.creditTransaction.create({
           data: {
             subscriptionId: data.subscriptionId,
-            type: TransactionType.USAGE,
+            type: data.type || TransactionType.ASSESSMENT,
             amount: -data.amount, // Negative for deduction
             balance: updatedSubscription.creditsBalance,
             description: data.description || `Used ${data.amount} credits`,
-            reference: data.reference,
-            metadata: data.metadata ? JSON.stringify(data.metadata) : null
+            metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+            assessmentId: data.assessmentId
           }
         });
 
@@ -173,7 +225,11 @@ export class HeliolusCreditManager implements CreditManager {
       });
 
       console.log(`Deducted ${data.amount} credits from subscription ${data.subscriptionId}`);
-      return { success: true, data: result };
+      return { 
+        success: true, 
+        data: result.transaction,
+        balance: result.balance.balance
+      };
     } catch (error) {
       console.error('Deduct credits error:', error);
       return {
@@ -245,23 +301,29 @@ export class HeliolusCreditManager implements CreditManager {
           tx.creditTransaction.create({
             data: {
               subscriptionId: fromSubscriptionId,
-              type: TransactionType.TRANSFER,
+              type: TransactionType.ADJUSTMENT,
               amount: -amount,
               balance: updatedFromSubscription.creditsBalance,
               description: description || `Transferred ${amount} credits to ${toSubscriptionId}`,
-              reference: `transfer-${Date.now()}`,
-              metadata: JSON.stringify({ toSubscriptionId, transferType: 'outbound' })
+              metadata: JSON.stringify({ 
+                toSubscriptionId, 
+                transferType: 'outbound',
+                reference: `transfer-${Date.now()}`
+              })
             }
           }),
           tx.creditTransaction.create({
             data: {
               subscriptionId: toSubscriptionId,
-              type: TransactionType.TRANSFER,
+              type: TransactionType.ADJUSTMENT,
               amount: amount,
               balance: updatedToSubscription.creditsBalance,
               description: description || `Received ${amount} credits from ${fromSubscriptionId}`,
-              reference: `transfer-${Date.now()}`,
-              metadata: JSON.stringify({ fromSubscriptionId, transferType: 'inbound' })
+              metadata: JSON.stringify({ 
+                fromSubscriptionId, 
+                transferType: 'inbound',
+                reference: `transfer-${Date.now()}`
+              })
             }
           })
         ]);
@@ -289,7 +351,11 @@ export class HeliolusCreditManager implements CreditManager {
       });
 
       console.log(`Transferred ${amount} credits from ${fromSubscriptionId} to ${toSubscriptionId}`);
-      return { success: true, data: result };
+      return { 
+        success: true, 
+        data: result.fromTransaction,
+        balance: result.fromBalance.balance
+      };
     } catch (error) {
       console.error('Transfer credits error:', error);
       return {
@@ -332,7 +398,7 @@ export class HeliolusCreditManager implements CreditManager {
         prisma.creditTransaction.findMany({
           where: {
             subscriptionId,
-            type: TransactionType.USAGE,
+            type: TransactionType.ASSESSMENT,
             createdAt: { gte: since }
           },
           select: { amount: true, createdAt: true }
@@ -377,13 +443,15 @@ export class HeliolusCreditManager implements CreditManager {
   private mapDatabaseTransaction(dbTransaction: any): CreditTransaction {
     return {
       id: dbTransaction.id,
+      userId: dbTransaction.userId || 'system',
       subscriptionId: dbTransaction.subscriptionId,
       type: dbTransaction.type,
       amount: dbTransaction.amount,
       balance: dbTransaction.balance,
       description: dbTransaction.description,
-      reference: dbTransaction.reference,
       metadata: dbTransaction.metadata ? JSON.parse(dbTransaction.metadata) : undefined,
+      paymentIntentId: dbTransaction.paymentIntentId,
+      assessmentId: dbTransaction.assessmentId,
       createdAt: dbTransaction.createdAt
     };
   }

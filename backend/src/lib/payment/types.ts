@@ -406,7 +406,7 @@ export class InvoiceError extends PaymentError {
 
 export class InsufficientCreditsError extends CreditError {
   constructor(required: number, available: number) {
-    super(`Insufficient credits: ${required} required, ${available} available`, 'INSUFFICIENT_CREDITS');
+    super(`Insufficient credits: ${required} required, ${available} available`);
     this.name = 'InsufficientCreditsError';
   }
 }
