@@ -1731,6 +1731,26 @@ export const adminCouponApi = {
   },
 };
 
+// Admin Subscriptions API
+export const adminSubscriptionsApi = {
+  // Get all subscriptions with optional filters
+  getSubscriptions: async (filters?: {
+    status?: string;
+    plan?: string;
+    search?: string;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.plan) queryParams.append('plan', filters.plan);
+    if (filters?.search) queryParams.append('search', filters.search);
+
+    const queryString = queryParams.toString();
+    const url = queryString ? `/admin/subscriptions?${queryString}` : '/admin/subscriptions';
+
+    return await apiRequest<ApiResponse<any[]>>(url);
+  },
+};
+
 // Error handling utilities
 export class ApiError extends Error {
   constructor(
