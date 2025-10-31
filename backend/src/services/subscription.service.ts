@@ -53,7 +53,7 @@ const UpdateSubscriptionSchema = z.object({
 const AddCreditsSchema = z.object({
   amount: z.number().min(1, 'Credit amount must be positive'),
   description: z.string().max(200),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 const DeductCreditsSchema = z.object({
@@ -61,7 +61,7 @@ const DeductCreditsSchema = z.object({
   type: z.nativeEnum(TransactionType),
   description: z.string().max(200),
   assessmentId: z.string().cuid().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 const PurchaseAdditionalAssessmentSchema = z.object({
@@ -74,7 +74,7 @@ export interface SubscriptionWithDetails extends DatabaseSubscription {
     id: string;
     email: string;
     firstName: string;
-    lastName: true;
+    lastName: string;
   };
   _count: {
     invoices: number;
@@ -267,12 +267,15 @@ export class SubscriptionService extends BaseService {
       if (validatedData.plan !== SubscriptionPlan.FREE) {
         try {
           // Create Stripe customer
-          const stripeCustomer = await createStripeCustomer({
+          const stripeCustomerResult = await createStripeCustomer({
             email: user.email,
             name: `${user.firstName} ${user.lastName}`,
             metadata: { userId },
           });
-          stripeCustomerId = stripeCustomer.id;
+          if (!stripeCustomerResult.success || !stripeCustomerResult.data) {
+            throw new Error(stripeCustomerResult.message || 'Failed to create Stripe customer');
+          }
+          stripeCustomerId = stripeCustomerResult.data.id;
 
           // Attach payment method if provided
           if (validatedData.paymentMethodId) {
@@ -285,13 +288,16 @@ export class SubscriptionService extends BaseService {
 
           // Create Stripe subscription
           if (planConfig.price && planConfig.price > 0) {
-            const stripeSubscription = await createStripeSubscription({
-              customerId: stripeCustomerId,
-              priceId: process.env[`STRIPE_${validatedData.plan}_PRICE_ID`] || '',
-              paymentMethodId: stripePaymentMethodId,
-              trialPeriodDays: validatedData.trialDays,
+            const stripeSubscriptionResult = await createStripeSubscription({
+              customer: stripeCustomerId,
+              items: [{ price: process.env[`STRIPE_${validatedData.plan}_PRICE_ID`] || '' }],
+              trial_period_days: validatedData.trialDays,
+              metadata: { userId },
             });
-            stripeSubscriptionId = stripeSubscription.id;
+            if (!stripeSubscriptionResult.success || !stripeSubscriptionResult.data) {
+              throw new Error(stripeSubscriptionResult.message || 'Failed to create Stripe subscription');
+            }
+            stripeSubscriptionId = stripeSubscriptionResult.data.id;
           }
         } catch (stripeError) {
           this.logger.error('Stripe subscription creation failed', {
@@ -626,9 +632,8 @@ export class SubscriptionService extends BaseService {
         // Update Stripe subscription if needed
         if (subscription.stripeSubscriptionId) {
           try {
-            await updateStripeSubscription({
-              subscriptionId: subscription.stripeSubscriptionId,
-              priceId: process.env[`STRIPE_${validatedData.plan}_PRICE_ID`] || '',
+            await updateStripeSubscription(subscription.stripeSubscriptionId, {
+              items: [{ price: process.env[`STRIPE_${validatedData.plan}_PRICE_ID`] || '' }],
             });
           } catch (stripeError) {
             this.logger.error('Stripe subscription update failed', {
@@ -1548,7 +1553,8 @@ export class SubscriptionService extends BaseService {
   ): Promise<ApiResponse<{ url: string }>> {
     try {
       // Validate and authorize
-      this.validateContext(context, [UserRole.USER, UserRole.ADMIN]);
+      this.validateContext(context);
+      this.requirePermission(context, [UserRole.USER, UserRole.ADMIN], userId);
 
       // Authorization check: users can only create portal for themselves
       if (context.userId !== userId && context.userRole !== UserRole.ADMIN) {
