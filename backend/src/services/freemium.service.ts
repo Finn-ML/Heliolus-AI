@@ -64,12 +64,12 @@ export class FreemiumService {
           canAccessDetailed: true,
           canDownloadReports: true,
           canExportData: true,
-          maxAssessmentsPerMonth: -1, // unlimited
+          maxAssessmentsPerMonth: 2, // 2 assessments per month
           canAccessAIAnalysis: true,
           canViewGapAnalysis: true,
           canViewRiskBreakdown: true,
-          creditsPerAssessment: 3, // discounted
-          maxCreditsPerMonth: -1, // unlimited
+          creditsPerAssessment: 50, // 50 credits per assessment
+          maxCreditsPerMonth: 100, // 100 credits per month (enough for 2 assessments)
         };
 
       default:
@@ -278,7 +278,7 @@ export class FreemiumService {
         return {
           title: 'Scale Your Compliance Program',
           benefits: [
-            'Unlimited assessments and credits',
+            '2 assessments per month (100 credits)',
             'Priority AI analysis',
             'Advanced reporting features',
             'Multi-organization support',
