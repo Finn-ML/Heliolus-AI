@@ -5,7 +5,7 @@
 
 import { Prisma } from '../generated/prisma';
 import { BaseService, ServiceContext } from './base.service';
-import { ApiResponse, AssessmentStatus, UserRole, InvoiceStatus, SubscriptionStatus } from '../types/database';
+import { ApiResponse, AssessmentStatus, UserRole, InvoiceStatus, SubscriptionStatus, BillingCycle, TransactionType } from '../types/database';
 
 // Type definitions
 interface AssessmentMetrics {
@@ -1399,5 +1399,139 @@ export class AnalyticsService extends BaseService {
       .sort((a, b) => b.revenue - a.revenue);
 
     return { breakdown };
+  }
+
+  /**
+   * Get detailed transaction list for revenue reports
+   * Combines invoices and credit transactions
+   */
+  async getRevenueTransactions(
+    context: any,
+    startDate?: Date,
+    endDate?: Date,
+    limit: number = 100
+  ): Promise<any> {
+    try {
+      // Require admin permission
+      this.requirePermission(context, [UserRole.ADMIN]);
+
+      // Default date range: last 30 days
+      const end = endDate || new Date();
+      const start = startDate || new Date(end.getFullYear(), end.getMonth() - 1, end.getDate());
+
+      this.logger.info('Getting revenue transactions', {
+        startDate: start,
+        endDate: end,
+        limit,
+        userId: context.userId
+      });
+
+      // Fetch invoices (subscription payments)
+      const invoices = await this.prisma.invoice.findMany({
+        where: {
+          status: InvoiceStatus.PAID,
+          paidAt: {
+            gte: start,
+            lte: end
+          }
+        },
+        include: {
+          subscription: {
+            include: {
+              user: {
+                include: {
+                  organization: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: {
+          paidAt: 'desc'
+        },
+        take: limit
+      });
+
+      // Fetch credit transactions (credit purchases and usage)
+      const creditTransactions = await this.prisma.creditTransaction.findMany({
+        where: {
+          createdAt: {
+            gte: start,
+            lte: end
+          },
+          type: { in: [TransactionType.PURCHASE, TransactionType.BONUS, TransactionType.ADMIN_GRANT] } // Only revenue-generating transactions
+        },
+        include: {
+          subscription: {
+            include: {
+              user: {
+                include: {
+                  organization: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: limit
+      });
+
+      // Combine and transform transactions
+      const transactions: any[] = [];
+
+      // Add invoices
+      invoices.forEach(invoice => {
+        const org = invoice.subscription.user.Organization;
+        transactions.push({
+          id: invoice.id,
+          date: invoice.paidAt || invoice.createdAt,
+          organization: org?.name || 'Unknown Organization',
+          type: 'subscription',
+          description: `${invoice.subscription.plan} Plan - ${invoice.subscription.billingCycle || 'N/A'}`,
+          amount: invoice.amount,
+          status: invoice.status.toLowerCase(),
+          metadata: {
+            invoiceNumber: invoice.number,
+            stripeInvoiceId: invoice.stripeInvoiceId
+          }
+        });
+      });
+
+      // Add credit transactions
+      creditTransactions.forEach(transaction => {
+        const org = transaction.subscription.user.Organization;
+        // Calculate revenue from credit transactions
+        // Assuming credits cost a certain amount (this should match your pricing)
+        const creditValue = transaction.amount > 0 ? transaction.amount : 0;
+
+        transactions.push({
+          id: transaction.id,
+          date: transaction.createdAt,
+          organization: org?.name || 'Unknown Organization',
+          type: transaction.type === TransactionType.PURCHASE ? 'credits' : transaction.type === TransactionType.BONUS ? 'bonus' : 'credits',
+          description: transaction.description,
+          amount: creditValue, // You may need to calculate actual revenue based on credit pricing
+          status: 'paid',
+          metadata: {
+            creditAmount: transaction.amount,
+            balance: transaction.balance,
+            transactionType: transaction.type
+          }
+        });
+      });
+
+      // Sort all transactions by date (descending)
+      transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      // Limit results
+      const limitedTransactions = transactions.slice(0, limit);
+
+      return this.createResponse(true, { transactions: limitedTransactions });
+    } catch (error) {
+      if (error.statusCode) throw error;
+      this.handleDatabaseError(error, 'getRevenueTransactions');
+    }
   }
 }
