@@ -1,0 +1,12 @@
+[0] {"level":30,"time":1761924967338,"pid":50586,"hostname":"8d47114848d2","reqId":"req-g","res":{"statusCode":200},"responseTime":869.3224550038576,"msg":"request completed"}
+[0] {"level":30,"time":1761924971011,"pid":50586,"hostname":"8d47114848d2","reqId":"req-k","req":{"method":"POST","url":"/v1/subscriptions/customer-portal","hostname":"localhost:8543","remoteAddress":"127.0.0.1","remotePort":57136},"msg":"incoming request"}
+[0] [ERROR] Failed to create Customer Portal session {
+[0]   "message": "Cannot read properties of undefined (reading 'subscription')",
+[0]   "raw": "{}",
+[0]   "stack": "TypeError: Cannot read properties of undefined (reading 'subscription')\n    at SubscriptionService.createCustomerPortalSession (/home/runner/workspace/backend/src/services/subscription.service.ts:1559:42)\n    at <anonymous> (/home/runner/workspace/backend/src/routes/subscription.routes.ts:912:48)\n    at Object.<anonymous> (/home/runner/workspace/backend/src/middleware/error.middleware.ts:261:20)\n    at preHandlerCallback (/home/runner/workspace/node_modules/fastify/lib/handleRequest.js:139:37)\n    at next (/home/runner/workspace/node_modules/fastify/lib/hooks.js:233:9)\n    at handleResolve (/home/runner/workspace/node_modules/fastify/lib/hooks.js:250:7)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)",
+[0]   "userId": "cmh0oe6890000o03xb8rza882",
+[0]   "errorString": "TypeError: Cannot read properties of undefined (reading 'subscription')"
+[0] }
+[0] {"level":30,"time":1761924971011,"pid":50586,"hostname":"8d47114848d2","reqId":"req-k","method":"POST","url":"/v1/subscriptions/customer-portal","ip":"127.0.0.1","msg":"Request received"}
+[0] {"level":50,"time":1761924971025,"pid":50586,"hostname":"8d47114848d2","reqId":"req-k","error":{"statusCode":500,"code":"PORTAL_SESSION_FAILED"},"userId":"cmh0oe6890000o03xb8rza882","msg":"Failed to create Customer Portal session"}
+[0] {"level":30,"time":1761924971025,"pid":50586,"hostname":"8d47114848d2","reqId":"req-k","res":{"statusCode":500},"responseTime":14.358288995921612,"msg":"request completed"}

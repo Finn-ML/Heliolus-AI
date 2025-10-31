@@ -1556,7 +1556,7 @@ export class SubscriptionService extends BaseService {
       }
 
       // Get user's subscription with Stripe customer ID
-      const subscription = await this.db.subscription.findUnique({
+      const subscription = await this.prisma.subscription.findUnique({
         where: { userId },
         include: {
           user: {
