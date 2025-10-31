@@ -1163,15 +1163,55 @@ export class AnalyticsService extends BaseService {
       }
     });
 
-    // Calculate total revenue
-    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
+    // Get all credit purchases in date range
+    const creditPurchases = await this.prisma.creditTransaction.findMany({
+      where: {
+        type: TransactionType.PURCHASE,
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: {
+          include: {
+            user: {
+              include: {
+                organization: true
+              }
+            }
+          }
+        }
+      }
+    });
 
-    // Get unique paying customers (organizations)
-    const uniqueCustomers = new Set(
-      invoices
-        .map(inv => inv.subscription?.user?.organization?.id)
-        .filter(Boolean)
-    );
+    // Calculate revenue from invoices
+    const invoiceRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
+    
+    // Calculate revenue from credit purchases
+    const CREDIT_PRICE = 299 / 50; // €5.98 per credit
+    const creditRevenue = creditPurchases.reduce((sum, tx) => {
+      if (tx.amount === 50) return sum + 299;
+      return sum + (tx.amount * CREDIT_PRICE);
+    }, 0);
+    
+    // Calculate total revenue (invoices + credit purchases)
+    const totalRevenue = invoiceRevenue + creditRevenue;
+
+    // Get unique paying customers (organizations) from both invoices and credit purchases
+    const customerIds = new Set<string>();
+    
+    // Add customers from invoices
+    invoices.forEach(inv => {
+      const orgId = inv.subscription?.user?.organization?.id;
+      if (orgId) customerIds.add(orgId);
+    });
+    
+    // Add customers from credit purchases
+    creditPurchases.forEach(tx => {
+      const orgId = tx.subscription?.user?.organization?.id;
+      if (orgId) customerIds.add(orgId);
+    });
 
     // Calculate MRR (normalize all subscriptions to monthly)
     const mrrContributions = invoices.map(inv => {
@@ -1212,12 +1252,28 @@ export class AnalyticsService extends BaseService {
       }
     });
 
-    const previousRevenue = previousInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    // Get previous period credit purchases for growth comparison
+    const previousCreditPurchases = await this.prisma.creditTransaction.findMany({
+      where: {
+        type: TransactionType.PURCHASE,
+        createdAt: {
+          gte: previousStart,
+          lt: previousEnd
+        }
+      }
+    });
+    
+    const previousInvoiceRevenue = previousInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const previousCreditRevenue = previousCreditPurchases.reduce((sum, tx) => {
+      if (tx.amount === 50) return sum + 299;
+      return sum + (tx.amount * CREDIT_PRICE);
+    }, 0);
+    const previousRevenue = previousInvoiceRevenue + previousCreditRevenue;
 
     // Calculate growth percentage
     const revenueGrowth = previousRevenue > 0
       ? ((totalRevenue - previousRevenue) / previousRevenue) * 100
-      : 0;
+      : totalRevenue > 0 ? 100 : 0;
 
     return {
       totalRevenue,
@@ -1225,9 +1281,11 @@ export class AnalyticsService extends BaseService {
       currentMRR,
       currentARR,
       activeSubscriptions,
-      payingCustomers: uniqueCustomers.size,
+      payingCustomers: customerIds.size,
       invoiceCount: invoices.length,
-      averageInvoiceValue: invoices.length > 0 ? totalRevenue / invoices.length : 0
+      creditPurchaseCount: creditPurchases.length,
+      averageInvoiceValue: invoices.length > 0 ? invoiceRevenue / invoices.length : 0,
+      averageCreditPurchase: creditPurchases.length > 0 ? creditRevenue / creditPurchases.length : 0
     };
   }
 
@@ -1251,16 +1309,35 @@ export class AnalyticsService extends BaseService {
       }
     });
 
-    // Group by month
-    const monthlyData = new Map<string, { revenue: number; invoices: number; mrr: number }>();
+    // Get credit purchases for trends
+    const creditPurchases = await this.prisma.creditTransaction.findMany({
+      where: {
+        type: TransactionType.PURCHASE,
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: true
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
+    });
 
+    // Group by month
+    const monthlyData = new Map<string, { revenue: number; invoices: number; credits: number; mrr: number }>();
+    const CREDIT_PRICE = 299 / 50;
+
+    // Process invoices
     invoices.forEach(invoice => {
       const month = invoice.paidAt
         ? `${invoice.paidAt.getFullYear()}-${String(invoice.paidAt.getMonth() + 1).padStart(2, '0')}`
         : 'unknown';
 
       if (!monthlyData.has(month)) {
-        monthlyData.set(month, { revenue: 0, invoices: 0, mrr: 0 });
+        monthlyData.set(month, { revenue: 0, invoices: 0, credits: 0, mrr: 0 });
       }
 
       const data = monthlyData.get(month)!;
@@ -1276,12 +1353,29 @@ export class AnalyticsService extends BaseService {
       }
     });
 
+    // Process credit purchases
+    creditPurchases.forEach(tx => {
+      const month = tx.createdAt
+        ? `${tx.createdAt.getFullYear()}-${String(tx.createdAt.getMonth() + 1).padStart(2, '0')}`
+        : 'unknown';
+
+      if (!monthlyData.has(month)) {
+        monthlyData.set(month, { revenue: 0, invoices: 0, credits: 0, mrr: 0 });
+      }
+
+      const data = monthlyData.get(month)!;
+      const creditRevenue = tx.amount === 50 ? 299 : tx.amount * CREDIT_PRICE;
+      data.revenue += creditRevenue;
+      data.credits += 1;
+    });
+
     // Convert to array and sort by month
     const trends = Array.from(monthlyData.entries())
       .map(([month, data]) => ({
         month,
         revenue: data.revenue,
         invoiceCount: data.invoices,
+        creditPurchases: data.credits,
         mrr: data.mrr,
         arr: data.mrr * 12
       }))
@@ -1315,12 +1409,36 @@ export class AnalyticsService extends BaseService {
       }
     });
 
+    // Get credit purchases
+    const creditPurchases = await this.prisma.creditTransaction.findMany({
+      where: {
+        type: TransactionType.PURCHASE,
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        subscription: {
+          include: {
+            user: {
+              include: {
+                organization: true
+              }
+            }
+          }
+        }
+      }
+    });
+
     // Group by organization
+    const CREDIT_PRICE = 299 / 50; // €5.98 per credit
     const customerData = new Map<string, {
       organizationId: string;
       organizationName: string;
       revenue: number;
       invoiceCount: number;
+      creditPurchaseCount: number;
     }>();
 
     invoices.forEach(invoice => {
@@ -1332,13 +1450,35 @@ export class AnalyticsService extends BaseService {
           organizationId: org.id,
           organizationName: org.name,
           revenue: 0,
-          invoiceCount: 0
+          invoiceCount: 0,
+          creditPurchaseCount: 0
         });
       }
 
       const data = customerData.get(org.id)!;
       data.revenue += invoice.amount;
       data.invoiceCount += 1;
+    });
+
+    // Process credit purchases
+    creditPurchases.forEach(tx => {
+      const org = tx.subscription?.user?.organization;
+      if (!org) return;
+
+      if (!customerData.has(org.id)) {
+        customerData.set(org.id, {
+          organizationId: org.id,
+          organizationName: org.name,
+          revenue: 0,
+          invoiceCount: 0,
+          creditPurchaseCount: 0
+        });
+      }
+
+      const data = customerData.get(org.id)!;
+      const creditRevenue = tx.amount === 50 ? 299 : tx.amount * CREDIT_PRICE;
+      data.revenue += creditRevenue;
+      data.creditPurchaseCount += 1;
     });
 
     // Convert to array and sort by revenue (descending)
