@@ -1238,22 +1238,25 @@ const AssessmentExecution = () => {
               variant="outline"
               onClick={() => navigate('/assessment-templates')}
               className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              data-testid="button-choose-template"
             >
-              Choose Different Template
+              <FileText className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Choose Different Template</span>
             </Button>
 
             <Button
               onClick={executeAssessment}
               disabled={!assessment || selectedDocuments.length === 0}
-              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white min-w-[200px] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white md:min-w-[200px] disabled:opacity-50 disabled:cursor-not-allowed"
               title={
                 selectedDocuments.length === 0
                   ? 'Please select at least one document'
                   : 'Start analysis'
               }
+              data-testid="button-start-analysis"
             >
-              <Play className="h-4 w-4 mr-2" />
-              Start Assessment Analysis
+              <Play className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Start Assessment Analysis</span>
             </Button>
           </div>
         </div>
