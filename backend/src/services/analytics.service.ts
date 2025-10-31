@@ -1563,7 +1563,21 @@ export class AnalyticsService extends BaseService {
       // Limit results
       const limitedTransactions = transactions.slice(0, limit);
 
-      return this.createResponse(true, { transactions: limitedTransactions });
+      // Ensure dates are serialized as ISO strings
+      const serializedTransactions = limitedTransactions.map(tx => ({
+        id: tx.id,
+        date: tx.date instanceof Date ? tx.date.toISOString() : tx.date,
+        organization: tx.organization,
+        type: tx.type,
+        description: tx.description,
+        amount: tx.amount,
+        status: tx.status,
+        metadata: tx.metadata
+      }));
+
+      this.logger.info(`Returning ${serializedTransactions.length} transactions`);
+
+      return this.createResponse(true, { transactions: serializedTransactions });
     } catch (error) {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'getRevenueTransactions');
