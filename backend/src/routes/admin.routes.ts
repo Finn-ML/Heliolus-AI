@@ -1484,6 +1484,74 @@ export default async function adminRoutes(server: FastifyInstance) {
     reply.code(200).send(result);
   }));
 
+  // GET /admin/analytics/revenue/transactions - Get detailed transaction list
+  server.get('/analytics/revenue/transactions', {
+    schema: {
+      description: 'Get detailed revenue transaction list for admin dashboard',
+      tags: ['Admin', 'Analytics'],
+      querystring: {
+        type: 'object',
+        properties: {
+          startDate: { type: 'string', format: 'date' },
+          endDate: { type: 'string', format: 'date' },
+          limit: { type: 'number', default: 100 }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                transactions: {
+                  type: 'array',
+                  items: { type: 'object' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      startDate?: string;
+      endDate?: string;
+      limit?: number;
+    }
+  }>, reply: FastifyReply) => {
+    const { startDate, endDate, limit = 100 } = request.query;
+
+    const { AnalyticsService } = await import('../services');
+    const analyticsService = new AnalyticsService();
+
+    const currentUser = (request as any).currentUser;
+    const context = {
+      userId: currentUser?.id,
+      userRole: currentUser?.role,
+      organizationId: currentUser?.organizationId,
+    };
+
+    // Parse dates if provided
+    const parsedStartDate = startDate ? new Date(startDate) : undefined;
+    const parsedEndDate = endDate ? new Date(endDate) : undefined;
+
+    const result = await analyticsService.getRevenueTransactions(
+      context,
+      parsedStartDate,
+      parsedEndDate,
+      limit
+    );
+
+    if (!result.success) {
+      return reply.code((result as any).statusCode || 500).send(result);
+    }
+
+    reply.code(200).send(result);
+  }));
+
   // ============================================================================
   // VENDOR MANAGEMENT ENDPOINTS
   // ============================================================================

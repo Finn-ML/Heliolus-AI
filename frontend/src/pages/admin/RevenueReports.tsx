@@ -84,6 +84,13 @@ const RevenueReports = () => {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  // Fetch revenue transactions
+  const { data: transactions, isLoading: transactionsLoading } = useQuery({
+    queryKey: ['revenue-analytics', 'transactions'],
+    queryFn: () => adminAnalyticsApi.getRevenueTransactions({ limit: 100 }),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
   // Transform trends data for chart (format month names)
   const revenueData = trends?.trends?.map((item: any) => ({
     month: new Date(item.month + '-01').toLocaleDateString('en-US', { month: 'short' }),
@@ -108,7 +115,7 @@ const RevenueReports = () => {
   })) || [];
 
   // Loading state
-  if (overviewLoading || trendsLoading || customersLoading || breakdownLoading) {
+  if (overviewLoading || trendsLoading || customersLoading || breakdownLoading || transactionsLoading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -445,73 +452,50 @@ const RevenueReports = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[
-                  {
-                    date: '2024-03-20',
-                    org: 'TechCorp Solutions',
-                    type: 'subscription',
-                    description: 'Enterprise Plan - Monthly',
-                    amount: 999,
-                    status: 'paid',
-                  },
-                  {
-                    date: '2024-03-20',
-                    org: 'SecurePoint Inc',
-                    type: 'credits',
-                    description: '500 Credits Purchase',
-                    amount: 450,
-                    status: 'paid',
-                  },
-                  {
-                    date: '2024-03-19',
-                    org: 'StartupXYZ',
-                    type: 'assessment',
-                    description: 'SOC 2 Assessment',
-                    amount: 50,
-                    status: 'paid',
-                  },
-                  {
-                    date: '2024-03-19',
-                    org: 'DataGuard Systems',
-                    type: 'subscription',
-                    description: 'Professional Plan - Monthly',
-                    amount: 499,
-                    status: 'pending',
-                  },
-                ].map((transaction, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Calendar className="h-3 w-3" />
-                        {transaction.date}
-                      </div>
-                    </TableCell>
-                    <TableCell>{transaction.org}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {transaction.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{transaction.description}</TableCell>
-                    <TableCell className="text-right font-medium">${transaction.amount}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          transaction.status === 'paid'
-                            ? 'bg-green-500/20 text-green-500'
-                            : 'bg-yellow-500/20 text-yellow-500'
-                        }
-                      >
-                        {transaction.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                {transactions?.transactions && transactions.transactions.length > 0 ? (
+                  transactions.transactions.map((transaction: any, index: number) => (
+                    <TableRow key={transaction.id || index}>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </div>
+                      </TableCell>
+                      <TableCell>{transaction.organization}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {transaction.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{transaction.description}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        €{transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            transaction.status === 'paid'
+                              ? 'bg-green-500/20 text-green-500'
+                              : 'bg-yellow-500/20 text-yellow-500'
+                          }
+                        >
+                          {transaction.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      No transactions found
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </CardContent>

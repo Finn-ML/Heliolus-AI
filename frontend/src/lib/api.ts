@@ -1171,6 +1171,26 @@ export const adminAnalyticsApi = {
     const response = await apiRequest<ApiResponse<any>>(endpoint);
     return response.data;
   },
+
+  // Get detailed revenue transactions
+  getRevenueTransactions: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = queryString
+      ? `/admin/analytics/revenue/transactions?${queryString}`
+      : '/admin/analytics/revenue/transactions';
+
+    const response = await apiRequest<ApiResponse<any>>(endpoint);
+    return response.data;
+  },
 };
 
 // Admin Leads API
