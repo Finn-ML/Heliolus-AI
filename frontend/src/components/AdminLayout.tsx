@@ -10,7 +10,6 @@ import {
   CreditCard,
   FileText,
   BarChart3,
-  Settings,
   ChevronLeft,
   UserCog,
   Building2,
@@ -121,19 +120,6 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               })}
             </nav>
           </ScrollArea>
-
-          {/* Footer */}
-          <div className="p-4 border-t border-border">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => navigate('/admin/settings')}
-              title={isCollapsed ? 'Settings' : undefined}
-            >
-              <Settings className={cn('h-4 w-4', !isCollapsed && 'mr-2')} />
-              {!isCollapsed && 'Settings'}
-            </Button>
-          </div>
         </div>
       </div>
 
