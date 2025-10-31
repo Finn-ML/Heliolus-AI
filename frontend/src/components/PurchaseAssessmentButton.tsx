@@ -121,32 +121,29 @@ export function PurchaseAssessmentButton({ shouldHighlight = false }: PurchaseAs
   return (
     <>
       <div className={cn(
-        "relative",
-        isHighlighting && "animate-pulse"
+        "relative transition-all duration-300"
       )}>
         {/* Attention-grabbing glow effect */}
         {isHighlighting && (
           <>
-            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 to-orange-500 blur-xl opacity-50 animate-pulse" />
-            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-lg blur opacity-30" />
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-pink-500 blur-2xl opacity-75 animate-pulse" />
+            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 to-pink-400 rounded-lg blur-md opacity-50 animate-pulse" />
           </>
         )}
         
         <Button
           onClick={() => setShowConfirmModal(true)}
           className={cn(
-            "relative",
-            isHighlighting 
-              ? "bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 shadow-lg shadow-orange-500/50 animate-bounce"
-              : "bg-gradient-to-r from-cyan-600 to-pink-600 hover:from-cyan-700 hover:to-pink-700"
+            "relative bg-gradient-to-r from-cyan-600 to-pink-600 hover:from-cyan-700 hover:to-pink-700 transition-all duration-300",
+            isHighlighting && "shadow-2xl shadow-cyan-500/50 scale-105 ring-4 ring-cyan-500/30 ring-offset-2 ring-offset-gray-900"
           )}
           size="lg"
         >
           {isHighlighting ? (
             <>
-              <CreditCard className="mr-2 h-5 w-5 animate-pulse" />
-              Purchase More Credits Now - €299
-              <Sparkles className="ml-2 h-5 w-5 animate-spin" />
+              <Sparkles className="mr-2 h-5 w-5 animate-pulse" />
+              Purchase Additional Assessment - €299
+              <Sparkles className="ml-2 h-5 w-5 animate-pulse" />
             </>
           ) : (
             <>

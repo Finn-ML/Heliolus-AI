@@ -140,7 +140,7 @@ const AssessmentTemplates = () => {
           description: 'Redirecting to dashboard to purchase additional assessment credits...',
           duration: 3000,
         });
-        navigate('/?purchase=true');
+        navigate('/dashboard?purchase=true');
       } else {
         // Show upgrade modal for FREE users
         setShowUpgradeModal(true);
@@ -300,11 +300,9 @@ const AssessmentTemplates = () => {
               <Button
                 size="lg"
                 onClick={() => handleStartAssessment(filteredTemplates[0].id)}
-                className={quotaExceeded && subscription?.plan === 'PREMIUM'
-                  ? "bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white animate-pulse"
-                  : quotaExceeded 
-                    ? "bg-gray-600 hover:bg-gray-700 text-white"
-                    : "bg-cyan-600 hover:bg-cyan-700 text-white"
+                className={quotaExceeded 
+                  ? "bg-gray-600 hover:bg-gray-700 text-white"
+                  : "bg-cyan-600 hover:bg-cyan-700 text-white"
                 }
                 data-testid={`button-start-featured-${filteredTemplates[0].id}`}
               >
@@ -318,11 +316,7 @@ const AssessmentTemplates = () => {
                     )
                     : 'Upgrade Required')
                   : 'Start Featured Assessment'}
-                {quotaExceeded && subscription?.plan === 'PREMIUM' ? (
-                  <CreditCard className="ml-2 h-5 w-5 animate-bounce" />
-                ) : (
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                )}
+                {!quotaExceeded && <ArrowRight className="ml-2 h-5 w-5" />}
               </Button>
             </CardContent>
           </Card>
@@ -399,11 +393,9 @@ const AssessmentTemplates = () => {
                       </div>
 
                       <Button
-                        className={quotaExceeded && subscription?.plan === 'PREMIUM'
-                          ? "w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white animate-pulse"
-                          : quotaExceeded 
-                            ? "w-full bg-gray-600 hover:bg-gray-700 text-white"
-                            : "w-full bg-gray-800 hover:bg-cyan-700 text-white group-hover:bg-cyan-600 transition-colors"
+                        className={quotaExceeded 
+                          ? "w-full bg-gray-600 hover:bg-gray-700 text-white"
+                          : "w-full bg-gray-800 hover:bg-cyan-700 text-white group-hover:bg-cyan-600 transition-colors"
                         }
                         onClick={() => handleStartAssessment(template.id)}
                         data-testid={`button-start-${template.id}`}
@@ -418,11 +410,7 @@ const AssessmentTemplates = () => {
                             )
                             : 'Upgrade Required')
                           : 'Start Assessment'}
-                        {quotaExceeded && subscription?.plan === 'PREMIUM' ? (
-                          <CreditCard className="ml-2 h-4 w-4 animate-bounce" />
-                        ) : (
-                          <ChevronRight className="ml-2 h-4 w-4" />
-                        )}
+                        {!quotaExceeded && <ChevronRight className="ml-2 h-4 w-4" />}
                       </Button>
                     </CardContent>
                   </Card>
