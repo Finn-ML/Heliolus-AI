@@ -11,8 +11,6 @@ import {
   ChevronRight,
   Clock,
   FileText,
-  Star,
-  TrendingUp,
   ArrowRight,
   Sparkles,
   CreditCard,
@@ -152,27 +150,6 @@ const AssessmentTemplates = () => {
     navigate(`/assessment/execute/${templateId}`);
   };
 
-  const getPopularityScore = (template: AssessmentTemplate) => {
-    // Mock popularity score - in production, this would come from backend
-    const scores: Record<string, number> = {
-      'financial-crime-basic': 4.8,
-      'trade-compliance-standard': 4.6,
-      'data-privacy-gdpr': 4.9,
-      'cybersecurity-basic': 4.7,
-    };
-    return scores[template.slug] || 4.5;
-  };
-
-  const getUsageCount = (template: AssessmentTemplate) => {
-    // Mock usage count - in production, this would come from backend
-    const counts: Record<string, number> = {
-      'financial-crime-basic': 2847,
-      'trade-compliance-standard': 1923,
-      'data-privacy-gdpr': 3156,
-      'cybersecurity-basic': 2234,
-    };
-    return counts[template.slug] || 1000;
-  };
 
   if (error) {
     return (
@@ -280,21 +257,15 @@ const AssessmentTemplates = () => {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-4 mb-6">
-                <div className="flex items-center gap-2 text-gray-400">
-                  <Clock className="h-4 w-4" />
-                  <span>{filteredTemplates[0].estimatedMinutes} minutes</span>
-                </div>
+                {filteredTemplates[0].estimatedMinutes > 0 && (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Clock className="h-4 w-4" />
+                    <span>{filteredTemplates[0].estimatedMinutes} minutes</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-gray-400">
                   <FileText className="h-4 w-4" />
-                  <span>{filteredTemplates[0].totalQuestions} questions</span>
-                </div>
-                <div className="flex items-center gap-2 text-yellow-400">
-                  <Star className="h-4 w-4 fill-current" />
-                  <span>{getPopularityScore(filteredTemplates[0])}/5.0</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-400">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>{getUsageCount(filteredTemplates[0]).toLocaleString()} assessments</span>
+                  <span>{filteredTemplates[0].totalQuestions} {filteredTemplates[0].totalQuestions === 1 ? 'question' : 'questions'}</span>
                 </div>
               </div>
               <Button
@@ -375,20 +346,15 @@ const AssessmentTemplates = () => {
                       </div>
 
                       <div className="space-y-2 mb-4 text-sm">
-                        <div className="flex items-center gap-2 text-gray-400">
-                          <Clock className="h-4 w-4" />
-                          <span>{template.estimatedMinutes} minutes</span>
-                        </div>
+                        {template.estimatedMinutes > 0 && (
+                          <div className="flex items-center gap-2 text-gray-400">
+                            <Clock className="h-4 w-4" />
+                            <span>{template.estimatedMinutes} minutes</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 text-gray-400">
                           <FileText className="h-4 w-4" />
-                          <span>{template.totalQuestions} questions</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                          <span className="text-gray-400">{getPopularityScore(template)}/5.0</span>
-                          <span className="text-gray-500">
-                            ({getUsageCount(template).toLocaleString()} uses)
-                          </span>
+                          <span>{template.totalQuestions} {template.totalQuestions === 1 ? 'question' : 'questions'}</span>
                         </div>
                       </div>
 

@@ -455,9 +455,9 @@ export class AnalyticsService extends BaseService {
         })
       );
 
-      // Sort by engagement and take top N
+      // Sort by clicks (descending) and take top N
       const topVendors = topVendorsWithTrend
-        .sort((a, b) => b.engagementScore - a.engagementScore)
+        .sort((a, b) => b.clicks - a.clicks)
         .slice(0, limit)
         .map(({ engagementScore, ...vendor }) => vendor);
 
