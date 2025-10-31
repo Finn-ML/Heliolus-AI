@@ -1,0 +1,54 @@
+Uncaught TypeError: Cannot read properties of undefined (reading 'toLocaleString')
+    at RevenueReports.tsx:472:46
+    at Array.map (<anonymous>)
+    at RevenueReports (RevenueReports.tsx:456:45)
+    at renderWithHooks (chunk-GNC7SI6A.js?v=38e5ba12:11548:26)
+    at updateFunctionComponent (chunk-GNC7SI6A.js?v=38e5ba12:14582:28)
+    at beginWork (chunk-GNC7SI6A.js?v=38e5ba12:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-GNC7SI6A.js?v=38e5ba12:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-GNC7SI6A.js?v=38e5ba12:3699:24)
+    at invokeGuardedCallback (chunk-GNC7SI6A.js?v=38e5ba12:3733:39)
+    at beginWork$1 (chunk-GNC7SI6A.js?v=38e5ba12:19765:15)Understand this error
+RevenueReports.tsx:472 Uncaught TypeError: Cannot read properties of undefined (reading 'toLocaleString')
+    at RevenueReports.tsx:472:46
+    at Array.map (<anonymous>)
+    at RevenueReports (RevenueReports.tsx:456:45)
+    at renderWithHooks (chunk-GNC7SI6A.js?v=38e5ba12:11548:26)
+    at updateFunctionComponent (chunk-GNC7SI6A.js?v=38e5ba12:14582:28)
+    at beginWork (chunk-GNC7SI6A.js?v=38e5ba12:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-GNC7SI6A.js?v=38e5ba12:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-GNC7SI6A.js?v=38e5ba12:3699:24)
+    at invokeGuardedCallback (chunk-GNC7SI6A.js?v=38e5ba12:3733:39)
+    at beginWork$1 (chunk-GNC7SI6A.js?v=38e5ba12:19765:15)Understand this error
+console-capture.js:79 The above error occurred in the <RevenueReports> component:
+
+    at RevenueReports (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/pages/admin/RevenueReports.tsx?t=1761914195915:53:37)
+    at AdminRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/components/AdminRoute.tsx:9:30)
+    at RenderedRoute (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=04461f56:4088:5)
+    at Routes (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=04461f56:4558:5)
+    at div
+    at Router (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=04461f56:4501:15)
+    at BrowserRouter (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/react-router-dom.js?v=04461f56:5247:5)
+    at Provider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/chunk-5WETD4PZ.js?v=38e5ba12:38:15)
+    at TooltipProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=6ae64cfa:65:5)
+    at O (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=b8d562c2:23:25)
+    at z (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/next-themes.js?v=b8d562c2:21:18)
+    at OnboardingProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/OnboardingContext.tsx?t=1761914195915:8:38)
+    at AuthProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/src/contexts/AuthContext.tsx:5:32)
+    at QueryClientProvider (https://82c55b57-4ceb-4fb8-a1e6-244c6023a5db-00-zu76hl125zoz.worf.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=3e68b59a:3022:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+console.error @ console-capture.js:79Understand this error
+chunk-GNC7SI6A.js?v=38e5ba12:9129 Uncaught TypeError: Cannot read properties of undefined (reading 'toLocaleString')
+    at RevenueReports.tsx:472:46
+    at Array.map (<anonymous>)
+    at RevenueReports (RevenueReports.tsx:456:45)
+    at renderWithHooks (chunk-GNC7SI6A.js?v=38e5ba12:11548:26)
+    at updateFunctionComponent (chunk-GNC7SI6A.js?v=38e5ba12:14582:28)
+    at beginWork (chunk-GNC7SI6A.js?v=38e5ba12:15924:22)
+    at beginWork$1 (chunk-GNC7SI6A.js?v=38e5ba12:19753:22)
+    at performUnitOfWork (chunk-GNC7SI6A.js?v=38e5ba12:19198:20)
+    at workLoopSync (chunk-GNC7SI6A.js?v=38e5ba12:19137:13)
+    at renderRootSync (chunk-GNC7SI6A.js?v=38e5ba12:19116:15)Understand this error
