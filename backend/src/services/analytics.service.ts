@@ -1169,13 +1169,13 @@ export class AnalyticsService extends BaseService {
     // Get unique paying customers (organizations)
     const uniqueCustomers = new Set(
       invoices
-        .map(inv => inv.subscription.user.Organization?.id)
+        .map(inv => inv.subscription?.user?.organization?.id)
         .filter(Boolean)
     );
 
     // Calculate MRR (normalize all subscriptions to monthly)
     const mrrContributions = invoices.map(inv => {
-      const billingCycle = inv.subscription.billingCycle;
+      const billingCycle = inv.subscription?.billingCycle;
       if (billingCycle === BillingCycle.MONTHLY) {
         return inv.amount;
       } else if (billingCycle === BillingCycle.ANNUAL) {
@@ -1268,9 +1268,10 @@ export class AnalyticsService extends BaseService {
       data.invoices += 1;
 
       // Add MRR contribution
-      if (invoice.subscription.billingCycle === BillingCycle.MONTHLY) {
+      const billingCycle = invoice.subscription?.billingCycle;
+      if (billingCycle === BillingCycle.MONTHLY) {
         data.mrr += invoice.amount;
-      } else if (invoice.subscription.billingCycle === BillingCycle.ANNUAL) {
+      } else if (billingCycle === BillingCycle.ANNUAL) {
         data.mrr += invoice.amount / 12;
       }
     });
@@ -1323,7 +1324,7 @@ export class AnalyticsService extends BaseService {
     }>();
 
     invoices.forEach(invoice => {
-      const org = invoice.subscription.user.Organization;
+      const org = invoice.subscription?.user?.organization;
       if (!org) return;
 
       if (!customerData.has(org.id)) {
@@ -1483,25 +1484,31 @@ export class AnalyticsService extends BaseService {
 
       // Add invoices
       invoices.forEach(invoice => {
-        const org = invoice.subscription.user.Organization;
+        // Handle cases where subscription might be null (orphaned invoices)
+        const org = invoice.subscription?.user?.organization;
+        const plan = invoice.subscription?.plan || 'Unknown Plan';
+        const billingCycle = invoice.subscription?.billingCycle || 'N/A';
+
         transactions.push({
           id: invoice.id,
           date: invoice.paidAt || invoice.createdAt,
           organization: org?.name || 'Unknown Organization',
           type: 'subscription',
-          description: `${invoice.subscription.plan} Plan - ${invoice.subscription.billingCycle || 'N/A'}`,
+          description: `${plan} Plan - ${billingCycle}`,
           amount: invoice.amount,
           status: invoice.status.toLowerCase(),
           metadata: {
             invoiceNumber: invoice.number,
-            stripeInvoiceId: invoice.stripeInvoiceId
+            stripeInvoiceId: invoice.stripeInvoiceId,
+            hasSubscription: !!invoice.subscription
           }
         });
       });
 
       // Add credit transactions
       creditTransactions.forEach(transaction => {
-        const org = transaction.subscription.user.Organization;
+        // Handle cases where subscription might be null
+        const org = transaction.subscription?.user?.organization;
         // Calculate revenue from credit transactions
         // Assuming credits cost a certain amount (this should match your pricing)
         const creditValue = transaction.amount > 0 ? transaction.amount : 0;
@@ -1517,7 +1524,8 @@ export class AnalyticsService extends BaseService {
           metadata: {
             creditAmount: transaction.amount,
             balance: transaction.balance,
-            transactionType: transaction.type
+            transactionType: transaction.type,
+            hasSubscription: !!transaction.subscription
           }
         });
       });
