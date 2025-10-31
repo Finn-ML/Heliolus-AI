@@ -26,8 +26,11 @@ import {
   AlertCircle,
   Paperclip,
   Loader2,
+  Send,
 } from 'lucide-react';
 import { useRFPs } from '@/hooks/useRFPs';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 
 interface RfpVendor {
   id: string;
@@ -56,10 +59,64 @@ const RfpTracking = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRfp, setSelectedRfp] = useState<any | null>(null);
+  const queryClient = useQueryClient();
 
   // Fetch RFPs from API
   const { data: rfpsData, isLoading, error } = useRFPs();
   const sentRfps = rfpsData || [];
+
+  // Send RFP mutation
+  const sendRfpMutation = useMutation({
+    mutationFn: async (rfpId: string) => {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/v1/rfps/${rfpId}/send`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send RFP');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      const result = data.data;
+      
+      // Show success toast with details
+      if (result.sentCount > 0) {
+        toast({
+          title: 'RFP Sent Successfully',
+          description: `Sent to ${result.sentCount} vendor${result.sentCount > 1 ? 's' : ''}${
+            result.failedCount > 0 ? `. ${result.failedCount} failed to send.` : ''
+          }`,
+        });
+      } else {
+        toast({
+          title: 'Failed to Send RFP',
+          description: 'Unable to send RFP to any vendors. Please try again.',
+          variant: 'destructive',
+        });
+      }
+
+      // Refresh RFPs list
+      queryClient.invalidateQueries({ queryKey: ['rfps'] });
+      
+      // Close the modal
+      setSelectedRfp(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send RFP to vendors',
+        variant: 'destructive',
+      });
+    },
+  });
 
   // Filter RFPs based on search and status (memoized to prevent infinite loops)
   const filteredRfps = useMemo(() => {
@@ -424,8 +481,23 @@ const RfpTracking = () => {
 
               <div className="flex space-x-3 pt-4">
                 {selectedRfp.status === 'DRAFT' && (
-                  <Button className="flex-1">
-                    Send to Vendors
+                  <Button 
+                    className="flex-1"
+                    onClick={() => sendRfpMutation.mutate(selectedRfp.id)}
+                    disabled={sendRfpMutation.isPending || selectedRfp.vendors.length === 0}
+                    data-testid="button-send-rfp"
+                  >
+                    {sendRfpMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Send to Vendors ({selectedRfp.vendors.length})
+                      </>
+                    )}
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setSelectedRfp(null)} className="flex-1">
