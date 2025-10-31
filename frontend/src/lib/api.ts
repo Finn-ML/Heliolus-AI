@@ -1368,11 +1368,11 @@ export const adminTemplateApi = {
   },
 
   getTemplates: async (): Promise<ApiResponse<AssessmentTemplate[]>> => {
-    return await apiRequest<ApiResponse<AssessmentTemplate[]>>('/templates');
+    return await apiRequest<ApiResponse<AssessmentTemplate[]>>('/admin/templates');
   },
 
   getTemplate: async (id: string): Promise<ApiResponse<AssessmentTemplate>> => {
-    return await apiRequest<ApiResponse<AssessmentTemplate>>(`/templates/${id}`);
+    return await apiRequest<ApiResponse<AssessmentTemplate>>(`/admin/templates/${id}`);
   },
 
   getTemplateStats: async (): Promise<ApiResponse<TemplateStats>> => {
