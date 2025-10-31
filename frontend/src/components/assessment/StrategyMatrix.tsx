@@ -37,7 +37,7 @@ const StrategyMatrix: React.FC<StrategyMatrixProps> = ({ assessmentId }) => {
             <Skeleton className="h-4 w-96" />
           </CardHeader>
         </Card>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1, 2, 3].map(i => (
             <Card key={i} className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
               <CardHeader>
@@ -223,7 +223,7 @@ const StrategyMatrix: React.FC<StrategyMatrixProps> = ({ assessmentId }) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="text-center">
               <div className="text-3xl font-bold text-red-400 mb-1">
                 {strategyMatrix.immediate.gapCount}

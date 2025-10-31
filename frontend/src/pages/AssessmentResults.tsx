@@ -101,7 +101,7 @@ const ExecutiveSummary = ({ results, gaps, risks, aiMetrics }: any) => {
             posture with a score of <strong>{results.overallRiskScore}%</strong>. {compliance.description}.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
             <div className="bg-gray-900/50 rounded-lg p-4">
               <div className="text-3xl font-bold text-white mb-1">{gaps.length}</div>
               <div className="text-sm text-gray-400">Total Gaps Identified</div>
@@ -281,7 +281,7 @@ const RiskAreasAnalysis = ({ gaps, assessmentId }: { gaps: Gap[]; assessmentId: 
             </div>
 
             {/* Key Findings and Mitigation Strategies */}
-            <div className="grid md:grid-cols-2 divide-x divide-gray-800">
+            <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-gray-800">
               {/* Key Findings Column */}
               <div className="p-6">
                 <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
@@ -616,7 +616,7 @@ const RemediationStrategy = ({ gaps, risks, assessmentId }: any) => {
 
       {/* Header Stats */}
       {strategyData.length > 0 && (
-      <div className="grid md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
           <CardContent className="p-4">
             <div className="text-sm text-gray-400 mb-1">Total Strategic Investment</div>

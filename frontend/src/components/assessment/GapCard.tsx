@@ -108,7 +108,7 @@ const GapCard: React.FC<GapCardProps> = ({ gap, isExpanded, onToggle }) => {
               {/* Impact Assessment */}
               <div className="bg-gray-800/50 rounded-lg p-3">
                 <p className="text-xs font-medium text-gray-400 mb-2">Impact Assessment</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div>
                     <span className="text-gray-500">Priority:</span>
                     <span className="ml-2 text-gray-300">{gap.priority.replace('_', ' ')}</span>
