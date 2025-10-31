@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, Crown } from 'lucide-react';
+import { Check, X, Crown, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getCurrentUserId, publicPlanApi } from '@/lib/api';
 
@@ -237,6 +237,85 @@ export default function Pricing() {
             {pricingTiers.map((tier) => (
               <PricingCard key={tier.name} tier={tier} />
             ))}
+          </div>
+        </div>
+
+        {/* Additional Assessment Card */}
+        <div className="mt-16 flex justify-center px-4">
+          <div className="w-full max-w-2xl">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-2">Need More Assessments?</h2>
+              <p className="text-muted-foreground">
+                Premium users can purchase additional assessments on demand
+              </p>
+            </div>
+            <Card className="border-2 border-cyan-500/50 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-transparent rounded-bl-full" />
+              <CardHeader className="text-center pb-8 pt-8 relative">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-cyan-500/20 mx-auto mb-4">
+                  <Zap className="h-6 w-6 text-cyan-500" />
+                </div>
+                <CardTitle className="text-2xl mb-2">Additional Assessment</CardTitle>
+                <div className="mt-4 text-center">
+                  <span className="text-4xl font-bold block">€299</span>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    One-time purchase
+                  </p>
+                </div>
+                <CardDescription className="mt-4">
+                  Perfect for Premium users who need extra assessments beyond their monthly quota
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="relative">
+                <ul className="space-y-3" role="list">
+                  <li className="flex items-start gap-3">
+                    <Check className="h-5 w-5 text-cyan-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">50 credits for one additional assessment</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="h-5 w-5 text-cyan-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Full AI-powered risk assessment and analysis</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="h-5 w-5 text-cyan-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Access to all Premium features</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="h-5 w-5 text-cyan-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">Gap analysis and strategy matrix</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="h-5 w-5 text-cyan-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">No expiration - use when you need it</span>
+                  </li>
+                </ul>
+              </CardContent>
+
+              <CardFooter className="pt-6 relative">
+                <Button
+                  className="w-full bg-cyan-600 hover:bg-cyan-700"
+                  onClick={() => {
+                    if (!localStorage.getItem('token')) {
+                      navigate('/login');
+                      return;
+                    }
+                    if (currentPlan !== 'PREMIUM') {
+                      navigate('/checkout?plan=premium&cycle=monthly');
+                      return;
+                    }
+                    navigate('/dashboard?purchase=true');
+                  }}
+                  data-testid="button-purchase-additional-assessment"
+                >
+                  {!localStorage.getItem('token') 
+                    ? 'Sign In to Purchase'
+                    : currentPlan !== 'PREMIUM'
+                    ? 'Upgrade to Premium First'
+                    : 'Purchase Additional Assessment'}
+                </Button>
+              </CardFooter>
+            </Card>
           </div>
         </div>
 
