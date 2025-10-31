@@ -1470,11 +1470,10 @@ export class AssessmentService extends BaseService {
       const maxScore = answers.length * 5;
 
       // Update assessment with final status and scores
-      // Keep as IN_PROGRESS to allow manual review of low-confidence answers
-      // Will be marked COMPLETED after manual review (or when user views results and has no low-confidence answers)
+      // Mark as COMPLETED when analysis succeeds, FAILED if too many failures
       const finalStatus = progress.failedAnalyses > progress.totalQuestions * 0.3
         ? AssessmentStatus.FAILED
-        : AssessmentStatus.IN_PROGRESS;
+        : AssessmentStatus.COMPLETED;
 
       // Generate gaps and risks if assessment executed successfully (not FAILED)
       let riskScore = 0;
@@ -1599,14 +1598,14 @@ export class AssessmentService extends BaseService {
       }
 
       // Update assessment with calculated risk score
-      // Note: completedAt is NOT set here - only set when user confirms completion after manual review
+      // Set completedAt when status is COMPLETED
       await this.prisma.assessment.update({
         where: { id: assessmentId },
         data: {
           status: finalStatus,
           riskScore,
           creditsUsed,
-          completedAt: null, // Will be set after manual review completion
+          completedAt: finalStatus === AssessmentStatus.COMPLETED ? new Date() : null,
         },
       });
 

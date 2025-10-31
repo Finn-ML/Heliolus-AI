@@ -85,39 +85,6 @@ const Reports: React.FC = () => {
   const reports: Report[] = React.useMemo(() => {
     if (!assessments) return [];
 
-    // Enhanced debugging for specific assessment
-    console.log('[Reports] Raw assessments data:', assessments);
-
-    const targetAssessment = assessments.find((a: any) => a.id === 'cmh3fju610001phrlckdz3aa2');
-    if (targetAssessment) {
-      console.log('[Reports] === DEBUGGING cmh3fju610001phrlckdz3aa2 ===');
-      console.log('[Reports] Full assessment object:', targetAssessment);
-      console.log('[Reports] Status:', targetAssessment.status);
-      console.log('[Reports] hasPriorities value:', targetAssessment.hasPriorities);
-      console.log('[Reports] hasPriorities type:', typeof targetAssessment.hasPriorities);
-      console.log('[Reports] hasPriorities === true?', targetAssessment.hasPriorities === true);
-      console.log('[Reports] Boolean(hasPriorities)?', Boolean(targetAssessment.hasPriorities));
-      console.log('[Reports] !!hasPriorities?', !!targetAssessment.hasPriorities);
-
-      // Check what the mapping will produce
-      const testIsCompleted = targetAssessment.status === 'COMPLETED';
-      const testHasPriorities = Boolean(targetAssessment.hasPriorities);
-      let testStatus;
-      if (targetAssessment.status === 'IN_PROGRESS') {
-        testStatus = 'generating';
-      } else if (testIsCompleted && testHasPriorities) {
-        testStatus = 'completed';
-      } else if (testIsCompleted && !testHasPriorities) {
-        testStatus = 'complete-priorities';
-      } else {
-        testStatus = 'generating';
-      }
-      console.log('[Reports] Will map to status:', testStatus);
-      console.log('[Reports] ======================================');
-    } else {
-      console.log('[Reports] WARNING: Assessment cmh3fju610001phrlckdz3aa2 not found in data!');
-    }
-
     return assessments
       .filter((assessment: any) => {
         // Only include COMPLETED and IN_PROGRESS assessments (exclude FAILED and DRAFT)

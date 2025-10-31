@@ -240,24 +240,6 @@ export const assessmentApi = {
     const timestamp = Date.now();
     const response = await apiRequest<any>(`/assessments?limit=100&_t=${timestamp}`);
 
-    // Debug the raw response
-    console.log('[API] Raw assessments response:', response);
-    console.log('[API] Response data array:', response.data);
-
-    // Find and debug our specific assessment
-    const targetAssessment = response.data?.find((a: any) => a.id === 'cmh3fju610001phrlckdz3aa2');
-    if (targetAssessment) {
-      console.log('[API] Assessment cmh3fju610001phrlckdz3aa2 from backend:', {
-        id: targetAssessment.id,
-        status: targetAssessment.status,
-        hasPriorities: targetAssessment.hasPriorities,
-        hasPrioritiesType: typeof targetAssessment.hasPriorities,
-        fullObject: targetAssessment,
-      });
-    } else {
-      console.log('[API] WARNING: Assessment cmh3fju610001phrlckdz3aa2 not in backend response!');
-    }
-
     // Backend returns { data: [...], pagination: {...} }
     return response.data || [];
   },

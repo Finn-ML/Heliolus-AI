@@ -662,17 +662,6 @@ export default async function assessmentRoutes(server: FastifyInstance) {
 
       reply.status(200).send({
         data: assessments.map(assessment => {
-          // Debug specific assessment
-          if (assessment.id === 'cmh3fju610001phrlckdz3aa2') {
-            request.log.info({
-              assessmentId: assessment.id,
-              status: assessment.status,
-              prioritiesRaw: assessment.priorities,
-              hasPriorities: !!assessment.priorities,
-              prioritiesId: assessment.priorities?.id,
-            }, '[BACKEND DEBUG] Assessment cmh3fju610001phrlckdz3aa2');
-          }
-
           return {
             id: assessment.id,
             organizationId: assessment.organizationId,
