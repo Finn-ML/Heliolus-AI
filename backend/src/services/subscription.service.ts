@@ -1583,6 +1583,12 @@ export class SubscriptionService extends BaseService {
         );
       }
 
+      this.logger.info('Creating Stripe Customer Portal session', {
+        userId,
+        customerId: subscription.stripeCustomerId,
+        returnUrl,
+      });
+
       // Create Stripe Customer Portal session
       const session = await stripe.billingPortal.sessions.create({
         customer: subscription.stripeCustomerId,
@@ -1600,11 +1606,14 @@ export class SubscriptionService extends BaseService {
       });
     } catch (error: any) {
       this.logger.error({
-        error: error.message || error,
-        errorType: error.type,
-        errorCode: error.code,
+        message: error.message,
+        type: error.type,
+        code: error.code,
+        statusCode: error.statusCode,
+        raw: JSON.stringify(error.raw || {}),
         stack: error.stack,
         userId,
+        errorString: String(error),
       }, 'Failed to create Customer Portal session');
 
       if (error.statusCode) throw error;
