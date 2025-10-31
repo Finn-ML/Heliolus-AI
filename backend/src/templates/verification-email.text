@@ -6,7 +6,7 @@ Thank you for signing up with {{companyName}}! To complete your account setup an
 
 {{verificationUrl}}
 
-🔒 Security Note: This verification link will expire in 24 hours for your security. If you didn't create an account with {{companyName}}, you can safely ignore this email.
+Security Note: This verification link will expire in 24 hours for your security. If you didn't create an account with {{companyName}}, you can safely ignore this email.
 
 Once your email is verified, you'll be able to:
 • Access your compliance dashboard

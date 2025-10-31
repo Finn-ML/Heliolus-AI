@@ -4,26 +4,26 @@ Hello {{vendorName}},
 
 You've received a new Request for Proposal (RFP) through Heliolus from an organization seeking compliance solutions. This is an opportunity to connect with a qualified prospect who has identified specific compliance needs.
 
-📋 RFP DETAILS
+RFP DETAILS
 ─────────────────────────────
 Title: {{rfpTitle}}
 Organization: {{organizationName}}
 Timeline: {{timeline}}
 Budget: {{budget}}
 
-🎯 OBJECTIVES
+OBJECTIVES
 ─────────────────────────────
 {{objectives}}
 
-📋 REQUIREMENTS
+REQUIREMENTS
 ─────────────────────────────
 {{requirements}}
 
-📎 SUPPORTING DOCUMENTS
+SUPPORTING DOCUMENTS
 ─────────────────────────────
 The organization has provided {{documentCount}} document(s) for your review. Document links will be shared upon request or are available through direct contact.
 
-📞 CONTACT INFORMATION
+CONTACT INFORMATION
 ─────────────────────────────
 Contact: {{contactName}}
 Email: {{contactEmail}}

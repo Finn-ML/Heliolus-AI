@@ -6,11 +6,11 @@ You recently requested to change your email address for your Heliolus account. T
 
 {{verificationUrl}}
 
-📧 Email Change Details:
+Email Change Details:
 Current email: {{currentEmail}}
 New email: {{newEmail}}
 
-🔒 Security Note: This verification link will expire in 1 hour for your security. If you didn't request this email change, please contact our support team immediately at {{supportEmail}}.
+Security Note: This verification link will expire in 1 hour for your security. If you didn't request this email change, please contact our support team immediately at {{supportEmail}}.
 
 Important: Once you verify your new email address:
 • Your login email will be updated to {{newEmail}}

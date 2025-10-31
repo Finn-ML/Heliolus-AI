@@ -8,7 +8,7 @@ Account Status: {{status}}
 {{statusMessage}}
 
 {% if status == 'ACTIVE' %}
-🎉 Welcome back! You now have full access to all {{companyName}} features including:
+Welcome back! You now have full access to all {{companyName}} features including:
 • Compliance assessments and reporting
 • Vendor marketplace access  
 • Risk management tools
