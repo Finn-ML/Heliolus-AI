@@ -263,7 +263,7 @@ const RiskAreasAnalysis = ({ gaps, assessmentId }: { gaps: Gap[]; assessmentId: 
                   )}
                 </div>
                 <div className="text-2xl font-bold text-white">
-                  {data.score}<span className="text-sm text-gray-400">/10</span>
+                  {parseFloat(data.score).toFixed(1)}<span className="text-sm text-gray-400">/10</span>
                 </div>
               </div>
 
