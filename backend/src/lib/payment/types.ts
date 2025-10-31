@@ -114,6 +114,33 @@ export interface CreditTransaction {
   createdAt: Date;
 }
 
+// Credit-specific data types
+export interface CreditBalance {
+  subscriptionId: string;
+  balance: number;
+  used: number;
+  purchased: number;
+  plan: SubscriptionPlan;
+  lastUpdated: Date;
+}
+
+export interface AddCreditsData {
+  userId: string;
+  amount: number;
+  reason: string;
+  subscriptionId?: string;
+  assessmentId?: string;
+}
+
+export interface DeductCreditsData {
+  userId: string;
+  amount: number;
+  reason: string;
+  assessmentId?: string;
+}
+
+export type CreditTransactionData = CreditTransaction;
+
 export interface Invoice {
   id: string;
   customerId: string;
@@ -142,6 +169,9 @@ export interface InvoiceLineItem {
   amount: number;
   metadata?: Record<string, string>;
 }
+
+// Alias for backward compatibility
+export type InvoiceItem = InvoiceLineItem;
 
 // Input data types
 export interface CreateCustomerData {
