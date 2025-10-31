@@ -110,7 +110,7 @@ export class StrategyMatrixService extends BaseService {
     const vendors = await this.prisma.vendor.findMany({
       where: {
         status: 'APPROVED',
-        categories: { hasSome: gapCategories },
+        categories: { hasSome: gapCategories as any },
       },
     });
 

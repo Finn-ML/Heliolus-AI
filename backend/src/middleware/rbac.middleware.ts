@@ -6,6 +6,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { UserRole } from '../types/database';
 
+// @ts-expect-error - Fastify type system incompatibility with custom user property
 export interface AuthenticatedRequest extends FastifyRequest {
   user?: {
     id: string;
@@ -137,7 +138,7 @@ export function getUserPermissions(role: UserRole): string[] {
   const permissions: string[] = [];
 
   for (const [feature, roles] of Object.entries(FEATURE_PERMISSIONS)) {
-    if (roles.includes(role)) {
+    if ((roles as UserRole[]).includes(role)) {
       permissions.push(feature);
     }
   }

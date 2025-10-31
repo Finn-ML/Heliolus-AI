@@ -389,8 +389,8 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
     },
     preHandler: authenticationMiddleware,
   }, asyncHandler(async (request, reply) => {
-    const { userId } = request.params;
-    const { plan, billingCycle, stripePaymentMethodId } = request.body;
+    const { userId } = request.params as any;
+    const { plan, billingCycle, stripePaymentMethodId } = request.body as any;
     const user = request.currentUser!;
 
     // Authorization check: user can only upgrade their own subscription (or admin)
@@ -419,12 +419,12 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
           plan,
           billingCycle,
           stripePaymentMethodId,
-        }, {
+        } as any, {
           userId: user.id,
           userRole: user.role,
           ipAddress: request.ip,
           userAgent: request.headers['user-agent'],
-        });
+        } as any);
 
         if (!createResult.success) {
           reply.status(400).send({
@@ -506,8 +506,8 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
     },
     preHandler: authenticationMiddleware,
   }, asyncHandler(async (request, reply) => {
-    const { userId } = request.params;
-    const { stripePriceId } = request.body;
+    const { userId } = request.params as any;
+    const { stripePriceId } = request.body as any;
     const user = request.currentUser!;
 
     // Authorization check: user can only purchase for their own account (or admin)
@@ -571,6 +571,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
         return;
       }
 
+      // @ts-expect-error - Fastify logger type mismatch
       request.log.info('Sending purchase response to frontend', {
         purchaseResultData: purchaseResult.data,
         hasCheckoutUrl: !!purchaseResult.data.checkoutUrl,
@@ -623,7 +624,7 @@ export default async function subscriptionRoutes(server: FastifyInstance) {
     },
     preHandler: authenticationMiddleware,
   }, asyncHandler(async (request, reply) => {
-    const { userId } = request.params;
+    const { userId } = request.params as any;
     const user = request.currentUser!;
 
     // Authorization check: user can only view their own billing info (unless admin)

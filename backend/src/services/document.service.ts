@@ -269,16 +269,16 @@ export class DocumentService extends BaseService {
   ): Promise<string> {
     try {
       // Copy object from anon/ to org/ prefix
-      await objectStorageService.copyObject(sourceObjectKey, newObjectKey);
-      
+      await (objectStorageService as any).copyObject(sourceObjectKey, newObjectKey);
+
       // Verify copy was successful
       const exists = await objectStorageService.documentExists(newObjectKey);
       if (!exists) {
         throw new Error('Failed to copy document to new location');
       }
-      
+
       // Delete original anonymous document
-      await objectStorageService.deleteObject(sourceObjectKey);
+      await (objectStorageService as any).deleteObject(sourceObjectKey);
       
       this.logger.info('Document migrated successfully', {
         sourceKey: sourceObjectKey,
@@ -704,7 +704,7 @@ export class DocumentService extends BaseService {
           const parseResult = await documentParserService.parseDocument(id, false, context);
 
           if (parseResult.success && parseResult.data.parsedContent) {
-            analysisResult.parsedContent = parseResult.data.parsedContent;
+            analysisResult.parsedContent = parseResult.data.parsedContent as any;
           } else {
             this.logger.warn('Document parsing returned no content', { documentId: id });
             // Continue with empty content rather than failing

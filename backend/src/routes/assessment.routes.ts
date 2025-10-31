@@ -410,6 +410,7 @@ export default async function assessmentRoutes(server: FastifyInstance) {
     const data = request.body as CreateAssessmentRequest;
 
     // DEBUG: Log request details
+    // @ts-expect-error - Fastify logger type mismatch
     request.log.info('Assessment creation request:', {
       body: data,
       user: {

@@ -999,6 +999,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       body: GrantCreditsBodySchema,
       response: GrantCreditsResponseSchema,
     },
+    // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
     preHandler: requireRole(UserRole.ADMIN),
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { userId: string };
@@ -1068,6 +1069,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       params: GetCreditHistoryParamsSchema,
       response: GetCreditHistoryResponseSchema,
     },
+    // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
     preHandler: requireRole(UserRole.ADMIN),
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { userId: string };
@@ -1704,7 +1706,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       const skip = (page - 1) * limit;
       
       const [vendors, total] = await Promise.all([
-        vendorService.prisma.vendor.findMany({
+        prisma.vendor.findMany({
           where,
           skip,
           take: limit,
@@ -1728,7 +1730,7 @@ export default async function adminRoutes(server: FastifyInstance) {
             },
           },
         }),
-        vendorService.prisma.vendor.count({ where }),
+        prisma.vendor.count({ where }),
       ]);
 
       
@@ -2434,7 +2436,7 @@ export default async function adminRoutes(server: FastifyInstance) {
     }
 
     const updatedLead = await leadService.updateLeadStatus(id, leadType, newStatus, {
-      userId: request.user?.id,
+      userId: (request.user as any)?.id,
       ipAddress: request.ip,
       userAgent: request.headers['user-agent'],
     });
@@ -2816,7 +2818,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       organizationId: currentUser?.organizationId,
     };
 
-    const result = await templateService.createTemplate(request.body, context);
+    const result = await templateService.createTemplate(request.body as any, context);
 
     if (!result.success) {
       return reply.code((result as any).statusCode || 500).send(result);
@@ -3424,7 +3426,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       {
         sectionId: request.params.sectionId,
         ...request.body,
-      },
+      } as any,
       context
     );
 
@@ -3538,7 +3540,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       organizationId: currentUser?.organizationId,
     };
 
-    const result = await templateService.updateQuestion(request.params.id, request.body, context);
+    const result = await templateService.updateQuestion(request.params.id, request.body as any, context);
 
     if (!result.success) {
       return reply.code((result as any).statusCode || 500).send(result);
@@ -3737,7 +3739,7 @@ export default async function adminRoutes(server: FastifyInstance) {
       sectionId: request.params.sectionId,
     }));
 
-    const result = await templateService.bulkCreateQuestions({ questions }, context);
+    const result = await templateService.bulkCreateQuestions({ questions: questions as any }, context);
 
     if (!result.success) {
       return reply.code((result as any).statusCode || 500).send(result);

@@ -65,6 +65,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
+    // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
     preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Body: {
@@ -129,6 +130,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
+    // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
     preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { type: string };
@@ -174,6 +176,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
+    // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
     preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { id: string };
@@ -208,6 +211,7 @@ export default async function legalDocumentRoutes(server: FastifyInstance) {
         },
       },
     },
+    // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
     preHandler: adminMiddleware,
   }, asyncHandler(async (request: FastifyRequest<{
     Params: { id: string };

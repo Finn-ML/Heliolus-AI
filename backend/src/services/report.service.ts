@@ -294,7 +294,7 @@ export class ReportService extends BaseService {
           assessmentId: validatedData.assessmentId,
           type: validatedData.type,
           format: validatedData.format,
-          content: reportContent,
+          content: reportContent as any,
           summary: reportContent.executiveSummary?.overview || null,
           isPublic: false,
           accessToken,
@@ -839,7 +839,7 @@ export class ReportService extends BaseService {
           risks: assessment.risks,
           organization: assessment.organization,
         });
-        content.executiveSummary = summary;
+        content.executiveSummary = summary as any;
       }
 
       // Generate compliance matrix

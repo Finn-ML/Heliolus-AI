@@ -293,6 +293,7 @@ model User {
   firstName              String
   lastName               String
   password               String
+  stripeCustomerId       String?
   emailVerified          Boolean    @default(false)
   emailVerificationToken String?
   emailVerificationExpires DateTime?
@@ -330,6 +331,7 @@ model User {
   @@index([email])
   @@index([emailVerificationToken])
   @@index([status])
+  @@index([stripeCustomerId])
 }
 
 model UserAssessmentQuota {
@@ -424,6 +426,7 @@ model Document {
 
   // Relations
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedAnswers Answer[] @relation("AnswerDocuments")
 
   @@index([organizationId])
   @@index([s3Key])
@@ -558,6 +561,7 @@ model Answer {
   // Relations
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   question   Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  linkedDocuments Document[] @relation("AnswerDocuments")
 
   @@unique([assessmentId, questionId])
   @@index([assessmentId])
@@ -702,6 +706,7 @@ model Vendor {
   clickCount  Int     @default(0) // Total clicks on vendor profile/listing
 
   // Metadata
+  userId     String? // User who manages this vendor profile
   status     VendorStatus @default(PENDING)
   approvedAt DateTime?
   approvedBy String? // adminId
@@ -971,6 +976,7 @@ model CreditTransaction {
 
   // Context
   description  String
+  reference    String? // External reference (e.g., Stripe payment ID)
   metadata     Json?
   assessmentId String?
 
@@ -1032,6 +1038,7 @@ model VendorContact {
   type         ContactType
   message      String?
   requirements Json?
+  metadata     Json? // Additional metadata
   budget       String?
   timeline     String?
 
@@ -1041,6 +1048,7 @@ model VendorContact {
   respondedAt    DateTime?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   vendor       Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)

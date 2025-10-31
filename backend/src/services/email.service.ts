@@ -186,7 +186,7 @@ export class EmailServiceImpl extends BaseService implements EmailService {
           HtmlBody: htmlBody,
           TextBody: textBody,
           MessageStream: 'outbound',
-          Attachments: attachments,
+          Attachments: attachments as any,
         });
 
         this.logger.info('Email sent successfully', {

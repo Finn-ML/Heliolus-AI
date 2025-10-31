@@ -51,11 +51,7 @@ export class WeightedScoringService extends BaseService {
         where: { id: answerId },
         include: {
           question: true,
-          linkedDocuments: {
-            include: {
-              document: true,
-            },
-          },
+          linkedDocuments: true,
         },
       });
 
@@ -65,7 +61,7 @@ export class WeightedScoringService extends BaseService {
 
       // Extract evidence tiers from linked documents
       const evidenceTiers = answer.linkedDocuments
-        .map(ld => ld.document.evidenceTier)
+        .map(ld => ld.evidenceTier)
         .filter(tier => tier !== null) as string[];
 
       // Determine best evidence tier (highest quality)
@@ -127,10 +123,10 @@ export class WeightedScoringService extends BaseService {
 
       // Handle empty section edge case
       if (section.questions.length === 0) {
-        this.logger.warn('Empty section encountered', { sectionId, sectionName: section.name });
+        this.logger.warn('Empty section encountered', { sectionId, sectionTitle: section.title });
         return {
           sectionId,
-          sectionName: section.name,
+          sectionName: section.title,
           score: 0,
           scaledScore: 0,
           questionScores: [],
@@ -140,7 +136,7 @@ export class WeightedScoringService extends BaseService {
 
       // Validate question weights sum to 1.0
       const weights = section.questions.map(q => q.weight);
-      requireValidWeights(weights, `Question weights in section "${section.name}"`);
+      requireValidWeights(weights, `Question weights in section "${section.title}"`);
 
       // Fetch all answers for this section's questions in this assessment
       const answers = await this.prisma.answer.findMany({
@@ -151,11 +147,7 @@ export class WeightedScoringService extends BaseService {
           },
         },
         include: {
-          linkedDocuments: {
-            include: {
-              document: true,
-            },
-          },
+          linkedDocuments: true,
         },
       });
 
@@ -190,7 +182,7 @@ export class WeightedScoringService extends BaseService {
 
       return {
         sectionId,
-        sectionName: section.name,
+        sectionName: section.title,
         score,
         scaledScore,
         questionScores,

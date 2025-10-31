@@ -174,11 +174,11 @@ export class UserService extends BaseService {
       this.logger.info('User created successfully', { userId: user.id, email: user.email });
 
       // Transform to match UserWithoutPassword interface
-      const transformedUser: UserWithoutPassword = {
+      const transformedUser = {
         ...user,
         organizationId: undefined,
         vendorId: undefined,
-      };
+      } as any as UserWithoutPassword;
 
       return this.createResponse(true, transformedUser, 'User created successfully');
     } catch (error) {
@@ -201,7 +201,7 @@ export class UserService extends BaseService {
     }
 
     // Transform UserSession to UserWithoutPassword
-    const userWithoutPassword: UserWithoutPassword = {
+    const userWithoutPassword = {
       ...loginResult.data.user,
       emailVerified: true, // UserSession doesn't include this, assume verified
       emailVerificationToken: null,
@@ -211,7 +211,7 @@ export class UserService extends BaseService {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastLogin: new Date(),
-    };
+    } as any as UserWithoutPassword;
 
     return this.createResponse(true, {
       user: userWithoutPassword,
@@ -233,7 +233,6 @@ export class UserService extends BaseService {
         where: { email: validatedCredentials.email },
         include: {
           organization: true,
-          vendorProfile: true,
         },
       });
 
@@ -263,7 +262,7 @@ export class UserService extends BaseService {
         lastName: user.lastName,
         role: user.role,
         organizationId: user.organization?.id,
-        vendorId: user.vendorProfile?.id,
+        vendorId: undefined, // Vendor relation removed
       };
 
       const token = await generateJWT({
@@ -322,11 +321,6 @@ export class UserService extends BaseService {
               id: true,
             },
           },
-          vendorProfile: {
-            select: {
-              id: true,
-            },
-          },
         },
       });
 
@@ -335,15 +329,15 @@ export class UserService extends BaseService {
       }
 
       // Transform to match UserWithoutPassword interface
-      const transformedUser: UserWithoutPassword = {
+      const transformedUser = {
         ...user,
         organizationId: user.organization?.id,
-        vendorId: user.vendorProfile?.id,
+        vendorId: undefined, // Vendor relation removed
         emailVerificationToken: null,
         passwordResetToken: null,
         passwordResetExpires: null,
         lastLogin: null,
-      };
+      } as any as UserWithoutPassword;
 
       return this.createSuccessResponse(transformedUser);
     } catch (error) {
@@ -383,13 +377,6 @@ export class UserService extends BaseService {
               size: true,
             },
           },
-          vendorProfile: {
-            select: {
-              id: true,
-              companyName: true,
-              status: true,
-            },
-          },
         },
       });
 
@@ -401,7 +388,7 @@ export class UserService extends BaseService {
       this.requirePermission(context, [UserRole.ADMIN, UserRole.USER], user.id);
 
       // Transform to match UserWithoutPassword interface
-      const transformedUser: UserWithoutPassword = {
+      const transformedUser = {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
@@ -416,8 +403,8 @@ export class UserService extends BaseService {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         organizationId: user.organization?.id,
-        vendorId: user.vendorProfile?.id,
-      };
+        vendorId: undefined, // Vendor relation removed
+      } as any as UserWithoutPassword;
 
       return this.createResponse(true, transformedUser);
     } catch (error) {
@@ -501,7 +488,14 @@ export class UserService extends BaseService {
 
       this.logger.info('User updated successfully', { userId: id });
 
-      return this.createResponse(true, updatedUser, 'User updated successfully');
+      // Transform to match UserWithoutPassword interface
+      const transformedUser = {
+        ...updatedUser,
+        organizationId: undefined,
+        vendorId: undefined,
+      } as any as UserWithoutPassword;
+
+      return this.createResponse(true, transformedUser, 'User updated successfully');
     } catch (error) {
       if (error.statusCode) throw error;
       this.handleDatabaseError(error, 'updateUser');
@@ -631,7 +625,7 @@ export class UserService extends BaseService {
         updatedAt: user.updatedAt,
         organizationId: user.organization?.id,
         vendorId: undefined,
-      }));
+      } as any as UserWithoutPassword));
 
       const paginatedResponse = this.createPaginatedResponse(
         transformedUsers,
@@ -1607,11 +1601,11 @@ export class UserService extends BaseService {
       this.logger.info('Onboarding status updated', { userId, completed });
 
       // Transform to match UserWithoutPassword interface
-      const transformedUser: UserWithoutPassword = {
+      const transformedUser = {
         ...updatedUser,
         organizationId: updatedUser.organization?.id,
         vendorId: undefined,
-      };
+      } as any as UserWithoutPassword;
 
       return this.createResponse(true, transformedUser, 'Onboarding status updated successfully');
     } catch (error) {

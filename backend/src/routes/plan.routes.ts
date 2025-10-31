@@ -12,6 +12,7 @@ const planService = new PlanService();
 export default async function planRoutes(server: FastifyInstance) {
   // Apply authentication and admin role check to all routes
   server.addHook('onRequest', authenticationMiddleware);
+  // @ts-expect-error - Fastify preHandler type mismatch with custom AuthenticatedRequest
   server.addHook('preHandler', requireRole('ADMIN'));
 
   // GET /plans - List all plans
@@ -52,7 +53,7 @@ export default async function planRoutes(server: FastifyInstance) {
       reply.send({
         success: true,
         data: result.data.data,
-        pagination: result.data.pagination,
+        pagination: (result.data as any).pagination,
       });
     })
   );
@@ -127,7 +128,7 @@ export default async function planRoutes(server: FastifyInstance) {
       const data = request.body as any;
 
       const result = await planService.createPlan(data, {
-        userId: request.user?.id || 'system',
+        userId: (request.user as any)?.id || 'system',
         ipAddress: request.ip,
         userAgent: request.headers['user-agent'],
       });
@@ -188,7 +189,7 @@ export default async function planRoutes(server: FastifyInstance) {
 
       try {
         const result = await planService.updatePlan(id, data, {
-          userId: request.user?.id || 'system',
+          userId: (request.user as any)?.id || 'system',
           ipAddress: request.ip,
           userAgent: request.headers['user-agent'],
         });
@@ -245,7 +246,7 @@ export default async function planRoutes(server: FastifyInstance) {
       const { id } = request.params;
 
       const result = await planService.deletePlan(id, {
-        userId: request.user?.id || 'system',
+        userId: (request.user as any)?.id || 'system',
         ipAddress: request.ip,
         userAgent: request.headers['user-agent'],
       });

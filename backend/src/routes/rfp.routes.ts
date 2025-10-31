@@ -159,10 +159,10 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const { organizationId, ...rfpData } = request.body;
 
-        const rfp = await rfpService.createRFP(userId, organizationId, rfpData, {
+        const rfp = await rfpService.createRFP(userId, organizationId, { ...rfpData, documents: rfpData.documents || [] }, {
           userId,
           ipAddress: request.ip,
           userAgent: request.headers['user-agent'],
@@ -252,15 +252,16 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const filters = request.query;
 
         // Convert date strings to Date objects
-        const processedFilters = {
-          ...filters,
+        const processedFilters: any = {
           dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
           dateTo: filters.dateTo ? new Date(filters.dateTo) : undefined,
         };
+        if (filters.status) processedFilters.status = filters.status;
+        if (filters.leadStatus) processedFilters.leadStatus = filters.leadStatus;
 
         const rfps = await rfpService.getUserRFPs(userId, processedFilters);
 
@@ -334,7 +335,7 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const { id } = request.params;
 
         const rfp = await rfpService.getRFP(id, userId);
@@ -393,7 +394,7 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const { id } = request.params;
         const updates = request.body;
 
@@ -455,7 +456,7 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const { id } = request.params;
 
         const result = await rfpService.deleteRFP(id, userId, {
@@ -539,7 +540,7 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const { id } = request.params;
 
         const result = await rfpService.sendRFP(id, userId, {
@@ -608,7 +609,7 @@ export default async function rfpRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const userId = request.user.id;
+        const userId = (request.user as any).id;
         const { id: organizationId } = request.params;
 
         const roadmap = await strategicRoadmapService.getStrategicRoadmap(

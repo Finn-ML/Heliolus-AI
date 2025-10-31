@@ -119,7 +119,7 @@ export class PrioritiesService extends BaseService {
         const completionResult = await assessmentService.completeAssessment(
           assessmentId,
           {
-            responses: assessment.responses || {},
+            responses: (assessment.responses as any) || {},
             autoGenerate: true
           },
           { userId, userRole: 'USER' as any }

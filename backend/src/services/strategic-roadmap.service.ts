@@ -140,12 +140,12 @@ export class StrategicRoadmapService extends BaseService {
           assessmentContext = {
             assessmentId: latestAssessment.id,
             completedAt: latestAssessment.completedAt,
-            goals: this.parseJsonField<string[]>(priorities.goals, []),
-            timeline: priorities.timeline || null,
-            urgency: priorities.urgency || null,
-            useCases: this.parseJsonField<string[]>(priorities.useCases, []),
-            budget: priorities.budget || null,
-            vendorPreferences: priorities.vendorPreferences || null,
+            goals: this.parseJsonField<string[]>((priorities as any).goals, []),
+            timeline: (priorities as any).timeline || null,
+            urgency: (priorities as any).urgency || null,
+            useCases: this.parseJsonField<string[]>((priorities as any).useCases, []),
+            budget: (priorities as any).budget || null,
+            vendorPreferences: (priorities as any).vendorPreferences || null,
           };
         }
 
@@ -171,7 +171,7 @@ export class StrategicRoadmapService extends BaseService {
           category: gap.category,
           severity: gap.severity,
           priority: gap.priority,
-          affectedArea: gap.affectedArea,
+          affectedArea: (gap as any).affectedArea,
         }));
 
         // Build phased roadmap from gaps

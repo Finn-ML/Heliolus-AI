@@ -19,7 +19,7 @@ import {
 // Get Stripe config directly from environment to avoid circular dependency
 const STRIPE_CONFIG = {
   secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
-  apiVersion: '2024-11-20.acacia' as const,
+  apiVersion: '2025-08-27.basil' as const,
   timeout: 30000
 };
 
@@ -50,7 +50,7 @@ export class StripeProvider implements PaymentProvider {
 
   constructor() {
     this.stripe = new Stripe(STRIPE_CONFIG.secretKey, {
-      apiVersion: '2024-11-20.acacia',
+      apiVersion: '2025-08-27.basil' as Stripe.LatestApiVersion,
       typescript: true
     });
   }
@@ -115,6 +115,41 @@ export class StripeProvider implements PaymentProvider {
       return result.deleted || false;
     } catch (error) {
       console.error('Delete customer error:', error);
+      throw this.handleStripeError(error);
+    }
+  }
+
+  /**
+   * Get customer by ID
+   */
+  async getCustomer(customerId: string): Promise<Customer | null> {
+    try {
+      const stripeCustomer = await this.stripe.customers.retrieve(customerId);
+      if ((stripeCustomer as any).deleted) {
+        return null;
+      }
+      return this.mapStripeCustomer(stripeCustomer as Stripe.Customer);
+    } catch (error: any) {
+      if (error.statusCode === 404) {
+        return null;
+      }
+      console.error('Get customer error:', error);
+      throw this.handleStripeError(error);
+    }
+  }
+
+  /**
+   * List customers
+   */
+  async listCustomers(params?: { limit?: number; startingAfter?: string }): Promise<Customer[]> {
+    try {
+      const customers = await this.stripe.customers.list({
+        limit: params?.limit || 10,
+        starting_after: params?.startingAfter
+      });
+      return customers.data.map(customer => this.mapStripeCustomer(customer));
+    } catch (error) {
+      console.error('List customers error:', error);
       throw this.handleStripeError(error);
     }
   }

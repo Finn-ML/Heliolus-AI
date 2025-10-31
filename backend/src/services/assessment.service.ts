@@ -56,18 +56,18 @@ const CreateAssessmentSchema = z.object({
 });
 
 const UpdateAssessmentSchema = z.object({
-  responses: z.record(z.any()).optional(),
+  responses: z.record(z.string(), z.any()).optional(),
   status: z.nativeEnum(AssessmentStatus).optional(),
 });
 
 const SubmitResponseSchema = z.object({
   questionId: z.string().cuid('Invalid question ID'),
   value: z.any(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 const CompleteAssessmentSchema = z.object({
-  responses: z.record(z.any()),
+  responses: z.record(z.string(), z.any()),
   autoGenerate: z.boolean().default(true),
 });
 
@@ -585,12 +585,19 @@ export class AssessmentService extends BaseService {
         );
       }
 
+      const updateData: any = {
+        updatedAt: this.now(),
+      };
+      if (validatedData.responses) {
+        updateData.responses = validatedData.responses;
+      }
+      if (validatedData.status) {
+        updateData.status = validatedData.status;
+      }
+
       const updatedAssessment = await this.prisma.assessment.update({
         where: { id },
-        data: {
-          ...validatedData,
-          updatedAt: this.now(),
-        },
+        data: updateData,
       });
 
       await this.logAudit(
@@ -658,7 +665,7 @@ export class AssessmentService extends BaseService {
       }
 
       // Verify question exists in template
-      const question = await this.prisma.templateQuestion.findUnique({
+      const question = await this.prisma.question.findUnique({
         where: { id: validatedData.questionId },
         include: { section: { select: { templateId: true } } },
       });
@@ -745,10 +752,11 @@ export class AssessmentService extends BaseService {
 
       // Check freemium limits and credits - only needed if autoGenerate is requested
       let canGenerateAI = true;
+      let creditsRequired = 0;
       if (validatedData.autoGenerate) {
         const userSubscriptionStatus = await FreemiumService.getUserSubscriptionStatus(assessment.userId);
         const limitations = FreemiumService.getLimitations(userSubscriptionStatus.subscriptionType);
-        const creditsRequired = limitations.creditsPerAssessment;
+        creditsRequired = limitations.creditsPerAssessment;
 
         const creditCheck = FreemiumService.checkCreditLimits(userSubscriptionStatus, creditsRequired);
         if (!creditCheck.canProceed) {
@@ -1292,7 +1300,7 @@ export class AssessmentService extends BaseService {
               context
             );
             if (parseResult.success && parseResult.data.parsedContent) {
-              doc.parsedContent = parseResult.data.parsedContent;
+              doc.parsedContent = parseResult.data.parsedContent as any;
             }
           }
           parsedDocuments.push(doc);

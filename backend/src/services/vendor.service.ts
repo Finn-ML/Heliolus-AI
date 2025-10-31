@@ -113,7 +113,7 @@ const VendorContactSchema = z.object({
   vendorId: z.string().cuid('Invalid vendor ID'),
   type: z.nativeEnum(ContactType),
   message: z.string().max(2000).optional(),
-  requirements: z.record(z.any()).optional(),
+  requirements: z.record(z.string(), z.any()).optional(),
   budget: z.string().max(100).optional(),
   timeline: z.string().max(100).optional(),
 });
@@ -554,6 +554,7 @@ export class VendorService extends BaseService {
               organization: {
                 select: {
                   id: true,
+                  userId: true,
                   size: true,
                   industry: true,
                   country: true,
@@ -590,7 +591,7 @@ export class VendorService extends BaseService {
         where: {
           status: VendorStatus.APPROVED,
           categories: {
-            hasSome: validatedCriteria.gapCategories,
+            hasSome: validatedCriteria.gapCategories as any,
           },
         },
         include: {
@@ -634,19 +635,9 @@ export class VendorService extends BaseService {
               s.gapCategories.some(cat => validatedCriteria.gapCategories.includes(cat))
             ) || null;
 
-            const matchScore = await calculateMatchScore({
-              vendor,
-              solution: bestSolution,
-              gap,
-              organization: gap.assessment.organization,
-            });
+            const matchScore = await calculateMatchScore(vendor, gap);
 
-            const fit = await analyzeVendorFit({
-              vendor,
-              solution: bestSolution,
-              organization: gap.assessment.organization,
-              criteria: validatedCriteria,
-            });
+            const fit = await analyzeVendorFit(vendor, gap);
 
             matches.push({
               vendor,
@@ -748,7 +739,7 @@ export class VendorService extends BaseService {
           organizationId: user.organization.id,
           type: validatedData.type,
           message: validatedData.message || null,
-          requirements: validatedData.requirements || null,
+          requirements: (validatedData.requirements as any) || null,
           budget: validatedData.budget || null,
           timeline: validatedData.timeline || null,
           status: ContactStatus.PENDING,
@@ -858,7 +849,7 @@ export class VendorService extends BaseService {
           { verified: 'desc' },
           { rating: 'desc' },
           { createdAt: 'desc' },
-        ];
+        ] as any;
       }
 
       const [vendors, total] = await Promise.all([
@@ -960,7 +951,7 @@ export class VendorService extends BaseService {
     try {
       const vendor = await this.prisma.vendor.findUnique({
         where: { id: vendorId },
-        select: { id: true },
+        select: { id: true, userId: true },
       });
 
       if (!vendor) {

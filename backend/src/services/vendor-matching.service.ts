@@ -98,7 +98,7 @@ export class VendorMatchingService extends BaseService {
 
       // Score all vendors in parallel
       const scores = await Promise.all(
-        vendors.map((vendor) => this.calculateBaseScore(vendor, assessment, priorities, gaps))
+        vendors.map((vendor) => this.calculateBaseScore(vendor, assessment, priorities, gaps as any))
       );
 
       this.logger.info('Scored all vendors', {

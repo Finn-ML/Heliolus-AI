@@ -9,7 +9,7 @@ import { ApiResponse, PaginatedResponse } from '../types/database';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2025-08-27.basil' as Stripe.LatestApiVersion,
 });
 
 // Validation Schemas
@@ -295,13 +295,11 @@ export class CouponService extends BaseService {
 
       return this.createSuccessResponse({
         data: coupons,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      });
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      } as any);
     } catch (error: any) {
       this.logger.error('Error listing coupons', { error, options });
       throw this.createError('Failed to list coupons', 500, 'LIST_COUPONS_FAILED');

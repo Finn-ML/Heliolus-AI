@@ -22,7 +22,7 @@ export async function requirePremiumTier(
 ): Promise<void> {
   try {
     // Ensure user is authenticated (should be handled by authenticate middleware first)
-    if (!request.user || !request.user.id) {
+    if (!request.user || !(request.user as any).id) {
       return reply.code(401).send({
         success: false,
         message: 'Authentication required',
@@ -30,7 +30,7 @@ export async function requirePremiumTier(
       });
     }
 
-    const userId = request.user.id;
+    const userId = (request.user as any).id;
 
     // Check user's subscription
     const subscription = await prisma.subscription.findUnique({
