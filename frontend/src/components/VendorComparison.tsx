@@ -764,7 +764,7 @@ const PremiumComparisonView: React.FC<PremiumComparisonViewProps> = ({ vendors, 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="max-w-7xl mx-auto mt-8 grid grid-cols-2 gap-4"
+        className="max-w-7xl mx-auto mt-8 grid grid-cols-2 gap-3 sm:gap-4"
       >
         <Button
           onClick={() => onDraftRfp([vendor1.id])}
@@ -772,8 +772,9 @@ const PremiumComparisonView: React.FC<PremiumComparisonViewProps> = ({ vendors, 
           size="lg"
           data-testid="button-draft-rfp-vendor1"
         >
-          <FileText className="mr-2 h-5 w-5" />
-          Draft RFP - {vendor1.name}
+          <FileText className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+          <span className="hidden sm:inline">Draft RFP - </span>
+          <span className="truncate">{vendor1.name}</span>
         </Button>
         <Button
           onClick={() => onDraftRfp([vendor2.id])}
@@ -781,8 +782,9 @@ const PremiumComparisonView: React.FC<PremiumComparisonViewProps> = ({ vendors, 
           size="lg"
           data-testid="button-draft-rfp-vendor2"
         >
-          <FileText className="mr-2 h-5 w-5" />
-          Draft RFP - {vendor2.name}
+          <FileText className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+          <span className="hidden sm:inline">Draft RFP - </span>
+          <span className="truncate">{vendor2.name}</span>
         </Button>
       </motion.div>
     </div>
@@ -1205,15 +1207,16 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
         transition={{ delay: 0.5 }}
         className="max-w-7xl mx-auto mt-8"
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <Button
             onClick={() => onContactVendor(vendor1)}
             className="bg-cyan-600 hover:bg-cyan-700 text-white"
             size="lg"
             data-testid="button-contact-vendor1"
           >
-            <MessageCircle className="mr-2 h-5 w-5" />
-            Contact Vendor - {vendor1.name}
+            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+            <span className="hidden sm:inline">Contact - </span>
+            <span className="truncate">{vendor1.name}</span>
           </Button>
           <Button
             onClick={() => onContactVendor(vendor2)}
@@ -1221,8 +1224,9 @@ const StaticComparisonView: React.FC<StaticComparisonViewProps> = ({
             size="lg"
             data-testid="button-contact-vendor2"
           >
-            <MessageCircle className="mr-2 h-5 w-5" />
-            Contact Vendor - {vendor2.name}
+            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+            <span className="hidden sm:inline">Contact - </span>
+            <span className="truncate">{vendor2.name}</span>
           </Button>
         </div>
       </motion.div>
