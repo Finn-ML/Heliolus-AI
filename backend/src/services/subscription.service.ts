@@ -1505,10 +1505,20 @@ export class SubscriptionService extends BaseService {
         userId,
         sessionId: session.id,
         stripePriceId,
+        sessionUrl: session.url,
+        hasUrl: !!session.url,
       });
 
+      if (!session.url) {
+        this.logger.error('Stripe checkout session created but URL is missing', {
+          sessionId: session.id,
+          session: JSON.stringify(session),
+        });
+        throw this.createError('Checkout session URL is missing', 500, 'CHECKOUT_URL_MISSING');
+      }
+
       return this.createResponse(true, {
-        checkoutUrl: session.url!,
+        checkoutUrl: session.url,
       });
     } catch (error: any) {
       this.logger.error({
