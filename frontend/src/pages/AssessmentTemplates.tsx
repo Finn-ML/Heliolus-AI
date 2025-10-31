@@ -92,9 +92,35 @@ const AssessmentTemplates = () => {
     retry: false,
   });
 
+  // Fetch user's subscription billing info to check credit balance
+  const { data: billingInfo } = useQuery({
+    queryKey: ['subscription', 'billing-info'],
+    queryFn: async () => {
+      const userId = getCurrentUserId();
+      if (!userId) return null;
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/v1/subscriptions/${userId}/billing-info`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
+  });
+
   const quota = quotaData?.data;
+  const subscription = billingInfo?.data;
   const showQuotaWarning = quota && quota.plan === 'FREE';
-  const quotaExceeded = quota && quota.quotaRemaining === 0;
+  
+  // Check if quota is exceeded for FREE users OR insufficient credits for PREMIUM users
+  const quotaExceeded = (quota && quota.quotaRemaining === 0) || 
+    (subscription?.plan === 'PREMIUM' && (subscription?.creditsBalance || 0) < 50);
 
   // Filter templates based on search
   const filteredTemplates = templates.filter(
@@ -267,7 +293,11 @@ const AssessmentTemplates = () => {
                 disabled={quotaExceeded}
                 data-testid={`button-start-featured-${filteredTemplates[0].id}`}
               >
-                {quotaExceeded ? 'Upgrade Required' : 'Start Featured Assessment'}
+                {quotaExceeded 
+                  ? (subscription?.plan === 'PREMIUM' 
+                    ? `Insufficient Credits (${subscription?.creditsBalance || 0}/50 required)` 
+                    : 'Upgrade Required')
+                  : 'Start Featured Assessment'}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </CardContent>
@@ -350,7 +380,11 @@ const AssessmentTemplates = () => {
                         disabled={quotaExceeded}
                         data-testid={`button-start-${template.id}`}
                       >
-                        {quotaExceeded ? 'Upgrade Required' : 'Start Assessment'}
+                        {quotaExceeded 
+                          ? (subscription?.plan === 'PREMIUM' 
+                            ? `Need ${50 - (subscription?.creditsBalance || 0)} Credits` 
+                            : 'Upgrade Required')
+                          : 'Start Assessment'}
                         <ChevronRight className="ml-2 h-4 w-4" />
                       </Button>
                     </CardContent>

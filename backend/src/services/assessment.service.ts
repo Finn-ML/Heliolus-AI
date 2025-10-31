@@ -182,6 +182,7 @@ export class AssessmentService extends BaseService {
       });
 
       const plan = user?.subscription?.plan || SubscriptionPlan.FREE;
+      const subscription = user?.subscription;
 
       // Check Freemium quota for FREE tier users
       if (plan === SubscriptionPlan.FREE) {
@@ -194,6 +195,42 @@ export class AssessmentService extends BaseService {
             'Free users can create maximum 2 assessments. Upgrade to Premium for unlimited access.',
             402,
             'FREEMIUM_QUOTA_EXCEEDED'
+          );
+        }
+      }
+
+      // Check credit balance for PREMIUM users
+      if (plan === SubscriptionPlan.PREMIUM) {
+        const creditsRequired = 50; // Each assessment costs 50 credits
+        
+        if (!subscription || subscription.creditsBalance < creditsRequired) {
+          const currentBalance = subscription?.creditsBalance || 0;
+          throw this.createError(
+            `Insufficient credits. You have ${currentBalance} credits, but ${creditsRequired} credits are required to create an assessment. Please purchase additional credits.`,
+            402,
+            'INSUFFICIENT_CREDITS'
+          );
+        }
+
+        // Check monthly assessment limit for PREMIUM users (2 per month)
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        
+        const assessmentsThisMonth = await this.prisma.assessment.count({
+          where: {
+            userId: context?.userId!,
+            createdAt: {
+              gte: startOfMonth,
+            },
+          },
+        });
+
+        if (assessmentsThisMonth >= 2) {
+          throw this.createError(
+            'Monthly assessment limit reached. Premium users can create up to 2 assessments per month. Please purchase additional credits for more assessments.',
+            402,
+            'MONTHLY_LIMIT_EXCEEDED'
           );
         }
       }
