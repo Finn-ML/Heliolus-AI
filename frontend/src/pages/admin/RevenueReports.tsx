@@ -458,16 +458,19 @@ const RevenueReports = () => {
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <Calendar className="h-3 w-3" />
-                          {new Date(transaction.date).toLocaleDateString()}
+                          {transaction.date 
+                            ? new Date(transaction.date).toLocaleDateString()
+                            : 'N/A'
+                          }
                         </div>
                       </TableCell>
-                      <TableCell>{transaction.organization}</TableCell>
+                      <TableCell>{transaction.organization ?? 'Unknown'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">
-                          {transaction.type}
+                          {transaction.type ?? 'N/A'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{transaction.description}</TableCell>
+                      <TableCell>{transaction.description ?? 'N/A'}</TableCell>
                       <TableCell className="text-right font-medium">
                         €{(transaction.amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>

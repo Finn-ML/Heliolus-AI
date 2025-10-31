@@ -1453,14 +1453,14 @@ export class AnalyticsService extends BaseService {
         take: limit
       });
 
-      // Fetch credit transactions (credit purchases and usage)
+      // Fetch credit transactions (only PURCHASE transactions that generate revenue)
       const creditTransactions = await this.prisma.creditTransaction.findMany({
         where: {
           createdAt: {
             gte: start,
             lte: end
           },
-          type: { in: [TransactionType.PURCHASE, TransactionType.BONUS, TransactionType.ADMIN_GRANT] } // Only revenue-generating transactions
+          type: TransactionType.PURCHASE // Only actual purchases, not bonuses or admin grants
         },
         include: {
           subscription: {
@@ -1505,18 +1505,17 @@ export class AnalyticsService extends BaseService {
         });
       });
 
-      // Add credit transactions
+      // Add credit transactions (PURCHASE only)
       creditTransactions.forEach(transaction => {
         // Handle cases where subscription might be null
         const org = transaction.subscription?.user?.organization;
-        // Calculate revenue from credit transactions
-        // For PURCHASE transactions, calculate the actual monetary value
+        
+        // Calculate revenue from credit purchases
         // Based on Heliolus pricing: 50 credits = €299
         const CREDIT_PRICE = 299 / 50; // €5.98 per credit
         let monetaryAmount = 0;
         
-        if (transaction.type === TransactionType.PURCHASE && transaction.amount > 0) {
-          // For purchases, calculate the monetary value
+        if (transaction.amount > 0) {
           // Standard pricing: 50 credits for €299
           if (transaction.amount === 50) {
             monetaryAmount = 299;
@@ -1524,16 +1523,13 @@ export class AnalyticsService extends BaseService {
             // For other amounts, use per-credit pricing
             monetaryAmount = transaction.amount * CREDIT_PRICE;
           }
-        } else if (transaction.type === TransactionType.BONUS || transaction.type === TransactionType.ADMIN_GRANT) {
-          // Bonus and admin grants don't generate revenue
-          monetaryAmount = 0;
         }
 
         transactions.push({
           id: transaction.id,
           date: transaction.createdAt,
           organization: org?.name || 'Unknown Organization',
-          type: transaction.type === TransactionType.PURCHASE ? 'credits' : transaction.type === TransactionType.BONUS ? 'bonus' : 'admin_grant',
+          type: 'credits',
           description: transaction.description,
           amount: monetaryAmount,
           status: 'paid',
