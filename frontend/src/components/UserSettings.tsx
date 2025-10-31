@@ -4,15 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
@@ -25,7 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/contexts/OnboardingContext';
-import { User, Mail, Building, Globe, Bell, Lock, Eye, EyeOff, Edit2, RefreshCw, CreditCard, ArrowRight } from 'lucide-react';
+import { User, Lock, Edit2, RefreshCw, CreditCard, ArrowRight } from 'lucide-react';
 
 const PasswordResetSection = () => {
   const { toast } = useToast();
@@ -112,15 +103,7 @@ const UserSettings = () => {
     firstName: '',
     lastName: '',
     email: '',
-    company: '',
     jobTitle: '',
-    phone: '',
-    timezone: 'America/New_York',
-    bio: '',
-    emailNotifications: true,
-    pushNotifications: false,
-    marketingEmails: true,
-    twoFactorAuth: false,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -137,11 +120,7 @@ const UserSettings = () => {
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         email: user.email || '',
-        // Keep existing values for fields not in user object
-        company: prev.company || '',
         jobTitle: prev.jobTitle || '',
-        phone: prev.phone || '',
-        bio: prev.bio || '',
       }));
     }
   }, [user]);
@@ -168,16 +147,7 @@ const UserSettings = () => {
         body: JSON.stringify({
           firstName: settings.firstName,
           lastName: settings.lastName,
-          email: settings.email,
-          company: settings.company,
           jobTitle: settings.jobTitle,
-          phone: settings.phone,
-          bio: settings.bio,
-          timezone: settings.timezone,
-          emailNotifications: settings.emailNotifications,
-          pushNotifications: settings.pushNotifications,
-          marketingEmails: settings.marketingEmails,
-          twoFactorAuth: settings.twoFactorAuth,
         }),
       });
 
@@ -370,49 +340,14 @@ const UserSettings = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="company">Company</Label>
-              <Input
-                id="company"
-                value={settings.company}
-                onChange={e => handleChange('company', e.target.value)}
-                disabled={!isEditMode}
-                data-testid="input-company"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="jobTitle">Job Title</Label>
-              <Input
-                id="jobTitle"
-                value={settings.jobTitle}
-                onChange={e => handleChange('jobTitle', e.target.value)}
-                disabled={!isEditMode}
-                data-testid="input-jobTitle"
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
+            <Label htmlFor="jobTitle">Job Title</Label>
             <Input
-              id="phone"
-              value={settings.phone}
-              onChange={e => handleChange('phone', e.target.value)}
+              id="jobTitle"
+              value={settings.jobTitle}
+              onChange={e => handleChange('jobTitle', e.target.value)}
               disabled={!isEditMode}
-              data-testid="input-phone"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="bio">Bio</Label>
-            <Textarea
-              id="bio"
-              value={settings.bio}
-              onChange={e => handleChange('bio', e.target.value)}
-              disabled={!isEditMode}
-              rows={3}
-              data-testid="textarea-bio"
+              data-testid="input-jobTitle"
             />
           </div>
         </CardContent>
@@ -422,36 +357,12 @@ const UserSettings = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
+            <RefreshCw className="h-5 w-5" />
             Preferences
           </CardTitle>
           <CardDescription>Configure your application preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="timezone">Timezone</Label>
-            <Select
-              value={settings.timezone}
-              onValueChange={value => handleChange('timezone', value)}
-              disabled={!isEditMode}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-                <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-                <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-                <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Separator />
-
           <div className="space-y-2">
             <Label>Onboarding Tour</Label>
             <p className="text-sm text-muted-foreground mb-2">
@@ -472,61 +383,6 @@ const UserSettings = () => {
               <RefreshCw className="h-4 w-4 mr-2" />
               Restart Onboarding Tour
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notification Settings
-          </CardTitle>
-          <CardDescription>Choose what notifications you want to receive</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="emailNotifications">Email Notifications</Label>
-              <p className="text-sm text-muted-foreground">Receive notifications via email</p>
-            </div>
-            <Switch
-              id="emailNotifications"
-              checked={settings.emailNotifications}
-              onCheckedChange={checked => handleChange('emailNotifications', checked)}
-              disabled={!isEditMode}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="pushNotifications">Push Notifications</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive push notifications in your browser
-              </p>
-            </div>
-            <Switch
-              id="pushNotifications"
-              checked={settings.pushNotifications}
-              onCheckedChange={checked => handleChange('pushNotifications', checked)}
-              disabled={!isEditMode}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="marketingEmails">Marketing Emails</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive updates about new features and products
-              </p>
-            </div>
-            <Switch
-              id="marketingEmails"
-              checked={settings.marketingEmails}
-              onCheckedChange={checked => handleChange('marketingEmails', checked)}
-              disabled={!isEditMode}
-            />
           </div>
         </CardContent>
       </Card>
@@ -575,23 +431,6 @@ const UserSettings = () => {
           <CardDescription>Manage your account security</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="twoFactorAuth">Two-Factor Authentication</Label>
-              <p className="text-sm text-muted-foreground">
-                Add an extra layer of security to your account
-              </p>
-            </div>
-            <Switch
-              id="twoFactorAuth"
-              checked={settings.twoFactorAuth}
-              onCheckedChange={checked => handleChange('twoFactorAuth', checked)}
-              disabled={!isEditMode}
-            />
-          </div>
-
-          <Separator />
-
           <PasswordResetSection />
 
           <Separator />

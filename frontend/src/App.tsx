@@ -46,6 +46,7 @@ import PlanManagement from './pages/admin/PlanManagement';
 import CouponManagement from './pages/admin/CouponManagement';
 import LegalDocuments from './pages/admin/LegalDocuments';
 import LeadsPage from './pages/admin/LeadsPage';
+import AdminSettings from './pages/admin/AdminSettings';
 import UserSettings from './components/UserSettings';
 import PasswordReset from './pages/PasswordReset';
 import EmailVerification from './pages/EmailVerification';
@@ -237,6 +238,14 @@ const App = () => (
                   element={
                     <AdminRoute>
                       <LeadsPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings"
+                  element={
+                    <AdminRoute>
+                      <AdminSettings />
                     </AdminRoute>
                   }
                 />
