@@ -1167,9 +1167,8 @@ const AssessmentExecution = () => {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {selectedDocuments.includes(doc.id) && (
-                            <div className="flex items-center gap-1 bg-cyan-600/20 border border-cyan-500/50 rounded px-2 py-1">
+                            <div className="flex items-center justify-center bg-cyan-600/20 border border-cyan-500/50 rounded h-8 w-8">
                               <CheckCircle className="h-4 w-4 text-cyan-400" />
-                              <span className="text-xs text-cyan-400 font-medium hidden md:inline">Selected</span>
                             </div>
                           )}
                           <Button
