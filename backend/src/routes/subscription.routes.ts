@@ -187,8 +187,7 @@ const PurchaseAssessmentResponseSchema = {
       data: {
         type: 'object',
         properties: {
-          success: { type: 'boolean' },
-          creditsAdded: { type: 'number' },
+          checkoutUrl: { type: 'string' },
         },
       },
     },
