@@ -537,53 +537,14 @@ const VendorForm = memo(
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="rating">Rating</Label>
-            <Input
-              id="rating"
-              type="number"
-              min="0"
-              max="5"
-              step="0.1"
-              value={formData.rating || ''}
-              onChange={e =>
-                onFormDataChange({ ...formData, rating: parseFloat(e.target.value) || 0 })
-              }
-              placeholder="4.5"
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="verified"
+              checked={formData.verified || false}
+              onChange={e => onFormDataChange({ ...formData, verified: e.target.checked })}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reviewCount">Review Count</Label>
-            <Input
-              id="reviewCount"
-              type="number"
-              min="0"
-              value={formData.reviewCount || ''}
-              onChange={e =>
-                onFormDataChange({ ...formData, reviewCount: parseInt(e.target.value) || 0 })
-              }
-              placeholder="25"
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="featured"
-                checked={formData.featured || false}
-                onChange={e => onFormDataChange({ ...formData, featured: e.target.checked })}
-              />
-              <Label htmlFor="featured">Featured Vendor</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="verified"
-                checked={formData.verified || false}
-                onChange={e => onFormDataChange({ ...formData, verified: e.target.checked })}
-              />
-              <Label htmlFor="verified">Verified Vendor</Label>
-            </div>
+            <Label htmlFor="verified">Verified Vendor</Label>
           </div>
         </div>
       </div>
