@@ -179,7 +179,12 @@ export class LeadService extends BaseService {
 
         const contacts = await this.prisma.vendorContact.findMany({
           where: contactWhere,
-          include: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            metadata: true,
             organization: { select: { name: true } },
             user: { select: { email: true, firstName: true, lastName: true } },
             vendor: { select: { id: true, companyName: true } },
@@ -289,7 +294,12 @@ export class LeadService extends BaseService {
         // BASIC lead
         const contact = await this.prisma.vendorContact.findUnique({
           where: { id: leadId },
-          include: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            metadata: true,
             organization: { select: { name: true } },
             user: { select: { email: true, firstName: true, lastName: true } },
             vendor: { select: { id: true, companyName: true, contactEmail: true } },
@@ -393,7 +403,12 @@ export class LeadService extends BaseService {
         const updatedContact = await this.prisma.vendorContact.update({
           where: { id: leadId },
           data: { status: contactStatus },
-          include: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            metadata: true,
             organization: { select: { name: true } },
             user: { select: { email: true, firstName: true, lastName: true } },
             vendor: { select: { id: true, companyName: true } },

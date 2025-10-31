@@ -1115,12 +1115,12 @@ export default async function vendorRoutes(server: FastifyInstance) {
       const matches = result.data;
 
       reply.status(200).send(matches.map(match => ({
-        id: match.id,
-        gapId: match.gapId,
-        vendorId: match.vendorId,
-        solutionId: match.solutionId,
+        id: `match-${match.vendor.id}`,
+        gapId: params.id,
+        vendorId: match.vendor.id,
+        solutionId: match.solution?.id || null,
         matchScore: match.matchScore,
-        reasoning: match.reasoning || [],
+        reasoning: match.matchReasons || [],
       })));
 
     } catch (error: any) {
