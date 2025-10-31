@@ -467,7 +467,7 @@ Our objective is to implement solutions that address these compliance gaps and i
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-4 sm:p-6">
+      <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto w-[95vw] sm:w-full p-3 sm:p-6">
         <DialogHeader className="space-y-1 sm:space-y-2">
           <DialogTitle className="flex items-center space-x-2 text-lg sm:text-xl">
             <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
@@ -478,7 +478,7 @@ Our objective is to implement solutions that address these compliance gaps and i
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-2 sm:space-y-6">
           {/* Assessment Selection and Auto-fill */}
           <div className="space-y-1 sm:space-y-2">
             {selectedAssessment ? (
@@ -582,7 +582,7 @@ Our objective is to implement solutions that address these compliance gaps and i
               className={cn('resize-none text-sm', autoFilling && 'border-primary')}
               {...register('objectives')}
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 hidden sm:block">
               Auto-populated from your organization profile and assessment results
             </p>
           </div>
@@ -731,17 +731,19 @@ Our objective is to implement solutions that address these compliance gaps and i
                 </Badge>
               )}
             </Label>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 hidden sm:block">
               Select up to 5 documents to attach to vendor emails
             </p>
-            <DocumentStorage
-              organizationId={organizationId}
-              className="border rounded-md"
-              selectionMode={true}
-              selectedDocuments={selectedDocuments}
-              onSelectionChange={(documentIds) => setValue('documents', documentIds)}
-              maxSelection={5}
-            />
+            <div className="max-h-32 sm:max-h-64 overflow-y-auto">
+              <DocumentStorage
+                organizationId={organizationId}
+                className="border rounded-md"
+                selectionMode={true}
+                selectedDocuments={selectedDocuments}
+                onSelectionChange={(documentIds) => setValue('documents', documentIds)}
+                maxSelection={5}
+              />
+            </div>
           </div>
 
           {/* Footer */}
