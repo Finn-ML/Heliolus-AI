@@ -52,7 +52,7 @@ function toFrontendTemplate(template: any) {
     (sum: number, section: any) => sum + (section.questions ? section.questions.length : 0),
     0
   );
-  const estimatedMinutes = totalQuestions > 0 ? Math.max(15, Math.min(90, totalQuestions * 2)) : 30;
+  const estimatedMinutes = totalQuestions > 0 ? Math.max(15, Math.min(90, totalQuestions * 2)) : 0;
 
   return {
     id: template.id,
@@ -122,7 +122,7 @@ export default async function templateRoutes(server: FastifyInstance) {
           (sum: number, s: any) => sum + (Array.isArray(s.questions) ? s.questions.length : 0),
           0
         );
-        const estimatedMinutes = totalQuestions > 0 ? Math.max(15, Math.min(90, totalQuestions * 2)) : 30;
+        const estimatedMinutes = totalQuestions > 0 ? Math.max(15, Math.min(90, totalQuestions * 2)) : 0;
         return {
           id: t.id,
           name: t.name,
