@@ -20,7 +20,6 @@ import {
   Filter,
   Download,
   Eye,
-  MessageSquare,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -384,12 +383,6 @@ const RfpTracking = () => {
                         <Eye className="mr-1 h-4 w-4" />
                         View
                       </Button>
-                      {rfp.status === 'SENT' && (
-                        <Button size="sm">
-                          <MessageSquare className="mr-1 h-4 w-4" />
-                          Track
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </div>
