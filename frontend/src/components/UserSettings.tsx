@@ -457,23 +457,16 @@ const UserSettings = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-              <div>
-                <p className="font-medium">Current Plan</p>
-                <p className="text-sm text-muted-foreground">
-                  {user?.subscription?.plan || 'FREE'} Plan
-                </p>
-              </div>
-              <Button
-                variant="default"
-                onClick={handleManageSubscription}
-                disabled={isLoadingPortal}
-                data-testid="button-manage-subscription"
-              >
-                {isLoadingPortal ? 'Loading...' : 'Manage Subscription'}
-                {!isLoadingPortal && <ArrowRight className="ml-2 h-4 w-4" />}
-              </Button>
-            </div>
+            <Button
+              variant="default"
+              onClick={handleManageSubscription}
+              disabled={isLoadingPortal}
+              data-testid="button-manage-subscription"
+              className="w-full"
+            >
+              {isLoadingPortal ? 'Loading...' : 'Manage Subscription'}
+              {!isLoadingPortal && <ArrowRight className="ml-2 h-4 w-4" />}
+            </Button>
             <p className="text-sm text-muted-foreground">
               Manage your subscription, payment methods, and billing history through Stripe's secure portal.
             </p>
