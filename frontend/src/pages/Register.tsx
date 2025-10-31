@@ -169,7 +169,7 @@ const Register: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container relative h-screen flex-col items-center justify-center flex lg:max-w-none lg:px-0">
+      <div className="container relative min-h-[calc(100vh-4rem)] flex-col items-center justify-center flex lg:max-w-none lg:px-0">
         <div className="p-8">
           <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[400px]">
             <div className="flex flex-col space-y-2 text-center">
