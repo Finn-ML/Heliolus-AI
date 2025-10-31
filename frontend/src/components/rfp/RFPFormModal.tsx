@@ -134,6 +134,21 @@ export function RFPFormModal({
   const timeline = watch('timeline');
   const budget = watch('budget');
 
+  // Auto-select assessment on modal open
+  useEffect(() => {
+    if (open && !selectedAssessment && completedAssessments.length > 0) {
+      // If only one assessment, auto-select it
+      if (completedAssessments.length === 1) {
+        setSelectedAssessment(completedAssessments[0]);
+        // Trigger auto-fill after a short delay to allow state to update
+        setTimeout(() => handleAutoFill(), 200);
+      } else {
+        // If multiple assessments, show selector immediately
+        setShowAssessmentSelector(true);
+      }
+    }
+  }, [open, completedAssessments.length]);
+
   // Fetch vendors on mount or when assessment changes
   useEffect(() => {
     if (open) {
@@ -445,6 +460,8 @@ Our objective is to implement solutions that address these compliance gaps and i
 
   const handleClose = () => {
     reset();
+    setSelectedAssessment(null);
+    setShowAssessmentSelector(false);
     onOpenChange(false);
   };
 
