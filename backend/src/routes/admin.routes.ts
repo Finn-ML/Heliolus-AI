@@ -2479,6 +2479,150 @@ export default async function adminRoutes(server: FastifyInstance) {
   }));
 
   // ============================================================================
+  // SUBSCRIPTION MANAGEMENT ROUTES
+  // ============================================================================
+
+  // Helper functions for subscription data transformation
+  function getSubscriptionAmount(plan: string, billingCycle?: string | null): number {
+    const amounts: Record<string, { monthly: number; annual: number }> = {
+      FREE: { monthly: 0, annual: 0 },
+      PREMIUM: { monthly: 99, annual: 990 },
+      ENTERPRISE: { monthly: 499, annual: 4990 },
+    };
+
+    const planAmounts = amounts[plan] || amounts.FREE;
+    return billingCycle === 'ANNUAL' ? planAmounts.annual : planAmounts.monthly;
+  }
+
+  function getIncludedCredits(plan: string): number {
+    const credits: Record<string, number> = {
+      FREE: 10,
+      PREMIUM: 500,
+      ENTERPRISE: 2000,
+    };
+
+    return credits[plan] || credits.FREE;
+  }
+
+  function extractLast4(paymentMethodId: string): string {
+    // If it's a Stripe payment method ID, we don't have the last 4 here
+    // This would need to be fetched from Stripe or stored separately
+    // For now, return a placeholder
+    return '****';
+  }
+
+  // GET /admin/subscriptions - List all subscriptions
+  server.get('/subscriptions', {
+    schema: {
+      description: 'List all subscriptions with organization and user details',
+      tags: ['Admin'],
+      querystring: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELED', 'UNPAID'] },
+          plan: { type: 'string', enum: ['FREE', 'PREMIUM', 'ENTERPRISE'] },
+          search: { type: 'string' },
+        },
+      },
+    },
+  }, asyncHandler(async (request: FastifyRequest<{
+    Querystring: {
+      status?: string;
+      plan?: string;
+      search?: string;
+    }
+  }>, reply: FastifyReply) => {
+    const { status, plan, search } = request.query;
+
+    // Build where clause for filtering
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+    if (plan) {
+      where.plan = plan;
+    }
+
+    // Search in user email, name, or organization name
+    if (search) {
+      where.OR = [
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { user: { firstName: { contains: search, mode: 'insensitive' } } },
+        { user: { lastName: { contains: search, mode: 'insensitive' } } },
+        { user: { organization: { name: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+
+    try {
+      const subscriptions = await prisma.subscription.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              organization: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Transform data to match frontend expectations
+      const transformedSubscriptions = subscriptions.map(sub => ({
+        id: sub.id,
+        userId: sub.userId,
+        organizationId: sub.user.organization?.id || null,
+        organizationName: sub.user.organization?.name || 'N/A',
+        userEmail: sub.user.email,
+        userName: `${sub.user.firstName} ${sub.user.lastName}`,
+        plan: sub.plan.toLowerCase(),
+        status: sub.status.toLowerCase(),
+        startDate: sub.currentPeriodStart,
+        nextBillingDate: sub.currentPeriodEnd,
+        amount: getSubscriptionAmount(sub.plan, sub.billingCycle),
+        interval: sub.billingCycle?.toLowerCase() || 'monthly',
+        credits: {
+          included: getIncludedCredits(sub.plan),
+          used: sub.creditsUsed,
+          remaining: sub.creditsBalance,
+        },
+        paymentMethod: {
+          type: sub.stripePaymentMethodId ? 'Card' : '-',
+          last4: sub.stripePaymentMethodId ? extractLast4(sub.stripePaymentMethodId) : '-',
+        },
+        stripeCustomerId: sub.stripeCustomerId,
+        stripeSubscriptionId: sub.stripeSubscriptionId,
+        createdAt: sub.createdAt,
+        updatedAt: sub.updatedAt,
+      }));
+
+      reply.code(200).send({
+        success: true,
+        data: transformedSubscriptions,
+      });
+    } catch (error: any) {
+      request.log.error({ error }, 'Failed to fetch subscriptions');
+      reply.code(500).send({
+        success: false,
+        message: 'Failed to fetch subscriptions',
+        // Only include error details in development
+        ...(process.env.NODE_ENV === 'development' && { error: error.message }),
+      });
+    }
+  }));
+
+  // ============================================================================
   // TEMPLATE MANAGEMENT ROUTES
   // ============================================================================
 

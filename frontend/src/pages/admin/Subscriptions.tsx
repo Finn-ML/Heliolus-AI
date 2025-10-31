@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,18 +55,20 @@ import {
   TrendingDown,
   Users,
   DollarSign,
+  Loader2,
 } from 'lucide-react';
+import { adminSubscriptionsApi } from '@/lib/api';
 
 interface Subscription {
   id: string;
   organizationName: string;
-  organizationId: string;
-  plan: 'free' | 'starter' | 'professional' | 'enterprise';
-  status: 'active' | 'cancelled' | 'past_due' | 'paused';
+  organizationId: string | null;
+  plan: 'free' | 'premium' | 'enterprise';
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid';
   startDate: string;
   nextBillingDate: string;
   amount: number;
-  interval: 'monthly' | 'yearly';
+  interval: 'monthly' | 'annual';
   credits: {
     included: number;
     used: number;
@@ -78,131 +80,10 @@ interface Subscription {
   };
 }
 
-const mockSubscriptions: Subscription[] = [
-  {
-    id: 'sub-001',
-    organizationName: 'TechCorp Solutions',
-    organizationId: 'org-001',
-    plan: 'enterprise',
-    status: 'active',
-    startDate: '2024-01-15',
-    nextBillingDate: '2024-04-15',
-    amount: 999,
-    interval: 'monthly',
-    credits: {
-      included: 1000,
-      used: 650,
-      remaining: 350,
-    },
-    paymentMethod: {
-      type: 'Visa',
-      last4: '4242',
-    },
-  },
-  {
-    id: 'sub-002',
-    organizationName: 'SecurePoint Inc',
-    organizationId: 'org-002',
-    plan: 'professional',
-    status: 'active',
-    startDate: '2024-02-01',
-    nextBillingDate: '2024-04-01',
-    amount: 499,
-    interval: 'monthly',
-    credits: {
-      included: 500,
-      used: 423,
-      remaining: 77,
-    },
-    paymentMethod: {
-      type: 'Mastercard',
-      last4: '5555',
-    },
-  },
-  {
-    id: 'sub-003',
-    organizationName: 'StartupXYZ',
-    organizationId: 'org-003',
-    plan: 'starter',
-    status: 'past_due',
-    startDate: '2024-03-01',
-    nextBillingDate: '2024-03-15',
-    amount: 99,
-    interval: 'monthly',
-    credits: {
-      included: 100,
-      used: 100,
-      remaining: 0,
-    },
-    paymentMethod: {
-      type: 'Visa',
-      last4: '1234',
-    },
-  },
-  {
-    id: 'sub-004',
-    organizationName: 'CloudSafe Pro',
-    organizationId: 'org-004',
-    plan: 'professional',
-    status: 'cancelled',
-    startDate: '2023-12-01',
-    nextBillingDate: '2024-03-31',
-    amount: 4990,
-    interval: 'yearly',
-    credits: {
-      included: 6000,
-      used: 2340,
-      remaining: 3660,
-    },
-    paymentMethod: {
-      type: 'AmEx',
-      last4: '0000',
-    },
-  },
-  {
-    id: 'sub-005',
-    organizationName: 'DataGuard Systems',
-    organizationId: 'org-005',
-    plan: 'enterprise',
-    status: 'paused',
-    startDate: '2024-01-01',
-    nextBillingDate: '-',
-    amount: 999,
-    interval: 'monthly',
-    credits: {
-      included: 1000,
-      used: 456,
-      remaining: 544,
-    },
-    paymentMethod: {
-      type: 'Visa',
-      last4: '9876',
-    },
-  },
-  {
-    id: 'sub-006',
-    organizationName: 'FreeUser Corp',
-    organizationId: 'org-006',
-    plan: 'free',
-    status: 'active',
-    startDate: '2024-02-15',
-    nextBillingDate: '-',
-    amount: 0,
-    interval: 'monthly',
-    credits: {
-      included: 10,
-      used: 5,
-      remaining: 5,
-    },
-    paymentMethod: {
-      type: '-',
-      last4: '-',
-    },
-  },
-];
-
 const Subscriptions = () => {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(mockSubscriptions);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPlan, setFilterPlan] = useState('all');
@@ -210,23 +91,58 @@ const Subscriptions = () => {
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [actionType, setActionType] = useState<'pause' | 'cancel' | 'resume'>('pause');
 
+  // Helper function to safely format dates
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? '-' : date.toISOString().split('T')[0];
+  };
+
+  // Fetch subscriptions from API
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await adminSubscriptionsApi.getSubscriptions();
+
+        if (response.success && response.data) {
+          // Format the dates for display
+          const formattedSubscriptions = response.data.map((sub: any) => ({
+            ...sub,
+            startDate: formatDate(sub.startDate),
+            nextBillingDate: formatDate(sub.nextBillingDate),
+          }));
+          setSubscriptions(formattedSubscriptions);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch subscriptions:', err);
+        setError(err.message || 'Failed to load subscriptions');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSubscriptions();
+  }, []);
+
   const filteredSubscriptions = subscriptions.filter(sub => {
     const matchesSearch =
       sub.organizationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.organizationId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || sub.status === filterStatus;
-    const matchesPlan = filterPlan === 'all' || sub.plan === filterPlan;
+      (sub.organizationId && sub.organizationId.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = filterStatus === 'all' || sub.status.toLowerCase() === filterStatus.toLowerCase();
+    const matchesPlan = filterPlan === 'all' || sub.plan.toLowerCase() === filterPlan.toLowerCase();
 
     return matchesSearch && matchesStatus && matchesPlan;
   });
 
   // Calculate metrics
-  const activeSubscriptions = subscriptions.filter(s => s.status === 'active').length;
+  const activeSubscriptions = subscriptions.filter(s => s.status.toLowerCase() === 'active').length;
   const monthlyRecurringRevenue = subscriptions
-    .filter(s => s.status === 'active')
-    .reduce((sum, s) => sum + (s.interval === 'yearly' ? s.amount / 12 : s.amount), 0);
-  const churnedThisMonth = subscriptions.filter(s => s.status === 'cancelled').length;
-  const averageRevenue = monthlyRecurringRevenue / activeSubscriptions;
+    .filter(s => s.status.toLowerCase() === 'active')
+    .reduce((sum, s) => sum + (s.interval.toLowerCase() === 'annual' ? s.amount / 12 : s.amount), 0);
+  const churnedThisMonth = subscriptions.filter(s => s.status.toLowerCase() === 'canceled').length;
+  const averageRevenue = activeSubscriptions > 0 ? monthlyRecurringRevenue / activeSubscriptions : 0;
 
   const handleSubscriptionAction = (
     subscription: Subscription,
@@ -262,14 +178,12 @@ const Subscriptions = () => {
     switch (plan) {
       case 'enterprise':
         return 'bg-purple-500/20 text-purple-500';
-      case 'professional':
+      case 'premium':
         return 'bg-blue-500/20 text-blue-500';
-      case 'starter':
-        return 'bg-cyan-500/20 text-cyan-500';
       case 'free':
         return 'bg-gray-500/20 text-gray-500';
       default:
-        return '';
+        return 'bg-gray-500/20 text-gray-500';
     }
   };
 
@@ -277,12 +191,14 @@ const Subscriptions = () => {
     switch (status) {
       case 'active':
         return <CheckCircle className="h-3 w-3 text-green-500" />;
-      case 'cancelled':
+      case 'trialing':
+        return <CheckCircle className="h-3 w-3 text-blue-500" />;
+      case 'canceled':
         return <XCircle className="h-3 w-3 text-red-500" />;
       case 'past_due':
         return <AlertCircle className="h-3 w-3 text-yellow-500" />;
-      case 'paused':
-        return <Pause className="h-3 w-3 text-gray-500" />;
+      case 'unpaid':
+        return <AlertCircle className="h-3 w-3 text-orange-500" />;
       default:
         return null;
     }
@@ -299,8 +215,27 @@ const Subscriptions = () => {
           </div>
         </div>
 
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Error State */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-muted-foreground">Loading subscriptions...</span>
+          </div>
+        )}
+
+        {/* Content - Only show when not loading */}
+        {!isLoading && (
+          <>
+            {/* Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="card-hover">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
@@ -372,9 +307,10 @@ const Subscriptions = () => {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="trialing">Trialing</SelectItem>
                   <SelectItem value="past_due">Past Due</SelectItem>
-                  <SelectItem value="paused">Paused</SelectItem>
+                  <SelectItem value="canceled">Canceled</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPlan} onValueChange={setFilterPlan}>
@@ -384,8 +320,7 @@ const Subscriptions = () => {
                 <SelectContent>
                   <SelectItem value="all">All Plans</SelectItem>
                   <SelectItem value="enterprise">Enterprise</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="starter">Starter</SelectItem>
+                  <SelectItem value="premium">Premium</SelectItem>
                   <SelectItem value="free">Free</SelectItem>
                 </SelectContent>
               </Select>
@@ -455,7 +390,7 @@ const Subscriptions = () => {
                       <div>
                         <p className="font-medium">
                           ${subscription.amount}/
-                          {subscription.interval === 'yearly' ? 'year' : 'mo'}
+                          {subscription.interval === 'annual' ? 'year' : 'mo'}
                         </p>
                         <p className="text-xs text-muted-foreground capitalize">
                           {subscription.interval}
@@ -518,15 +453,7 @@ const Subscriptions = () => {
                               </DropdownMenuItem>
                             </>
                           )}
-                          {subscription.status === 'paused' && (
-                            <DropdownMenuItem
-                              onClick={() => handleSubscriptionAction(subscription, 'resume')}
-                            >
-                              <Play className="h-4 w-4 mr-2" />
-                              Resume Subscription
-                            </DropdownMenuItem>
-                          )}
-                          {subscription.status === 'cancelled' && (
+                          {subscription.status === 'canceled' && (
                             <DropdownMenuItem>
                               <RefreshCcw className="h-4 w-4 mr-2" />
                               Reactivate
@@ -541,6 +468,8 @@ const Subscriptions = () => {
             </Table>
           </CardContent>
         </Card>
+          </>
+        )}
 
         {/* Action Confirmation Dialog */}
         <Dialog open={showActionDialog} onOpenChange={setShowActionDialog}>
