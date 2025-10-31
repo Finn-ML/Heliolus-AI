@@ -854,10 +854,10 @@ export class VendorService extends BaseService {
       // Featured vendors first
       if (!options.sortBy) {
         queryOptions.orderBy = [
-          { featured: 'desc' as const },
-          { verified: 'desc' as const },
-          { rating: 'desc' as const },
-          { createdAt: 'desc' as const },
+          { featured: 'desc' },
+          { verified: 'desc' },
+          { rating: 'desc' },
+          { createdAt: 'desc' },
         ];
       }
 

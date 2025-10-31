@@ -380,8 +380,7 @@ export default async function vendorRoutes(server: FastifyInstance) {
           customerSegments: vendor.customerSegments,
           benefitsSnapshot: vendor.benefitsSnapshot,
           maturityAssessment: vendor.maturityAssessment,
-          description: vendor.description,
-          shortDescription: vendor.shortDescription,
+
           categories: vendor.categories || [],
           featured: vendor.featured,
           verified: vendor.verified,
@@ -872,11 +871,11 @@ export default async function vendorRoutes(server: FastifyInstance) {
 
       reply.status(201).send({
         id: contact.id,
-        vendorId: contact.vendorId,
-        type: contact.type,
-        message: contact.message,
+        vendorId: params.id, // Use the vendor ID from the route params
+        type: body.type,
+        message: body.message || null,
         status: contact.status,
-        createdAt: contact.createdAt.toISOString(),
+        createdAt: new Date().toISOString(),
       });
 
     } catch (error: any) {
@@ -1005,8 +1004,7 @@ export default async function vendorRoutes(server: FastifyInstance) {
           companyName: vendor.companyName,
           website: vendor.website,
           logo: vendor.logo,
-          description: vendor.description,
-          shortDescription: vendor.shortDescription,
+
           categories: vendor.categories || [],
           featured: vendor.featured,
           verified: vendor.verified,
