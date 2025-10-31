@@ -1507,7 +1507,22 @@ export default async function adminRoutes(server: FastifyInstance) {
               properties: {
                 transactions: {
                   type: 'array',
-                  items: { type: 'object' }
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      date: { type: 'string' },
+                      organization: { type: 'string' },
+                      type: { type: 'string' },
+                      description: { type: 'string' },
+                      amount: { type: 'number' },
+                      status: { type: 'string' },
+                      metadata: {
+                        type: 'object',
+                        additionalProperties: true
+                      }
+                    }
+                  }
                 }
               }
             }
