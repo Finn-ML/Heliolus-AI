@@ -1103,7 +1103,7 @@ const AssessmentExecution = () => {
                     return (
                       <div
                         key={doc.id}
-                        className={`flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border-2 ${
+                        className={`flex items-center justify-between gap-2 p-3 rounded-lg bg-gray-800/50 border-2 ${
                           selectedDocuments.includes(doc.id)
                             ? 'border-cyan-600 bg-cyan-900/20'
                             : 'border-gray-700'
@@ -1118,19 +1118,19 @@ const AssessmentExecution = () => {
                           }
                         }}
                       >
-                        <div className="flex items-center gap-3 flex-1">
-                          <Icon className="h-5 w-5 text-gray-400" />
-                          <div className="flex-1">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <Icon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-white text-sm">{docFilename}</p>
+                              <p className="text-white text-sm truncate">{docFilename}</p>
                               {isProcessing && (
-                                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
+                                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50 flex-shrink-0">
                                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  Processing
+                                  <span className="hidden md:inline">Processing</span>
                                 </Badge>
                               )}
                               {doc.extractedData && (
-                                <span className="text-green-400 text-xs">✓ Analyzed</span>
+                                <span className="text-green-400 text-xs flex-shrink-0 hidden md:inline">✓ Analyzed</span>
                               )}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -1140,7 +1140,7 @@ const AssessmentExecution = () => {
                                 </span>
                               )}
                               {(doc.createdAt || doc.uploadedAt) && (
-                                <span>
+                                <span className="hidden sm:inline">
                                   {(() => {
                                     const date = new Date(doc.createdAt || doc.uploadedAt);
                                     return isNaN(date.getTime())
@@ -1151,7 +1151,7 @@ const AssessmentExecution = () => {
                               )}
                             </div>
                             {!isProcessing && (
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 <Badge
                                   className={`text-xs px-2 py-0.5 ${getClassificationColor(classification)}`}
                                 >
@@ -1159,23 +1159,23 @@ const AssessmentExecution = () => {
                                 </Badge>
                                 <Badge className={`text-xs px-2 py-0.5 ${tierBadge.color}`}>
                                   <span className="mr-1">{tierBadge.icon}</span>
-                                  {tierBadge.label}
+                                  <span className="hidden sm:inline">{tierBadge.label}</span>
                                 </Badge>
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           {selectedDocuments.includes(doc.id) && (
                             <div className="flex items-center gap-1 bg-cyan-600/20 border border-cyan-500/50 rounded px-2 py-1">
                               <CheckCircle className="h-4 w-4 text-cyan-400" />
-                              <span className="text-xs text-cyan-400 font-medium">Selected</span>
+                              <span className="text-xs text-cyan-400 font-medium hidden md:inline">Selected</span>
                             </div>
                           )}
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-gray-500 hover:text-red-400"
+                            className="h-8 w-8 text-gray-500 hover:text-red-400 flex-shrink-0"
                             onClick={e => {
                               e.stopPropagation();
                               handleDeleteDocument(doc.id);
