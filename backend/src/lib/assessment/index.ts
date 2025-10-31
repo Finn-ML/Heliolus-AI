@@ -141,7 +141,9 @@ export const ASSESSMENT_CONFIG = {
       low: 30,
       medium: 60,
       high: 80
-    }
+    },
+    methodology: 'Weighted Risk Assessment',
+    version: '1.0.0'
   },
   analysis: {
     minResponseLength: 10,

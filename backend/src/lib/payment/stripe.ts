@@ -19,7 +19,7 @@ import {
 // Get Stripe config directly from environment to avoid circular dependency
 const STRIPE_CONFIG = {
   secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
-  apiVersion: '2025-08-27.basil' as const,
+  apiVersion: '2024-11-20.acacia' as const,
   timeout: 30000
 };
 
@@ -29,7 +29,7 @@ const CreateCustomerSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
   paymentMethodId: z.string().optional(),
-  metadata: z.record(z.string()).optional()
+  metadata: z.record(z.string(), z.string()).optional()
 });
 
 const PaymentIntentSchema = z.object({
@@ -38,7 +38,7 @@ const PaymentIntentSchema = z.object({
   customerId: z.string(),
   paymentMethodId: z.string().optional(),
   description: z.string().optional(),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
   automaticPaymentMethods: z.boolean().optional()
 });
 
@@ -50,8 +50,8 @@ export class StripeProvider implements PaymentProvider {
 
   constructor() {
     this.stripe = new Stripe(STRIPE_CONFIG.secretKey, {
-      apiVersion: STRIPE_CONFIG.apiVersion,
-      timeout: STRIPE_CONFIG.timeout
+      apiVersion: '2024-11-20.acacia',
+      typescript: true
     });
   }
 
@@ -66,7 +66,7 @@ export class StripeProvider implements PaymentProvider {
         email: validData.email,
         name: validData.name,
         description: validData.description,
-        metadata: validData.metadata || {},
+        metadata: validData.metadata as Stripe.MetadataParam || {},
         ...(validData.paymentMethodId && {
           payment_method: validData.paymentMethodId,
           invoice_settings: {
@@ -124,8 +124,12 @@ export class StripeProvider implements PaymentProvider {
    */
   async createPaymentMethod(customerId: string, data: PaymentMethodData): Promise<PaymentMethod> {
     try {
+      // Map our payment method types to Stripe's expected types
+      const stripeType = data.type === 'bank_account' ? 'us_bank_account' : 
+                        data.type === 'sepa_debit' ? 'sepa_debit' : 'card';
+      
       const stripePaymentMethod = await this.stripe.paymentMethods.create({
-        type: data.type,
+        type: stripeType as any,
         card: data.type === 'card' ? {
           number: data.card!.number,
           exp_month: data.card!.expMonth,
@@ -185,7 +189,7 @@ export class StripeProvider implements PaymentProvider {
         customer: validData.customerId,
         payment_method: validData.paymentMethodId,
         description: validData.description,
-        metadata: validData.metadata || {},
+        metadata: validData.metadata as Stripe.MetadataParam || {},
         ...(validData.automaticPaymentMethods && {
           automatic_payment_methods: {
             enabled: true
@@ -343,7 +347,7 @@ export class StripeProvider implements PaymentProvider {
 
     if (error instanceof z.ZodError) {
       return new PaymentError(
-        `Validation error: ${error.errors[0].message}`,
+        `Validation error: ${error.issues[0].message}`,
         'validation_error',
         'invalid_request_error',
         400

@@ -8,7 +8,7 @@ export const PAYMENT_CONFIG = {
     publicKey: process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_',
     secretKey: process.env.STRIPE_SECRET_KEY || 'sk_test_',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || 'whsec_',
-    apiVersion: '2025-08-27.basil' as const,
+    apiVersion: '2024-11-20.acacia' as const,
     timeout: 30000
   },
   subscriptions: {

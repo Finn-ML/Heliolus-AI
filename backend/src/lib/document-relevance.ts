@@ -226,7 +226,7 @@ export class DocumentRelevanceRanker {
       embedding[0] = 1.0;
     } else if (question.type === 'SELECT' || question.type === 'MULTISELECT') {
       embedding[1] = 1.0;
-    } else if (question.type === 'TEXT' || question.type === 'TEXTAREA') {
+    } else if (question.type === 'TEXT') {
       embedding[2] = 1.0;
     }
 
