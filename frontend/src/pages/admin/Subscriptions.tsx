@@ -343,8 +343,6 @@ const Subscriptions = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Credits</TableHead>
                   <TableHead>Billing</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Next Billing</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -402,31 +400,6 @@ const Subscriptions = () => {
                           </p>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {subscription.paymentMethod.type !== '-' ? (
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm">{subscription.paymentMethod.type}</p>
-                            <p className="text-xs text-muted-foreground">
-                              ****{subscription.paymentMethod.last4}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {subscription.nextBillingDate !== '-' ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Calendar className="h-3 w-3" />
-                          {subscription.nextBillingDate}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
