@@ -467,22 +467,22 @@ Our objective is to implement solutions that address these compliance gaps and i
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <FileText className="h-5 w-5 text-primary" />
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-4 sm:p-6">
+        <DialogHeader className="space-y-1 sm:space-y-2">
+          <DialogTitle className="flex items-center space-x-2 text-lg sm:text-xl">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             <span>Create Request for Proposal</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Create a detailed RFP to send to vendors. Use auto-fill to populate with your strategic context.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-6">
           {/* Assessment Selection and Auto-fill */}
-          <div className="space-y-2">
+          <div className="space-y-1 sm:space-y-2">
             {selectedAssessment ? (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-cyan-900/20 border border-cyan-600/30 rounded-md">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 p-2 sm:p-3 bg-cyan-900/20 border border-cyan-600/30 rounded-md">
                 <div className="flex items-center space-x-2 flex-wrap">
                   <CheckCircle2 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
                   <span className="text-sm text-gray-300">
@@ -553,9 +553,9 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title" className="flex items-center space-x-2">
-              <Building className="h-4 w-4" />
+          <div className="space-y-1 sm:space-y-2">
+            <Label htmlFor="title" className="flex items-center space-x-2 text-sm">
+              <Building className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>RFP Title *</span>
             </Label>
             <Input
@@ -570,17 +570,17 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Objectives */}
-          <div className="space-y-2">
-            <Label htmlFor="objectives" className="flex items-center space-x-2">
-              <Target className="h-4 w-4" />
+          <div className="space-y-1 sm:space-y-2">
+            <Label htmlFor="objectives" className="flex items-center space-x-2 text-sm">
+              <Target className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Project Objectives</span>
             </Label>
             <Textarea
               id="objectives"
               placeholder="Describe the goals and outcomes you want to achieve..."
-              rows={4}
+              rows={3}
+              className={cn('resize-none text-sm', autoFilling && 'border-primary')}
               {...register('objectives')}
-              className={cn('resize-none', autoFilling && 'border-primary')}
             />
             <p className="text-xs text-gray-500">
               Auto-populated from your organization profile and assessment results
@@ -588,17 +588,17 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Requirements */}
-          <div className="space-y-2">
-            <Label htmlFor="requirements" className="flex items-center space-x-2">
-              <ClipboardList className="h-4 w-4" />
+          <div className="space-y-1 sm:space-y-2">
+            <Label htmlFor="requirements" className="flex items-center space-x-2 text-sm">
+              <ClipboardList className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Technical Requirements *</span>
             </Label>
             <Textarea
               id="requirements"
               placeholder="List the specific technical requirements, features, and capabilities needed..."
-              rows={5}
+              rows={4}
+              className={cn('resize-none text-sm', errors.requirements && 'border-destructive', autoFilling && 'border-primary')}
               {...register('requirements')}
-              className={cn('resize-none', errors.requirements && 'border-destructive', autoFilling && 'border-primary')}
             />
             {errors.requirements && (
               <p className="text-sm text-destructive">{errors.requirements.message}</p>
@@ -606,10 +606,10 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Timeline and Budget */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="timeline" className="flex items-center space-x-2">
-                <Clock className="h-4 w-4" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="timeline" className="flex items-center space-x-2 text-sm">
+                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Timeline</span>
               </Label>
               <Select value={timeline} onValueChange={(value) => setValue('timeline', value)}>
@@ -626,9 +626,9 @@ Our objective is to implement solutions that address these compliance gaps and i
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="budget" className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4" />
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="budget" className="flex items-center space-x-2 text-sm">
+                <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Budget Range</span>
               </Label>
               <Select value={budget} onValueChange={(value) => setValue('budget', value)}>
@@ -648,10 +648,10 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Vendor Selection */}
-          <div className="space-y-2">
-            <Label className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="space-y-1 sm:space-y-2">
+            <Label className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-sm">
               <span className="flex items-center space-x-2">
-                <Users className="h-4 w-4" />
+                <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Select Vendors * ({selectedVendorIds.length} selected)</span>
               </span>
               {selectedAssessment && vendors.some(v => v.matchScore) && (
@@ -667,7 +667,7 @@ Our objective is to implement solutions that address these compliance gaps and i
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : (
-              <div className="border rounded-md p-4 max-h-64 overflow-y-auto space-y-2">
+              <div className="border rounded-md p-2 sm:p-4 max-h-48 sm:max-h-64 overflow-y-auto space-y-1 sm:space-y-2">
                 {vendors.length === 0 ? (
                   <p className="text-sm text-gray-500 text-center py-4">
                     No vendors available
@@ -719,11 +719,11 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Document Selection */}
-          <div className="space-y-2">
-            <Label className="flex items-center justify-between">
+          <div className="space-y-1 sm:space-y-2">
+            <Label className="flex items-center justify-between text-sm">
               <span className="flex items-center space-x-2">
-                <Upload className="h-4 w-4" />
-                <span>Select Documents to Attach (Optional)</span>
+                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm">Documents (Optional)</span>
               </span>
               {selectedDocuments.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
@@ -745,13 +745,13 @@ Our objective is to implement solutions that address these compliance gaps and i
           </div>
 
           {/* Footer */}
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:space-x-2 pt-2 sm:pt-4">
             <Button 
               type="button" 
               variant="outline" 
               onClick={handleClose} 
               disabled={isSubmitting}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto h-9 sm:h-10"
               data-testid="button-cancel-rfp"
             >
               Cancel
@@ -759,12 +759,12 @@ Our objective is to implement solutions that address these compliance gaps and i
             <Button 
               type="submit" 
               disabled={isSubmitting || createRfpMutation.isPending}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto h-9 sm:h-10"
               data-testid="button-submit-rfp"
             >
               {isSubmitting || createRfpMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   Creating...
                 </>
               ) : (
