@@ -94,8 +94,8 @@ export class EmailServiceImpl extends BaseService implements EmailService {
       this.postmarkClient = new PostmarkClient(env.POSTMARK_API_KEY);
     }
     this.templatesPath = join(process.cwd(), 'src', 'templates');
-    this.fromEmail = env.POSTMARK_FROM_EMAIL;
-    this.fromName = env.POSTMARK_FROM_NAME;
+    this.fromEmail = env.POSTMARK_FROM_EMAIL || env.FROM_EMAIL || 'noreply@heliolus.com';
+    this.fromName = env.POSTMARK_FROM_NAME || env.FROM_NAME || 'Heliolus Platform';
 
     this.logger.info('Email service initialized with Postmark', {
       fromEmail: this.fromEmail,

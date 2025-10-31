@@ -61,7 +61,7 @@ const envSchema = z.object({
 
   // Postmark Configuration
   POSTMARK_API_KEY: z.string().min(1, 'Postmark API key is required for email sending').optional(),
-  POSTMARK_FROM_EMAIL: z.string().email().default('noreply@heliolus.com'),
+  POSTMARK_FROM_EMAIL: z.string().email().optional(),
   POSTMARK_FROM_NAME: z.string().default('Heliolus Platform'),
 
   // Admin Notifications
