@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2, Sparkles } from 'lucide-react';
@@ -7,17 +8,22 @@ import { CheckCircle, Loader2, Sparkles } from 'lucide-react';
 const CreditsSuccess = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const sessionId = searchParams.get('session_id');
   const [verifying, setVerifying] = useState(true);
 
   useEffect(() => {
+    // Invalidate billing and quota queries to refresh credit balance
+    queryClient.invalidateQueries({ queryKey: ['subscription', 'billing-info'] });
+    queryClient.invalidateQueries({ queryKey: ['user', 'assessment-quota'] });
+    
     // Give webhook time to process
     const timer = setTimeout(() => {
       setVerifying(false);
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [queryClient]);
 
   if (!sessionId) {
     return (
